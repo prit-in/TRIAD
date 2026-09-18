@@ -64,3 +64,13 @@ experiments/*/results/
 # The dev server installs into a named volume; the lockfile is what is committed
 frontend/node_modules/
 frontend/dist/
+
+# The dev server installs into a named volume; the lockfile is what is committed
+frontend/node_modules/
+frontend/dist/
+
+# Browser-automation scratch from verifying the dashboard
+.playwright-mcp/
+
+# Browser-automation scratch from verifying the dashboard
+.playwright-mcp/
