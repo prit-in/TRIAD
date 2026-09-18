@@ -5,10 +5,10 @@ import sys
 
 sys.path.insert(0, "/workspace")
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select
 
-from triad_core.db import session_scope  # noqa: E402
-from triad_core.models import DecisionRecord  # noqa: E402
+from triad_core.db import session_scope
+from triad_core.models import DecisionRecord
 
 with session_scope() as s:
     rec = s.execute(

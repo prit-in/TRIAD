@@ -27,7 +27,7 @@ PASSWORD = os.environ.get("TRIAD_SEED_PASSWORD", "")
 failures: list[str] = []
 
 
-def call(path, token=None, method="GET", body=None, headers=None):  # noqa: ANN001, ANN201
+def call(path, token=None, method="GET", body=None, headers=None):
     request = urllib.request.Request(BASE + path, method=method)
     for key, value in (headers or {}).items():
         request.add_header(key, value)
@@ -138,11 +138,13 @@ def main() -> int:
             headers={"Idempotency-Key": str(uuid.uuid4())},
             body={"pipeline": "churn_v1", "inputs": {"transactions": args.dataset}},
         )
-        if check("a run can be queued", status in (202, 409), json.dumps(body)[:160]):
-            if status == 202:
-                check("the response carries a Location",
-                      bool(headers.get("Location")), headers.get("Location") or "")
-                print(f"     queued {body['run_id']}; the worker picks it up from the queue")
+        queued = check("a run can be queued", status in (202, 409), json.dumps(body)[:160])
+        if queued and status == 202:
+            check("the response carries a Location",
+                  bool(headers.get("Location")), headers.get("Location") or "")
+            print(f"     queued {body['run_id']}; the worker picks it up from the queue")
+        elif queued:
+            print("     a run of this pipeline is already active, which is the rule working")
 
     print()
     if failures:
