@@ -24,17 +24,25 @@ lazy val commonSettings = Seq(
     "org.apache.spark" %% "spark-sql"  % sparkVersion % Provided,
     "org.scalatest"    %% "scalatest"  % "3.2.19"     % Test
   ),
-  // Spark needs these open for its use of sun.nio / reflection on JDK 17.
+  // `spark-submit` injects these for us at run time (Spark's JavaModuleOptions), but a
+  // forked ScalaTest JVM does not go through the launcher, so the same set is repeated here.
+  // Without the full set, Spark fails to decode rows on JDK 17 with EXPRESSION_DECODING_FAILED.
   Test / javaOptions ++= Seq(
     "--add-opens=java.base/java.lang=ALL-UNNAMED",
     "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+    "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
     "--add-opens=java.base/java.io=ALL-UNNAMED",
     "--add-opens=java.base/java.net=ALL-UNNAMED",
     "--add-opens=java.base/java.nio=ALL-UNNAMED",
     "--add-opens=java.base/java.util=ALL-UNNAMED",
     "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
+    "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED",
+    "--add-opens=java.base/jdk.internal.ref=ALL-UNNAMED",
     "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+    "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED",
     "--add-opens=java.base/sun.security.action=ALL-UNNAMED",
+    "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
+    "-Djdk.reflect.useDirectMethodHandle=false",
     "-Dspark.ui.enabled=false",
     "-Xmx1500m"
   ),
