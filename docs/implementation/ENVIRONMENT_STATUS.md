@@ -93,6 +93,7 @@ Result: **9 passed, 1 skipped-and-covered-otherwise** (`tests/smoke/test_phase1_
 | F-16 | A second concurrent run's feature job failed on data the first run had replaced | Runs of one pipeline share `clean/`, `features/` and `labels/`, and `storage.commit` supersedes what is there | Runs of a pipeline are serialised: an advisory lock where the writing happens, and 409 at request time (DEC-18) |
 | F-17 | An idempotent retry received 409 "pipeline busy" instead of the run it had already started | The busy check ran before the idempotency check, so a retry collided with its own run | The idempotency check runs first |
 | F-18 | Two fixes appeared not to work when tested through the running services | `uvicorn` and the worker serve whatever code they started with; the source mount does not reload them | The development stack runs the API with `--reload`; the worker is restarted explicitly, and the smoke check waits for readiness rather than racing a restart |
+| F-19 | Redaction left the last four digits of a card number in the clear: `4111 1111 1111 1111` became `<PHONE> 1111` | The phone pattern accepts 10-14 digits and ran before the card pattern, so it consumed the first fifteen | Card is matched first, and the masking is now tested on spaced, hyphenated and unseparated forms (ATC-13 suite) |
 
 No failure was left documented-but-unfixed.
 

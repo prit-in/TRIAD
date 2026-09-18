@@ -30,8 +30,12 @@ _SECRET_PATTERNS = [
 
 _PII_PATTERNS = [
     (re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.]{2,}\b"), "<EMAIL>"),
+    # Card before phone, and the reason is not cosmetic: the phone pattern accepts 10 to 14
+    # digits, so on a 16-digit card it matched the first fifteen and left `<PHONE> 1111` -
+    # the last four digits of a card, in the clear, in something about to be sent to a model.
+    # The most specific pattern runs first.
+    (re.compile(r"(?<!\d)\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}(?!\d)"), "<CARD>"),
     (re.compile(r"(?<!\d)(?:\+\d{1,3}[ -]?)?(?:\d[ -]?){9,13}\d(?!\d)"), "<PHONE>"),
-    (re.compile(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b"), "<CARD>"),
 ]
 
 # Instruction-like text inside data is neutralised visually and flagged for the audit trail.
