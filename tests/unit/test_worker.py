@@ -33,18 +33,25 @@ def run(db_session):
 
 
 class StubWorker(Worker):
-    """A worker whose only difference is that the pipeline is a function under test control."""
+    """A worker whose only difference is that the pipeline is a function under test control.
 
-    def __init__(self, session, result=None, raises=None, **kwargs):
+    It also claims only its own stage. The database is shared with real runs, so an
+    unfiltered claim picks up whatever else is queued - which is how these tests first
+    "failed" against tasks they had never enqueued.
+    """
+
+    def __init__(self, session, result=None, raises=None, stage=None, **kwargs):
         super().__init__(name=f"test-worker-{uuid.uuid4().hex[:6]}", **kwargs)
         self._session = session
         self._result = result
         self._raises = raises
+        self.stage = stage
         self.dispatched: list[q.ClaimedTask] = []
 
     # The real worker opens its own sessions; the tests need it to use the rolled-back one.
     def _claim(self):
-        return q.claim(self._session, owner=self.name, lease_seconds=self.lease_seconds)
+        return q.claim(self._session, owner=self.name, lease_seconds=self.lease_seconds,
+                       stage=self.stage)
 
     def _dispatch(self, task):
         self.dispatched.append(task)
@@ -72,8 +79,13 @@ class StubWorker(Worker):
             module.session_scope = original
 
 
-def _enqueue(session, run, task_type=RUN_TASK, stage="pipeline", **kwargs):
-    return q.enqueue(session, run, stage=stage, agent_name="orchestrator",
+def _stage() -> str:
+    """A stage name of this test's own, so its worker cannot claim anyone else's work."""
+    return f"test-{uuid.uuid4().hex[:8]}"
+
+
+def _enqueue(session, run, task_type=RUN_TASK, stage=None, **kwargs):
+    return q.enqueue(session, run, stage=stage or _stage(), agent_name="orchestrator",
                      task_type=task_type, **kwargs)
 
 
@@ -86,9 +98,10 @@ def _task(session, task_id):
 
 
 def test_a_successful_phase_completes_the_task(db_session, run) -> None:
-    task = _enqueue(db_session, run)
+    stage = _stage()
+    task = _enqueue(db_session, run, stage=stage)
     worker = StubWorker(
-        db_session,
+        db_session, stage=stage,
         result=churn.PhaseResult(True, "APPROVAL_REQUIRED", "", {"approval_id": "apr-1"}),
     )
     worker.run_forever(max_tasks=1)
@@ -101,9 +114,10 @@ def test_a_successful_phase_completes_the_task(db_session, run) -> None:
 
 
 def test_an_escalating_phase_escalates_the_task_rather_than_retrying(db_session, run) -> None:
-    task = _enqueue(db_session, run)
+    stage = _stage()
+    task = _enqueue(db_session, run, stage=stage)
     worker = StubWorker(
-        db_session,
+        db_session, stage=stage,
         result=churn.PhaseResult(False, "ESCALATED", "contract check failed: output is empty"),
     )
     worker.run_forever(max_tasks=1)
@@ -119,16 +133,20 @@ def test_the_same_failure_always_gets_the_same_fingerprint(db_session, run) -> N
     reason = "contract check failed: output is empty"
     prints = []
     for _ in range(2):
-        task = _enqueue(db_session, run)
-        StubWorker(db_session, result=churn.PhaseResult(False, "ESCALATED", reason)) \
-            .run_forever(max_tasks=1)
+        stage = _stage()
+        task = _enqueue(db_session, run, stage=stage)
+        StubWorker(db_session, stage=stage,
+                   result=churn.PhaseResult(False, "ESCALATED", reason),
+                   ).run_forever(max_tasks=1)
         prints.append(_task(db_session, task.id).error_fingerprint)
     assert prints[0] == prints[1]
 
 
 def test_an_unknown_task_type_escalates_and_is_never_marked_done(db_session, run) -> None:
-    task = _enqueue(db_session, run, task_type="something_nobody_implemented")
-    worker = StubWorker(db_session)     # no stub result: the real dispatch runs and refuses
+    stage = _stage()
+    task = _enqueue(db_session, run, task_type="something_nobody_implemented", stage=stage)
+    # No stub result: the real dispatch runs and refuses.
+    worker = StubWorker(db_session, stage=stage)
     worker.run_forever(max_tasks=1)
 
     stored = _task(db_session, task.id)
@@ -137,8 +155,9 @@ def test_an_unknown_task_type_escalates_and_is_never_marked_done(db_session, run
 
 
 def test_an_exception_is_recorded_rather_than_escaping(db_session, run) -> None:
-    task = _enqueue(db_session, run)
-    worker = StubWorker(db_session, raises=RuntimeError("the sandbox went away"))
+    stage = _stage()
+    task = _enqueue(db_session, run, stage=stage)
+    worker = StubWorker(db_session, stage=stage, raises=RuntimeError("the sandbox went away"))
     worker.run_forever(max_tasks=1)     # must not raise
 
     stored = _task(db_session, task.id)
@@ -147,9 +166,11 @@ def test_an_exception_is_recorded_rather_than_escaping(db_session, run) -> None:
 
 
 def test_a_recoverable_failure_is_requeued_within_its_attempt_budget(db_session, run) -> None:
-    task = _enqueue(db_session, run, max_attempts=3)
+    stage = _stage()
+    task = _enqueue(db_session, run, stage=stage, max_attempts=3)
     worker = StubWorker(
-        db_session, raises=TimeoutError("connection timed out talking to the database")
+        db_session, stage=stage,
+        raises=TimeoutError("connection timed out talking to the database"),
     )
     worker.run_forever(max_tasks=1)
 
@@ -158,9 +179,10 @@ def test_a_recoverable_failure_is_requeued_within_its_attempt_budget(db_session,
 
 
 def test_dispatch_routes_by_task_type(db_session, run) -> None:
+    stage = _stage()
     for task_type in (RUN_TASK, PUBLISH_TASK):
-        _enqueue(db_session, run, task_type=task_type)
-    worker = StubWorker(db_session, result=churn.PhaseResult(True, "PUBLISHED"))
+        _enqueue(db_session, run, task_type=task_type, stage=stage)
+    worker = StubWorker(db_session, stage=stage, result=churn.PhaseResult(True, "PUBLISHED"))
     worker.run_forever(max_tasks=2)
     assert {t.task_type for t in worker.dispatched} == {RUN_TASK, PUBLISH_TASK}
 
@@ -178,16 +200,18 @@ def test_the_real_dispatcher_refuses_an_unknown_type() -> None:
 
 
 def test_a_claimed_task_is_leased_to_one_worker(db_session, run) -> None:
-    _enqueue(db_session, run)
-    first = q.claim(db_session, owner="worker-a", lease_seconds=60)
-    second = q.claim(db_session, owner="worker-b", lease_seconds=60)
+    stage = _stage()
+    _enqueue(db_session, run, stage=stage)
+    first = q.claim(db_session, owner="worker-a", lease_seconds=60, stage=stage)
+    second = q.claim(db_session, owner="worker-b", lease_seconds=60, stage=stage)
     assert first is not None and second is None
 
 
 def test_a_lost_lease_stops_the_worker_recording_a_completion(db_session, run) -> None:
     """The reaper already gave the task to someone else; overwriting their work is worse."""
-    task = _enqueue(db_session, run)
-    worker = StubWorker(db_session, result=churn.PhaseResult(True, "PUBLISHED"))
+    stage = _stage()
+    task = _enqueue(db_session, run, stage=stage)
+    worker = StubWorker(db_session, stage=stage, result=churn.PhaseResult(True, "PUBLISHED"))
 
     import agents.worker as module
 
@@ -210,8 +234,9 @@ def test_a_lost_lease_stops_the_worker_recording_a_completion(db_session, run) -
 
 
 def test_the_reaper_requeues_a_task_whose_lease_expired(db_session, run) -> None:
-    task = _enqueue(db_session, run)
-    claimed = q.claim(db_session, owner="worker-that-died", lease_seconds=60)
+    stage = _stage()
+    task = _enqueue(db_session, run, stage=stage)
+    claimed = q.claim(db_session, owner="worker-that-died", lease_seconds=60, stage=stage)
     assert claimed is not None
 
     stored = _task(db_session, task.id)

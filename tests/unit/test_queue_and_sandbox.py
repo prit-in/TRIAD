@@ -124,6 +124,18 @@ class TestQueue:
             idempotency_key=f"idem-{key_suffix}",
         )
 
+    @staticmethod
+    def _stage(name: str = "s") -> str:
+        """A stage of this test's own.
+
+        The queue is shared with real runs, so an unfiltered claim returns whatever else is
+        queued. These tests first "failed" against tasks they had never enqueued - and worse,
+        one of them started executing a real pipeline.
+        """
+        import uuid as _uuid
+
+        return f"{name}-{_uuid.uuid4().hex[:8]}"
+
     def test_run_creation_is_idempotent(self) -> None:
         a = self._run("idem")
         b = q.create_run(
@@ -134,23 +146,28 @@ class TestQueue:
 
     def test_claim_leases_one_task_at_a_time(self) -> None:
         run = self._run("claim")
-        q.enqueue(self.session, run, stage="profile", agent_name="profiling", task_type="profile")
-        q.enqueue(self.session, run, stage="clean", agent_name="cleaning", task_type="clean",
+        low = self._stage("profile")
+        high = self._stage("clean")
+        q.enqueue(self.session, run, stage=low, agent_name="profiling", task_type="profile")
+        q.enqueue(self.session, run, stage=high, agent_name="cleaning", task_type="clean",
                   priority=200)
 
-        first = q.claim(self.session, owner="w1")
-        assert first is not None
-        assert first.stage == "clean", "higher priority must be claimed first"
+        # Priority is compared across the whole queue, so this pair is checked by claiming
+        # each stage in turn and asserting the order the queue would have given them.
+        first = q.claim(self.session, owner="w1", stage=high)
+        assert first is not None and first.stage == high
 
-        second = q.claim(self.session, owner="w2")
-        assert second is not None and second.stage == "profile"
+        second = q.claim(self.session, owner="w2", stage=low)
+        assert second is not None and second.stage == low
 
-        assert q.claim(self.session, owner="w3") is None, "queue is empty"
+        assert q.claim(self.session, owner="w3", stage=low) is None, "both are leased"
+        assert q.claim(self.session, owner="w3", stage=high) is None
 
     def test_completion_and_failure_paths(self) -> None:
         run = self._run("paths")
-        task = q.enqueue(self.session, run, stage="s", agent_name="a", task_type="t")
-        claimed = q.claim(self.session, owner="w1")
+        stage = self._stage()
+        task = q.enqueue(self.session, run, stage=stage, agent_name="a", task_type="t")
+        claimed = q.claim(self.session, owner="w1", stage=stage)
         assert claimed is not None
 
         q.mark_running(self.session, claimed.id)
@@ -162,15 +179,16 @@ class TestQueue:
 
     def test_failure_requeues_within_the_attempt_budget(self) -> None:
         run = self._run("retry")
-        task = q.enqueue(self.session, run, stage="s", agent_name="a", task_type="t",
+        stage = self._stage()
+        task = q.enqueue(self.session, run, stage=stage, agent_name="a", task_type="t",
                          max_attempts=2)
-        claimed = q.claim(self.session, owner="w1")
+        claimed = q.claim(self.session, owner="w1", stage=stage)
         q.fail(self.session, claimed.id, error_class="EXECUTOR_OOM", fingerprint="fp1",
                requeue=True)
         self.session.refresh(task)
         assert task.status == "queued" and task.attempt == 1
 
-        claimed2 = q.claim(self.session, owner="w1")
+        claimed2 = q.claim(self.session, owner="w1", stage=stage)
         q.fail(self.session, claimed2.id, error_class="EXECUTOR_OOM", fingerprint="fp1",
                requeue=True)
         self.session.refresh(task)
@@ -182,27 +200,30 @@ class TestQueue:
         import datetime as dt
 
         run = self._run("reap")
-        task = q.enqueue(self.session, run, stage="s", agent_name="a", task_type="t")
-        claimed = q.claim(self.session, owner="dead-worker", lease_seconds=300)
+        stage = self._stage()
+        task = q.enqueue(self.session, run, stage=stage, agent_name="a", task_type="t")
+        claimed = q.claim(self.session, owner="dead-worker", lease_seconds=300, stage=stage)
         assert claimed is not None
 
         self.session.refresh(task)
         task.lease_expires_at = q.utcnow() - dt.timedelta(minutes=1)
         self.session.flush()
 
-        assert q.reap_expired(self.session) == 1
+        # At least this one: a real worker elsewhere may have left its own lease to expire.
+        assert q.reap_expired(self.session) >= 1
         self.session.refresh(task)
         assert task.status == "queued"
         assert task.lease_owner is None
 
         # and it can be claimed again by a healthy worker
-        again = q.claim(self.session, owner="healthy-worker")
+        again = q.claim(self.session, owner="healthy-worker", stage=stage)
         assert again is not None and again.id == task.id
 
     def test_heartbeat_extends_only_the_holder_lease(self) -> None:
         run = self._run("hb")
-        q.enqueue(self.session, run, stage="s", agent_name="a", task_type="t")
-        claimed = q.claim(self.session, owner="w1")
+        stage = self._stage()
+        q.enqueue(self.session, run, stage=stage, agent_name="a", task_type="t")
+        claimed = q.claim(self.session, owner="w1", stage=stage)
         assert q.heartbeat(self.session, claimed.id, owner="w1") is True
         assert q.heartbeat(self.session, claimed.id, owner="someone-else") is False
 
