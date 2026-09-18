@@ -41,7 +41,7 @@ class Candidate:
         }
 
 
-def encoder():  # noqa: ANN201
+def encoder():
     """Dense one-hot with rare-category folding, so unseen values map to 'infrequent'."""
     from sklearn.preprocessing import OneHotEncoder
 
@@ -50,7 +50,7 @@ def encoder():  # noqa: ANN201
     )
 
 
-def preprocessing(num_cols: list[str], cat_cols: list[str], *, linear: bool):  # noqa: ANN201
+def preprocessing(num_cols: list[str], cat_cols: list[str], *, linear: bool):
     """Column transformer. Linear models get imputation + scaling; trees get passthrough."""
     from sklearn.compose import ColumnTransformer
     from sklearn.impute import SimpleImputer

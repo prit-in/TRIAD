@@ -108,4 +108,4 @@ def run_key(now: dt.datetime, sequence: int) -> str:
 
 
 def utcnow() -> dt.datetime:
-    return dt.datetime.now(dt.timezone.utc)
+    return dt.datetime.now(dt.UTC)

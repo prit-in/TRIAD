@@ -31,6 +31,11 @@ ignore = [
     "E501",    # line length is handled by the formatter
     "B008",    # FastAPI's Depends() in defaults is idiomatic
     "RUF012",  # mutable class attributes without ClassVar
+    # UP042 wants StrEnum instead of (str, Enum). They are not interchangeable: StrEnum's
+    # str() returns the bare value, so every f-string and log line that currently renders
+    # "Verdict.ALLOW" would silently start rendering "allow". These enums appear in audit
+    # details and decision records, so the change is a data change, not a style change.
+    "UP042",
 ]
 
 [tool.ruff.lint.per-file-ignores]

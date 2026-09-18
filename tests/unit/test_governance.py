@@ -12,6 +12,7 @@ import uuid
 import pytest
 
 from agents.graph import queue as q
+from triad_core.config import settings
 from triad_core.governance import (
     CommentRequired,
     EvidenceBundle,
@@ -23,7 +24,6 @@ from triad_core.governance import (
 )
 from triad_core.models import User
 from triad_core.policy import PolicyEngine, Verdict
-from triad_core.config import settings
 
 
 def _policy() -> PolicyEngine:
@@ -140,7 +140,7 @@ def test_rollback_is_pre_approved_only_after_a_failed_smoke_test() -> None:
 @pytest.mark.postgres
 class TestApprovalWorkflow:
     @pytest.fixture(autouse=True)
-    def _db(self, postgres_available, db_session):  # noqa: ANN001
+    def _db(self, postgres_available, db_session):
         if not postgres_available:
             pytest.skip("postgres service is not reachable")
         self.session = db_session
@@ -159,7 +159,7 @@ class TestApprovalWorkflow:
         self.session.flush()
         return u
 
-    def _request(self, requested_by: str):  # noqa: ANN202
+    def _request(self, requested_by: str):
         return self.gov.request_approval(
             self.run,
             action="model.promote",

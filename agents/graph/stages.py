@@ -17,7 +17,6 @@ here in the orchestrator, never in an agent (FR-058, NFR-REL-05).
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any

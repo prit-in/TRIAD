@@ -1,62 +1,77 @@
 # IMPLEMENTATION_STATUS
 
-Updated: 18-09-2026, end of session 1. **Read this file first when resuming.**
+Updated: 18-09-2026, end of session 2. **Read this file first when resuming.**
 
 ## Current position
 
-Phases 1–4 are complete and gated. Phase 5 (agent orchestration) is built and unit-tested;
-the end-to-end demo run reaches the first Scala stage and fails there for one known,
-diagnosed reason (see "Next exact step").
+Phases 1-6 are complete and gated. **The end-to-end governed run passes**: one command takes
+synthetic source data through profiling, a generated Scala cleaning job, feature and label
+jobs, the hand-off to Python, training, evidence-based selection, MLflow registration,
+a two-person approval, champion promotion, a post-deployment smoke test, published
+predictions, drift measurement, retraining triggers, a claim-checked report and a verified
+audit chain.
 
 | Phase | Gate | Status |
 | --- | --- | --- |
 | 1. Environment | Phase-1 smoke test passes | **PASSED** — 9/9, evidence in ENVIRONMENT_STATUS.md |
-| 2. Ingestion and profiling | UC-01, UC-02 tests pass | **PASSED** — 22 tests incl. AT-01, AT-02 |
-| 3. Spark and Scala | TC-026, TC-030 pass | **PASSED** — 19 ScalaTest cases |
-| 4. Python ML | AT-06, AT-07 pass | **PASSED** — 27 tests |
-| 5. Agent orchestration | real end-to-end run + ATC-01..05 | **partial** — components done and tested; the full run stops at the clean stage |
-| 6. Evaluation and retraining | failure/retraining experiments | not started (drift/triggers unwritten) |
-| 7. Dashboard and reporting | AT-03, AT-08, AT-15 | reporting done + tested; **no API, no frontend yet** |
+| 2. Ingestion and profiling | UC-01, UC-02 tests pass | **PASSED** — AT-01, AT-02 |
+| 3. Spark and Scala | TC-026, TC-030 pass | **PASSED** — 21 ScalaTest cases |
+| 4. Python ML | AT-06, AT-07 pass | **PASSED** |
+| 5. Agent orchestration | real end-to-end run + ATC-01..05 | **PASSED** — see the run record below |
+| 6. Evaluation and retraining | drift measured, RT-1..RT-9 evaluated and recorded | **PASSED** — drift reports and trigger decisions are rows, not logs |
+| 7. Dashboard and reporting | AT-03, AT-08, AT-15 | reporting done and claim-checked; **no API, no frontend yet** |
 | 8. Testing and optimisation | success criteria audited | not started |
-| 9. Documentation and demo | three stable rehearsals | not started |
+| 9. Documentation and demo | three stable rehearsals | not started (one clean rehearsal so far) |
 
-Test totals: **149 Python tests pass** (`pytest tests/unit`), **19 Scala tests pass**
-(`sbt core/test`), **9 smoke checks pass** (`pytest tests/smoke`).
+Test totals: **239 Python tests pass** (`pytest tests/unit`), **21 Scala tests pass**
+(`sbt core/test`), **9 smoke checks pass** (`pytest tests/smoke`), **ruff clean**.
 
-## Next exact step (start here)
+## The end-to-end run, as it actually behaved
 
-The demo run fails at the `clean` stage with:
+`run-2026-09-18-009`, 478 seconds, 0 LLM calls (template-only, no provider configured):
 
 ```
-Error: Failed to load class triad.jobs.generated.CleanJob_bbffadd2
+[profile ] quality 0.763, 19154 rows, 2 blocking issues
+[clean   ] clean rows 18333, quarantined 649, duplicates removed 172, accounting balanced true
+[plan    ] 16 month-start cutoffs, 2025-01-01 to 2026-04-01; data ends 2026-06-30
+[features] 6682 customer-snapshot rows
+[labels  ] 6682 labelled rows
+[handoff ] LR-06 -> pandas (0.9 MB estimated); joined 6682 labelled rows
+[split   ] train 2697 / valid 512 / test 555; churn rate 0.271
+[train   ] dummy 0.2715 | logreg 0.5791 | random_forest 0.5672 | hist_gb 0.5018 | xgboost 0.5079
+[select  ] PROPOSE_PROMOTION: no champion yet: the first model needs approval
+[registry] registered churn_classifier v1 as challenger
+[approval] self-approval refused with 403, as required; approved by a second person
+[deploy  ] champion -> v1; smoke test passed
+[predict ] 555 official scores, 9 high risk
+[drift   ] highest PSI: snapshot_month 12.132 (single value in the scoring window),
+           tenure_days 0.260, frequency_180d 0.086 over 23 features
+[drift   ] score PSI 0.012; FLAGGED - high-risk share moved from 0.006 to 0.016
+[retrain ] RT-3, RT-5 -> cooldown; cooldown active: 6d 23h remaining of 7 days
+[report  ] claim check passed; 4 facts verified
+[audit   ] 161 entries, chain verified
 ```
 
-**Cause (confirmed, not a guess):** `ChurnPipeline.stage_scala_job` generates the artifact
-and compiles it (gate 4 passes), but then submits the JAR that was packaged *earlier*. The
-freshly generated class is compiled into `jobs/target/scala-2.13/classes/` and never
-re-packaged, so `spark-submit` cannot find it.
+Three numbers worth reading twice:
 
-**Fix:** after gate 4 succeeds and before execution, run `sbt jobs/package` (and reuse the
-resulting JAR path) inside `agents/graph/pipeline.py::stage_scala_job`. Options, cheapest
-first:
-
-1. add a `gate8_package` step that shells `sbt -batch jobs/package` and returns the new JAR
-   path, then pass that path into `spark_submit_request` — this also makes gate 8 ("store and
-   version") do real work;
-2. or submit with `--class` plus `--jars core.jar,jobs.jar` after packaging both.
+- **18333 + 649 + 172 = 19154.** The cleaning row-accounting identity closes exactly against
+  the profiled input count. Nothing was silently dropped.
+- **dummy scores 0.2715 against a churn rate of 0.271.** The PR-AUC floor lands on the class
+  balance, which is what says the metric is wired correctly.
+- **snapshot_month PSI 12.132, not flagged.** The scoring window is a single cutoff, so a
+  month-of-year feature is constant in it. The index is reported with that note rather than
+  suppressed, because a feature pinned by a broken upstream source looks identical.
 
 Reproduce with:
 
 ```
+docker compose -f docker/compose.yaml up -d postgres mlflow
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev \
-    python scripts/run_demo.py --customers 400 --months 20
-docker compose -f docker/compose.yaml --profile tools run --rm -T dev \
-    python .triad/show_errors.py      # prints the newest escalation's compile/runtime errors
+    python scripts/run_demo.py --customers 800 --months 30
 ```
 
-The stages before it already work end to end: 7 synthetic tables generated, 7 dataset
-versions registered with checksums, Spark profiling returning quality 0.763 over 6,789 rows
-with 2 blocking issues, and a routing decision recorded for every stage.
+`--months` below 24 is refused up front: a 365-day feature window, a 90-day label horizon and
+the 90-day gap rule leave too few cutoffs to split, and the message says the minimum.
 
 ## What exists and is verified
 
@@ -66,35 +81,49 @@ with 2 blocking issues, and a routing decision recorded for every stage.
 - **triad_core**: config, 19 PRD tables + events + fix_memory, hashing and error
   fingerprints, hash-chained audit with tamper detection, fail-closed policy engine,
   storage with atomic commit + manifests, contracts with row accounting, error taxonomy and
-  playbook, Spark-safe Parquet IO, governance/approval service.
+  playbook, Spark-safe Parquet IO **including partition-type restoration**, governance.
 - **dataeng**: ingestion (immutable versions, duplicate-checksum rule, contract gating,
-  folder watcher) and Spark profiling (statistics, semantic types, issues, quality score,
-  version diff).
-- **scala_spark**: `TriadJob` core, `ChurnTransforms`, `CleaningRules`, and the FeatureJob /
-  LabelJob / CleanJob templates with declared slots; 19 fixture tests including the
-  post-cutoff sentinel test and the label fixtures.
-- **python_ml**: splits with the gap rule, candidate registry and leak-free pipelines, the
-  full metric suite with bootstrap intervals, acceptance policy AP-1..AP-8, the section 18.4
-  selection procedure, hygiene/leakage checks, MLflow registry with aliases and rollback,
-  predictions with risk bands and SHAP explanations, claim-checked reporting.
-- **agents**: tool registry with permissions, LLM adapter (template_only / recorded / http)
-  with budgets and redaction, template slot rendering with out-of-slot detection, the nine
-  gates, deterministic routing LR-01..LR-10, the PostgreSQL queue with leases and a reaper,
-  and the bounded stage loop with playbook repair, fingerprint circuit breaker and
-  escalation tickets.
-- **sandbox**: the single runner with container controls, secret refusal, run-scoped
-  writable mounts, and an honest `isolation="process"` fallback when no docker socket exists.
+  folder watcher) and Spark profiling (statistics, semantic types, issues, quality score).
+- **scala_spark**: `TriadJob` core with per-job metrics, `ChurnTransforms`, `CleaningRules`,
+  and the FeatureJob / LabelJob / CleanJob templates with declared slots; 21 fixture tests
+  including the post-cutoff sentinel and the label maturity rule.
+- **python_ml**: splits with the gap rule, candidate registry, the full metric suite with
+  bootstrap intervals, acceptance policy AP-1..AP-8, the 18.4 selection procedure, hygiene
+  and leakage checks, MLflow registry with aliases and rollback, predictions with risk bands
+  and explanations, claim-checked reporting, **PSI/KS/chi-square drift measurement**.
+- **agents**: tool registry, LLM adapter with budgets and redaction, template slot rendering
+  with out-of-slot detection **and parse-time template checks**, the nine gates, deterministic
+  routing LR-01..LR-10, the PostgreSQL queue with leases, a reaper and **race-safe run keys**,
+  the bounded stage loop with playbook repair and a fingerprint circuit breaker,
+  **retraining triggers RT-1..RT-9 with the 19.3 validity gate**, and the **Monitor service**
+  that writes catalogue rows, drift reports and trigger decisions.
+- **sandbox**: the single runner with container controls, secret refusal, run-scoped writable
+  mounts, and an honest `isolation="process"` fallback when no docker socket exists.
+
+## Next exact step
+
+Phase 7: the REST API under `backend/`. Nothing exists there yet, and it is now the only
+thing standing between the working pipeline and the dashboard. The data it needs is already
+in PostgreSQL: runs, tasks, decision records, approvals, alerts, drift reports, metrics,
+model versions and the audit chain. Start with the read endpoints the PRD's dashboard pages
+need (`/runs`, `/runs/{id}`, `/approvals`, `/models`, `/drift`), then the two write paths
+that matter (`POST /runs`, approval decisions), because those are the ones the policy engine
+and separation-of-duties rules already guard.
 
 ## Not started
 
-- REST API (`backend/`) and the React frontend (`frontend/`) — nothing exists yet.
-- Drift/PSI monitoring, retraining triggers RT-1..RT-9, the cooldown logic.
+- REST API (`backend/`) and the React frontend (`frontend/`).
+- **Optuna tuning (`tune.py`).** `configs`' `tuning:` block is read by nothing; `train_all`
+  fits each family with fixed parameters. PRD 18 and the module map both specify it.
+- **`predictions` and `reports` rows.** Predictions are written to Parquet and reports to
+  HTML, but neither is written to its PostgreSQL table, which the dashboard will need.
+- Acting on a fired trigger: `evaluate_retraining` records and alerts, but nothing starts the
+  retraining run yet (FR-074's trigger loop).
 - Replay mode (ATC-18) and the recorded-cassette agent tests.
-- Prompt-injection test (ATC-13) as an executable test — the generator already seeds the
-  strings and `agents/llm/redaction.py` fences and flags them, but no test asserts it yet.
+- Prompt-injection test (ATC-13) as an executable test — the generator seeds the strings and
+  `agents/llm/redaction.py` fences and flags them, but no test asserts it yet.
 - Experiments EXP-1..EXP-10, the traceability matrix, user/deployment/troubleshooting guides.
-- `Makefile` targets `migrate`, `seed`, `demo`, `replay` reference scripts that are partly
-  missing (`seed_demo.py`, `replay_run.py`).
+- `Makefile` targets referencing `seed_demo.py` and `replay_run.py`, which do not exist.
 
 ## Blocked / environment-limited (unchanged)
 
@@ -104,36 +133,46 @@ with 2 blocking issues, and a routing decision recorded for every stage.
 | Live-LLM behaviour | no API key for any provider | `template_only` path is the default and is fully implemented (ADR-0003) |
 | Kaggle datasets | no credentials | UCI Online Retail II + the seeded generator carry the MVP |
 
-## Defects found and fixed this session (none deferred)
+## Defects found and fixed (none deferred)
 
-1. pandas wrote nanosecond timestamps that Spark 4 refuses (`PARQUET_TYPE_ILLEGAL`).
-2. `storage.commit` hashed before writing the manifest, so `verify()` could never pass.
-3. `jobs/package` alone omitted the core classes (`NoClassDefFoundError`).
-4. The forked ScalaTest JVM needed Spark's full JDK 17 `--add-opens` set.
-5. MLflow needed the psycopg3 dialect and was OOM-killed with 8 uvicorn workers.
-6. A swallowed pyarrow API mismatch silently returned no row count.
-7. Profiling missed null identifiers below the 20% warn rate.
-8. An untyped NULL parameter made every queue claim fail on PostgreSQL.
-9. A stale ORM identity map after raw-SQL claims silently dropped a later write.
-10. The claim checker split ISO dates into fragments and flagged them as unverified.
-11. `decimal(18,2)` unquoted in a YAML flow mapping split on its comma.
-12. Version numbers collided with folders orphaned by rolled-back runs.
-13. A template referring to itself by name broke after the generated object was renamed
-    (now refused at parse time with a clear message).
-14. An unused import in the generated module (warnings are fatal there, by design).
-15. Nanosecond→microsecond casts needed explicit truncation.
+Session 1 found 15 (see git history). Session 2 found nine more, every one of them by running
+the thing rather than reading it:
+
+16. `spark-submit` loaded a JAR packaged before the generated class existed (DEC-09).
+17. The cleaning stage was never given a quarantine path, so the job correctly refused to run
+    rather than drop 649 rejected rows (DEC-12).
+18. An unused import in `LabelJob.scala` was fatal only in the generated copy (DEC-13).
+19. `data_end` defaulted to the last cutoff, so no label could ever mature and the job wrote
+    zero rows (DEC-10).
+20. Partitioned and unpartitioned reads disagreed on the type of `snapshot_date`, so the
+    feature/label join returned 0 rows from 6682 on each side (DEC-11).
+21. `load_templates` swallowed real template defects and turned them into a later `KeyError`.
+22. Explanation feature names never matched raw columns, which would have silently stopped
+    RT-2 flagging anything (caught by design review, pinned by test).
+23. MLflow 3 serialises sklearn models with skops and refused the model outright, so the
+    challenger was never registered while the run still reported success.
+24. Official predictions were published for a model that was never promoted, because the set
+    type keyed off the *approval* rather than the promotion.
+25. Run keys were numbered from a row count, so two concurrent creators collided — observed
+    for real when the test suite and a demo run raced on `run-2026-09-18-009`.
 
 ## Decisions
 
-See `docs/implementation/DECISIONS.md` (DEC-01..DEC-08) and `docs/adr/ADR-0001..0003`.
+See `docs/implementation/DECISIONS.md` (DEC-01..DEC-13) and `docs/adr/ADR-0001..0003`.
 
 ## Last verified commands
 
 ```
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m pytest tests/unit -q
-  -> 149 passed
+  -> 239 passed
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m pytest tests/smoke -v
   -> 9 passed, 1 skipped (covered by the host-side cross-container check)
-docker compose -f docker/compose.yaml --profile tools run --rm -T dev bash -c "cd scala_spark && sbt -batch core/test"
-  -> 19 passed
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev \
+    bash -c "cd scala_spark && /opt/sbt/bin/sbt -batch core/test"
+  -> 21 passed
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m ruff check .
+  -> All checks passed
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev \
+    python scripts/run_demo.py --customers 800 --months 30
+  -> exit 0, run-2026-09-18-009
 ```

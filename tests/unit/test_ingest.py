@@ -19,6 +19,7 @@ from dataeng.ingest import (
 )
 from triad_core.contracts import Contract
 from triad_core.parquet_io import write_parquet
+from triad_core.storage import StorageError
 
 
 def _sample_frame(rows: int = 100) -> pd.DataFrame:
@@ -82,7 +83,7 @@ def test_read_schema_and_row_count_for_csv_and_parquet(tmp_path: Path) -> None:
 @pytest.mark.postgres
 class TestRegistration:
     @pytest.fixture(autouse=True)
-    def _db(self, postgres_available, db_session, storage):  # noqa: ANN001
+    def _db(self, postgres_available, db_session, storage):
         if not postgres_available:
             pytest.skip("postgres service is not reachable")
         self.session = db_session
@@ -133,7 +134,7 @@ class TestRegistration:
         stored = self.storage.path(result.storage_uri)
         assert stored.exists()
         # Re-registering the same path into the same version folder is refused.
-        with pytest.raises(Exception):
+        with pytest.raises(StorageError, match="immutable"):
             self.storage.copy_immutable(f, stored.parent)
 
     def test_version_record_carries_reproduction_metadata(self, tmp_path: Path) -> None:
@@ -190,7 +191,7 @@ class TestRegistration:
         again = watch_folder(self.registry, "tx_watch", folder, pattern="*.csv")
         assert all(r.created is False for r in again.registered)
 
-        future = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)
+        future = dt.datetime.now(dt.UTC) + dt.timedelta(days=1)
         skipped = watch_folder(self.registry, "tx_watch", folder, watermark=future, pattern="*.csv")
         assert skipped.registered == []
         assert len(skipped.skipped) == 2

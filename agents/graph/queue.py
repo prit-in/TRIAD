@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from triad_core import audit
@@ -69,6 +70,32 @@ class ClaimedTask:
         )
 
 
+RUN_KEY_ATTEMPTS = 10
+
+
+class QueueError(Exception):
+    pass
+
+
+def _next_run_sequence(session: Session, now: dt.datetime) -> int:
+    """Next free number for today, read from the highest key rather than a row count.
+
+    Counting rows is wrong twice: two creators racing both read the same count, and a run
+    that was rolled back frees a number that a later run then collides with. The unique
+    constraint on `run_key` is the real guard; this only proposes the next candidate.
+    """
+    prefix = f"run-{now.strftime('%Y-%m-%d')}-"
+    keys = session.execute(
+        select(PipelineRun.run_key).where(PipelineRun.run_key.like(f"{prefix}%"))
+    ).scalars().all()
+    highest = 0
+    for key in keys:
+        suffix = key[len(prefix):]
+        if suffix.isdigit():
+            highest = max(highest, int(suffix))
+    return highest + 1
+
+
 def create_run(
     session: Session,
     *,
@@ -93,27 +120,42 @@ def create_run(
             return existing
 
     now = utcnow()
-    same_day = session.execute(
-        select(PipelineRun).where(PipelineRun.run_key.like(f"run-{now.strftime('%Y-%m-%d')}-%"))
-    ).scalars().all()
-    key = make_run_key(now, len(same_day) + 1)
+    run: PipelineRun | None = None
+    for _ in range(RUN_KEY_ATTEMPTS):
+        candidate = PipelineRun(
+            run_key=make_run_key(now, _next_run_sequence(session, now)),
+            pipeline_name=pipeline_name,
+            trigger_type=trigger_type,
+            triggered_by=triggered_by,
+            state="RECEIVED",
+            config_json=config or {},
+            config_hash=config_hash(config or {}),
+            input_versions=input_versions or {},
+            budget_json=budget or {},
+            mode=mode,
+            idempotency_key=idempotency_key,
+            policy_version=policy_version,
+        )
+        savepoint = session.begin_nested()
+        session.add(candidate)
+        try:
+            session.flush()
+        except IntegrityError:
+            # Another creator took this key between the read and the insert. The unique
+            # constraint is what actually serialises them; this just picks the next number.
+            # Rolling the savepoint back already discards the pending instance, so there is
+            # nothing left to expunge.
+            savepoint.rollback()
+            continue
+        savepoint.commit()
+        run = candidate
+        break
 
-    run = PipelineRun(
-        run_key=key,
-        pipeline_name=pipeline_name,
-        trigger_type=trigger_type,
-        triggered_by=triggered_by,
-        state="RECEIVED",
-        config_json=config or {},
-        config_hash=config_hash(config or {}),
-        input_versions=input_versions or {},
-        budget_json=budget or {},
-        mode=mode,
-        idempotency_key=idempotency_key,
-        policy_version=policy_version,
-    )
-    session.add(run)
-    session.flush()
+    if run is None:
+        raise QueueError(
+            f"could not allocate a run key after {RUN_KEY_ATTEMPTS} attempts; "
+            "another process is creating runs faster than this one can number them"
+        )
     audit.record(
         session,
         actor_type="user" if triggered_by != "system" else "system",
@@ -122,11 +164,12 @@ def create_run(
         resource_type="pipeline_run",
         resource_id=str(run.id),
         run_id=run.id,
-        details={"run_key": key, "pipeline": pipeline_name, "trigger": trigger_type, "mode": mode},
+        details={"run_key": run.run_key, "pipeline": pipeline_name,
+                 "trigger": trigger_type, "mode": mode},
     )
     session.add(
         Event(event_type="run.created", run_id=run.id,
-              payload={"run_key": key, "pipeline": pipeline_name})
+              payload={"run_key": run.run_key, "pipeline": pipeline_name})
     )
     return run
 

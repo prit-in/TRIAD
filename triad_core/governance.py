@@ -107,7 +107,7 @@ class GovernanceService:
     # -- requesting ------------------------------------------------------------
     def evaluate(
         self, action: str, *, context: dict[str, Any] | None = None, actor_role: str = "agent"
-    ):  # noqa: ANN201
+    ):
         return self.policy.check(action, context=context, actor_role=actor_role)
 
     def request_approval(

@@ -104,7 +104,6 @@ def plan_split(
     becomes validation, and everything at least a horizon before that trains. A slice of the
     *training* cutoffs is held out for calibration, so calibration never sees validation.
     """
-    import pandas as pd
 
     dates = sorted({_as_date(d) for d in snapshot_dates})
     if len(dates) < 3:
@@ -129,7 +128,7 @@ def plan_split(
             f"validation cutoff {valid}"
         )
 
-    n_calib = max(1, int(round(len(train) * calibration_fraction))) if len(train) > 1 else 0
+    n_calib = max(1, round(len(train) * calibration_fraction)) if len(train) > 1 else 0
     calibration = train[-n_calib:] if n_calib else []
     fit_train = train[: len(train) - n_calib] if n_calib else train
     if not fit_train:  # never leave training empty

@@ -25,14 +25,14 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agents.graph import queue as q  # noqa: E402
-from agents.graph.pipeline import ChurnPipeline  # noqa: E402
-from triad_core import audit  # noqa: E402
-from triad_core.config import settings  # noqa: E402
-from triad_core.db import session_scope  # noqa: E402
-from triad_core.governance import EvidenceBundle  # noqa: E402
-from triad_core.models import User  # noqa: E402
-from triad_core.storage import storage  # noqa: E402
+from agents.graph import queue as q
+from agents.graph.pipeline import ChurnPipeline
+from triad_core import audit
+from triad_core.config import settings
+from triad_core.db import session_scope
+from triad_core.governance import EvidenceBundle
+from triad_core.models import User
+from triad_core.storage import storage
 
 SCALA_ROOT = settings().repo_root / "scala_spark"
 
@@ -74,7 +74,7 @@ def generate_data(out_dir: Path, *, customers: int, months: int, seed: int) -> d
     return written
 
 
-def spark_session():  # noqa: ANN201
+def spark_session():
     from pyspark.sql import SparkSession
 
     s = (
@@ -92,10 +92,12 @@ def spark_session():  # noqa: ANN201
     return s
 
 
-def main() -> int:  # noqa: C901 - a demo script reads best as one sequence
+def main() -> int:
     parser = argparse.ArgumentParser(description="Run the TRIAD demonstration end to end.")
     parser.add_argument("--customers", type=int, default=600)
-    parser.add_argument("--months", type=int, default=20)
+    parser.add_argument("--months", type=int, default=24,
+                        help="months of synthetic history; below 24 the 365-day feature "
+                             "window plus the 90-day horizon leave too few cutoffs")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--reject", action="store_true",
                         help="reject the promotion instead of approving it (AT-13)")
@@ -104,6 +106,7 @@ def main() -> int:  # noqa: C901 - a demo script reads best as one sequence
     args = parser.parse_args()
 
     started = time.perf_counter()
+    cutoff_list = _check_window_is_usable(args.months)
     store = storage()
     demo_root = store.root / "demo" / uuid.uuid4().hex[:8]
     ensure_jars()
@@ -166,19 +169,32 @@ def main() -> int:  # noqa: C901 - a demo script reads best as one sequence
                 inputs={"source": registered["transactions"]},
                 output_dir=clean_dir,
                 params={"dedup_keys": "order_id,line_id"},
+                # Rejected rows are written, never dropped, and the share of affected rows
+                # is held against the cleaning.execute limits before the output is committed.
+                quarantine_dir=store.quarantine_dir("transactions", 1, run.run_key),
+                policy_action="cleaning.execute",
                 input_rows=profile_out.get("row_count", 0),
             )
             if not clean_out:
                 pipeline.finish("ESCALATED", ok=False, reason="cleaning failed")
                 log("clean", "cleaning failed; see the escalation ticket", ok=False)
                 return 1
-            log("clean", f"clean rows {clean_out.get('row_count')}", ok=True)
-            summary["steps"].append({"step": "clean", "rows": clean_out.get("row_count")})
+            clean_metrics = clean_out.get("job_metrics", {})
+            log("clean", f"clean rows {clean_out.get('row_count')}, "
+                         f"quarantined {clean_metrics.get('quarantined_rows', '?')}, "
+                         f"duplicates removed {clean_metrics.get('removed_duplicates', '?')}, "
+                         f"accounting balanced "
+                         f"{clean_metrics.get('row_accounting_balanced', '?')}", ok=True)
+            summary["steps"].append({"step": "clean", "rows": clean_out.get("row_count"),
+                                     **clean_metrics})
 
             pipeline._advance("PLANNED", stage="plan")
 
             # --- 4. features and labels -------------------------------------
             cutoffs = _cutoff_window(args.months)
+            log("plan", f"{len(cutoff_list)} month-start cutoffs, "
+                        f"{cutoffs['first_cutoff']} to {cutoffs['last_cutoff']}; "
+                        f"data ends {cutoffs['data_end']}", ok=True)
             features_dir = store.features_dir("churn_features", 1)
             features_out = pipeline.stage_scala_job(
                 stage="features",
@@ -202,8 +218,7 @@ def main() -> int:  # noqa: C901 - a demo script reads best as one sequence
                 template_id="LabelJob",
                 inputs={"transactions": clean_out["uri"]},
                 output_dir=labels_dir,
-                params={"max_window_days": 365, "horizon_days": 90,
-                        "data_end": cutoffs["last_cutoff"], **cutoffs},
+                params={"max_window_days": 365, "horizon_days": 90, **cutoffs},
                 required_columns=["customer_id", "snapshot_date", "churned_90d"],
                 input_rows=clean_out.get("row_count", 0),
             )
@@ -283,7 +298,7 @@ def main() -> int:  # noqa: C901 - a demo script reads best as one sequence
                 name=f"{run.run_key}-{selection.selected.family}",
                 params={"family": selection.selected.family, "seed": args.seed,
                         **selection.selected.candidate.params},
-                metrics={k: v for k, v in (selection.test_metrics.values or {}).items()},
+                metrics=dict(selection.test_metrics.values or {}),
                 input_example=split.valid[num_cols + cat_cols].head(2),
                 tags={"run_key": run.run_key, "feature_set_version": "fsv=1",
                       "split": json.dumps(spec.to_dict())},
@@ -293,9 +308,44 @@ def main() -> int:  # noqa: C901 - a demo script reads best as one sequence
             if version:
                 mlflow_registry.set_challenger(model_name, version)
                 log("registry", f"registered {model_name} v{version} as challenger", ok=True)
-        except Exception as exc:  # noqa: BLE001 - MLflow may be down; say so, do not pretend
-            log("registry", f"MLflow unavailable: {exc}", ok=False)
+        except Exception as exc:
+            log("registry", f"could not register the challenger: {exc}", ok=False)
             mlflow_registry = None
+            summary["steps"].append({"step": "registry", "registered": False,
+                                     "error": str(exc)[:500]})
+
+        # The catalogue row is written whether or not MLflow answered, so the run stays
+        # traceable and a missing MLflow link is visible rather than implied.
+        from agents.monitoring import MonitoringService
+
+        monitor = MonitoringService(session, store=store, config=pipeline.config,
+                                    governance=pipeline.governance)
+        catalogue_model = monitor.model(
+            model_name, target_definition=pipeline.config["label"]["definition"].strip()
+        )
+        model_version = monitor.register_model_version(
+            catalogue_model, run=run,
+            algorithm=selection.selected.family,
+            mlflow_version=version,
+            params=selection.selected.candidate.params,
+            feature_set_version="fsv=1",
+            training_data_ref=features_out["uri"],
+            threshold=selection.selected.valid_metrics.get("threshold", 0.5),
+            governance_status="challenger" if version else "candidate",
+        )
+        # The reference is the training feature distribution plus the score distribution the
+        # model produced on the *validation* split: scores on the training rows themselves
+        # would be optimistic and would make every later run look like drift.
+        valid_scores = selection.selected.pipeline.predict_proba(
+            split.valid[num_cols + cat_cols]
+        )[:, 1]
+        reference_uri = monitor.capture_reference(
+            model_version, split.train, num_cols + cat_cols,
+            scores=valid_scores,
+            high_risk_threshold=pipeline.config["risk_bands"]["high"],
+        )
+        log("monitor", f"catalogue version {model_version.id} recorded; "
+                       f"reference captured from {len(split.train)} training rows", ok=True)
 
         # --- 8. approval -----------------------------------------------------
         evidence = EvidenceBundle(
@@ -349,6 +399,7 @@ def main() -> int:  # noqa: C901 - a demo script reads best as one sequence
             )
             log("deploy", f"champion -> v{version} "
                           f"(previous {promoted['previous_champion']})", ok=True)
+            monitor.set_status(model_version, "champion", promoted_by=approver.id)
             pipeline._advance("DEPLOYED", stage="deploy")
 
             from python_ml.triad_ml.predict import score
@@ -387,14 +438,27 @@ def main() -> int:  # noqa: C901 - a demo script reads best as one sequence
         elif decided.status == "rejected":
             log("deploy", "rejected: the champion is unchanged and shadow scores archived",
                 ok=True)
+        elif decided.status == "approved":
+            # Approved but unpromotable: the registry never took the model, so there is
+            # nothing to move the champion alias to. Scoring continues as *shadow* below.
+            log("deploy", "approved but not promoted: the challenger was never registered",
+                ok=False)
+            pipeline.governance.alert(
+                alert_type="promotion_blocked", severity="critical", run_id=run.id,
+                message="promotion was approved but the challenger is not in the registry",
+                evidence={"approval_id": str(approval.id), "mlflow_version": version},
+            )
 
         # --- 10. predictions --------------------------------------------------
         from python_ml.triad_ml.predict import OFFICIAL, SHADOW, explain, score
 
         model_for_scoring = selection.selected.pipeline
-        set_type = OFFICIAL if decided.status == "approved" else SHADOW
+        # Official scores belong to a promoted champion. An approval that never reached the
+        # registry does not make them official, or the score set would claim a provenance
+        # the registry cannot confirm (UC-15).
+        set_type = OFFICIAL if promoted else SHADOW
         explanations = explain(model_for_scoring, split.test, num_cols + cat_cols)
-        reasons = {k: v for k, v in explanations.per_customer.items()}
+        reasons = dict(explanations.per_customer)
         predictions = score(
             model_for_scoring, split.test, feature_cols=num_cols + cat_cols,
             model_name=model_name, model_version=str(version or "unregistered"),
@@ -413,6 +477,63 @@ def main() -> int:  # noqa: C901 - a demo script reads best as one sequence
         pred_dir = store.predictions_dir(model_name, str(version or "0"),
                                          pred_summary["score_date"], set_type)
         write_parquet(predictions.frame.drop(columns=["top_reasons"]), pred_dir)
+
+        # --- 10b. drift and retraining triggers (PRD sections 19.1, 19.2) -----
+        from python_ml.triad_ml.drift import top_raw_features
+
+        drift = monitor.report_drift(
+            model_version,
+            reference_uri=reference_uri,
+            current=split.test,
+            current_ref=store.uri(pred_dir),
+            scores=predictions.frame["churn_probability"].to_numpy(),
+            high_risk_threshold=pipeline.config["risk_bands"]["high"],
+            top_features=top_raw_features(explanations.global_importance,
+                                          num_cols + cat_cols),
+            run=run,
+            reference_sample=split.train,
+        )
+        flagged = drift.result.flagged_features
+        ranked = sorted((f for f in drift.result.features if f.psi == f.psi),
+                        key=lambda f: -f.psi)[:3]
+        log("drift", "highest PSI: " + ", ".join(
+            f"{f.feature} {f.psi:.3f}" + (f" ({f.note.split(';')[0]})" if f.note else "")
+            for f in ranked) + f" over {len(drift.result.features)} features", ok=True)
+        log("drift", ("features flagged: " + ", ".join(flagged)) if flagged
+            else "no feature over the RT-2 threshold among the model's top features",
+            ok=not flagged)
+        if drift.result.score:
+            # A flagged signal is a detection, not a failure: the monitor did its job. It is
+            # logged without an OK/FAIL marker so it reads as the finding it is.
+            score = drift.result.score
+            log("drift", f"score PSI {score.psi:.3f}; "
+                         + (f"FLAGGED - {score.reason}" if score.flagged
+                            else "score distribution stable"))
+        summary["steps"].append({"step": "drift", "report_id": str(drift.report_id),
+                                 "flagged": flagged,
+                                 "max_psi": round(drift.result.max_psi, 6),
+                                 "alert_id": str(drift.alert_id) if drift.alert_id else None})
+
+        from agents.retraining import MonitoringState
+
+        # A first run has no matured cutoff yet: those fields stay None and the rules that
+        # need them report "not evaluated" rather than passing by default.
+        state = MonitoringState(
+            drift=drift.result,
+            labelled_rows_at_training=len(split.train),
+            labelled_rows_now=len(dataset),
+            last_trained_at=run.started_at,
+            feature_catalog_version="fsv=1",
+            model_feature_catalog_version="fsv=1",
+            data_quality_ok=profile_out["quality_score"]
+            >= pipeline.config["quality_gate"]["min_quality_score"],
+            data_quality_detail=f"quality score {profile_out['quality_score']:.3f}",
+        )
+        retrain = monitor.evaluate_retraining(state, run=run)
+        log("retrain", f"{', '.join(retrain.rule_ids) or 'no trigger'} -> "
+                       f"{'retrain' if retrain.should_retrain else (retrain.blocked_by or 'wait')}"
+                       f"; {retrain.reason}", ok=True)
+        summary["steps"].append({"step": "retraining", **retrain.to_dict()})
 
         # --- 11. claim-checked report ----------------------------------------
         from python_ml.triad_ml.reports import FactSheet, build_report
@@ -480,8 +601,18 @@ def main() -> int:  # noqa: C901 - a demo script reads best as one sequence
         summary["steps"].append({"step": "audit", "entries": chain.entries_checked,
                                  "ok": chain.ok})
 
-        pipeline.finish("PUBLISHED" if decided.status == "approved" else "PUBLISHED",
-                        ok=True, reason="")
+        # A rejected promotion still publishes: shadow scores and a report are the correct
+        # outcome, and the governance decision was honoured rather than bypassed. An approval
+        # that could not be carried out is different, and ends the run as an escalation.
+        blocked = decided.status == "approved" and not promoted
+        if blocked:
+            pipeline.finish("ESCALATED", ok=False,
+                            reason="promotion approved but the challenger was never registered")
+            _write_summary(store, run.run_key, summary)
+            log("done", f"{run.run_key} escalated: approved promotion could not be carried out",
+                ok=False)
+            return 5
+        pipeline.finish("PUBLISHED", ok=True, reason="")
         q.set_state(session, run, "COMPLETED")
 
         elapsed = time.perf_counter() - started
@@ -497,28 +628,85 @@ def main() -> int:  # noqa: C901 - a demo script reads best as one sequence
     return 0
 
 
-def _generated_object(pipeline: ChurnPipeline, template_id: str) -> str:
-    """Render the template once up front so the main class name is known before submission."""
-    from agents.codegen.templates import render, write_artifact
-
-    template = pipeline.templates[template_id]
-    bodies = {sid: template.default_body(sid) for sid in template.slot_ids()}
-    artifact = render(template, bodies)
-    write_artifact(artifact)
-    return artifact.object_name
+DATA_START = "2024-01-01"     # the synthetic generator's own start date
 
 
-def _cutoff_window(months: int) -> dict[str, str]:
+def _cutoff_window(
+    months: int, *, start: str = DATA_START, max_window_days: int = 365, horizon_days: int = 90
+) -> dict[str, str]:
+    """Month-start cutoffs that are both computable and labellable.
+
+    Two hard edges, both from the PRD rather than from taste:
+
+      * a cutoff needs `max_window_days` of history behind it, or its window features are
+        computed over less data than the definition says;
+      * a cutoff needs `horizon_days` of data ahead of it, or its label cannot mature -
+        which is what `ChurnTransforms.labels` enforces with
+        `snapshot_date + horizon <= data_end`.
+
+    `data_end` is the real end of the generated data. Passing the last cutoff instead, as an
+    earlier version did, made every snapshot immature and the label job produced no rows.
+    """
     import datetime as dt
 
-    start = dt.date(2024, 1, 1)
-    first = (start.replace(day=1) + dt.timedelta(days=400)).replace(day=1)
-    last_month = start.year * 12 + start.month - 1 + months - 4
-    last = dt.date(last_month // 12, last_month % 12 + 1, 1)
-    return {"first_cutoff": first.isoformat(), "last_cutoff": last.isoformat()}
+    data_start = dt.date.fromisoformat(start)
+    data_end = _add_months(data_start, months) - dt.timedelta(days=1)
+
+    first = _month_start_on_or_after(data_start + dt.timedelta(days=max_window_days))
+    last = _month_start_on_or_before(data_end - dt.timedelta(days=horizon_days))
+    return {
+        "first_cutoff": first.isoformat(),
+        "last_cutoff": last.isoformat(),
+        "data_end": data_end.isoformat(),
+    }
 
 
-def _user(session, role: str, email: str):  # noqa: ANN001, ANN202
+def _add_months(day, months: int):
+    import datetime as dt
+
+    total = day.year * 12 + (day.month - 1) + months
+    return dt.date(total // 12, total % 12 + 1, day.day)
+
+
+def _month_start_on_or_after(day):
+    return day.replace(day=1) if day.day == 1 else _add_months(day.replace(day=1), 1)
+
+
+def _month_start_on_or_before(day):
+    return day.replace(day=1)
+
+
+def _monthly_cutoffs(first: str, last: str) -> list[str]:
+    import datetime as dt
+
+    day = dt.date.fromisoformat(first)
+    end = dt.date.fromisoformat(last)
+    out: list[str] = []
+    while day <= end:
+        out.append(day.isoformat())
+        day = _add_months(day, 1)
+    return out
+
+
+MIN_CUTOFFS = 9   # test, a horizon gap, validation, a horizon gap, and something to train on
+
+
+def _check_window_is_usable(months: int) -> list[str]:
+    """Fail early and say what to do, instead of failing opaquely inside the Spark job."""
+    window = _cutoff_window(months)
+    cutoffs = _monthly_cutoffs(window["first_cutoff"], window["last_cutoff"])
+    if len(cutoffs) < MIN_CUTOFFS:
+        needed = months + (MIN_CUTOFFS - len(cutoffs))
+        raise SystemExit(
+            f"--months {months} yields only {len(cutoffs)} usable month-start cutoff(s) "
+            f"({window['first_cutoff']} to {window['last_cutoff']}). A 365-day feature "
+            f"window, a 90-day label horizon and the 90-day gap rule need at least "
+            f"{MIN_CUTOFFS}. Re-run with --months {needed} or more."
+        )
+    return cutoffs
+
+
+def _user(session, role: str, email: str):
     from sqlalchemy import select
 
     existing = session.execute(select(User).where(User.email == email)).scalar_one_or_none()
@@ -530,7 +718,7 @@ def _user(session, role: str, email: str):  # noqa: ANN001, ANN202
     return u
 
 
-def _write_summary(store, run_key: str, summary: dict[str, Any]) -> None:  # noqa: ANN001
+def _write_summary(store, run_key: str, summary: dict[str, Any]) -> None:
     path = store.reports_dir(run_key) / "demo_summary.json"
     store.write_json(path, summary)
     print(f"\nSummary written to {path}", flush=True)

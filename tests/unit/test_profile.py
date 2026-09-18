@@ -15,7 +15,7 @@ pytestmark = pytest.mark.spark
 
 
 @pytest.fixture(scope="module")
-def seeded(spark):  # noqa: ANN201
+def seeded(spark):
     """100 rows: 7 null customer_ids, 5 empty countries, 3 duplicated rows, 1 outlier."""
     rows = []
     for i in range(100):

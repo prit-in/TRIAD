@@ -28,6 +28,14 @@ trait TriadJob {
   /** Grain that must be unique in the output, e.g. Seq("customer_id", "snapshot_date"). */
   def outputGrain: Seq[String] = Seq.empty
 
+  /**
+   * Metrics the job itself produced, merged into the report after `transform`.
+   *
+   * Cleaning uses it to publish the row-accounting identity, so the platform can check the
+   * share of rejected rows against policy without re-reading the quarantine set (FR-023).
+   */
+  def jobMetrics: Map[String, String] = Map.empty
+
   final def main(args: Array[String]): Unit = {
     val cfg = JobConfig.parse(args)
     val spark = buildSession(cfg)
@@ -38,7 +46,7 @@ trait TriadJob {
       val inputs = Inputs.read(spark, cfg)
       val out = transform(spark, inputs, cfg)
       val validated = OutputValidator.validate(out, requiredOutputColumns, outputGrain, cfg)
-      metrics = validated.metrics
+      metrics = validated.metrics ++ jobMetrics
       OutputWriter.writeStaging(validated.df, cfg)
       validated
     }

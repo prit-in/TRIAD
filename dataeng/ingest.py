@@ -111,7 +111,7 @@ def observe(path: str | Path, *, settle_check: bool = False) -> FileObservation:
     return FileObservation(
         path=p,
         size_bytes=size1,
-        modified_at=dt.datetime.fromtimestamp(st.st_mtime, dt.timezone.utc),
+        modified_at=dt.datetime.fromtimestamp(st.st_mtime, dt.UTC),
         checksum=sha256_file(p) if p.is_file() else "",
         fmt=detect_format(p),
         stable=stable,
@@ -427,7 +427,7 @@ def watch_folder(
         if not path.is_file():
             continue
         result.scanned += 1
-        mtime = dt.datetime.fromtimestamp(path.stat().st_mtime, dt.timezone.utc)
+        mtime = dt.datetime.fromtimestamp(path.stat().st_mtime, dt.UTC)
         if watermark is not None and mtime <= watermark:
             result.skipped.append(f"{path.name}: older than watermark")
             continue

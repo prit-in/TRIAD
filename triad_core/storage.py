@@ -128,7 +128,7 @@ class Storage:
         return {
             "path": str(p),
             "size_bytes": st.st_size,
-            "modified_at": dt.datetime.fromtimestamp(st.st_mtime, dt.timezone.utc).isoformat(),
+            "modified_at": dt.datetime.fromtimestamp(st.st_mtime, dt.UTC).isoformat(),
             "is_dir": p.is_dir(),
         }
 

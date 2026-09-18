@@ -155,7 +155,7 @@ def lift_at_k(y_true: np.ndarray, y_score: np.ndarray, k: float = 0.10) -> float
     n = len(y_true)
     if n == 0:
         return float("nan")
-    top_n = max(1, int(round(n * k)))
+    top_n = max(1, round(n * k))
     order = np.argsort(-y_score, kind="stable")[:top_n]
     base = float(y_true.mean())
     if base == 0:

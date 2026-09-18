@@ -320,7 +320,7 @@ class LlmAdapter:
         prompt_hash = request.prompt_hash()
 
         last_error: Exception | None = None
-        for attempt in range(self.max_retries + 1):
+        for _ in range(self.max_retries + 1):
             if budget is not None:
                 budget.check_all()
             started = time.perf_counter()

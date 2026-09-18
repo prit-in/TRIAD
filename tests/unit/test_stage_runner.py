@@ -17,7 +17,7 @@ from triad_core.errors import ErrorClass
 
 
 class FakeGateReport:
-    def __init__(self, passed: bool, detail: str = "", error_class=None) -> None:  # noqa: ANN001
+    def __init__(self, passed: bool, detail: str = "", error_class=None) -> None:
         self.passed = passed
         self.detail = detail
         self.first_failure = None if passed else self
@@ -30,7 +30,7 @@ class FakeGateReport:
 @pytest.mark.postgres
 class TestStageRunner:
     @pytest.fixture(autouse=True)
-    def _db(self, postgres_available, db_session):  # noqa: ANN001
+    def _db(self, postgres_available, db_session):
         if not postgres_available:
             pytest.skip("postgres service is not reachable")
         self.session = db_session
@@ -40,11 +40,11 @@ class TestStageRunner:
         )
         self.budget = RunBudget()
 
-    def _runner(self, **kwargs) -> StageRunner:  # noqa: ANN003
+    def _runner(self, **kwargs) -> StageRunner:
         return StageRunner(self.session, self.run, self.budget, **kwargs)
 
-    def _request(self, **overrides) -> StageRequest:  # noqa: ANN003
-        defaults = dict(
+    def _request(self, **overrides) -> StageRequest:
+        defaults = dict(  # noqa: C408 - keyword form mirrors the StageRequest call site
             stage="features",
             agent_name="code_generation",
             inputs={"dataset": "dsv_1"},
@@ -69,7 +69,7 @@ class TestStageRunner:
         runner = self._runner(memo=memo)
         calls = {"n": 0}
 
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             calls["n"] += 1
             return {"ok": True, "outputs": {"uri": "file:///f"}}
 
@@ -86,7 +86,7 @@ class TestStageRunner:
         """ATC-03: the repair loop fixes an injected fault and the stage then passes."""
         attempts = {"n": 0}
 
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             attempts["n"] += 1
             if attempts["n"] == 1:
                 return {"ok": False,
@@ -102,13 +102,13 @@ class TestStageRunner:
     def test_the_playbook_fix_reaches_the_next_generation(self) -> None:
         seen: list[dict] = []
 
-        def generate(inputs, history):  # noqa: ANN001, ANN202
+        def generate(inputs, history):
             seen.append(dict(inputs))
             return {"artifact": "x"}
 
         calls = {"n": 0}
 
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             calls["n"] += 1
             if calls["n"] == 1:
                 return {"ok": False, "error": "java.lang.OutOfMemoryError in executor"}
@@ -126,14 +126,14 @@ class TestStageRunner:
         """No artifact runs before it passes the gates (FR-055)."""
         executed = {"n": 0}
 
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             executed["n"] += 1
             return {"ok": True, "outputs": {}}
 
         gates = [FakeGateReport(False, "[error] Job.scala:12: type mismatch; found Double"),
                  FakeGateReport(True)]
 
-        def validate(artifact):  # noqa: ANN001, ANN202
+        def validate(artifact):
             return gates.pop(0) if gates else FakeGateReport(True)
 
         outcome = self._runner().run_stage(
@@ -147,7 +147,7 @@ class TestStageRunner:
 
     def test_a_repeated_fingerprint_trips_the_circuit_breaker(self) -> None:
         """ATC-10: the same fault after each fix escalates on the second identical print."""
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             return {"ok": False, "error": "cannot resolve 'customer_idd' given input columns"}
 
         outcome = self._runner().run_stage(self._request(execute=execute, max_attempts=5))
@@ -158,7 +158,7 @@ class TestStageRunner:
 
     def test_a_non_recoverable_error_escalates_after_one_diagnosis(self) -> None:
         """ATC-05: a missing input is classified non-recoverable; no repair loop runs."""
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             return {"ok": False, "error": "required column customer_id is missing from the source"}
 
         outcome = self._runner().run_stage(self._request(execute=execute, max_attempts=5))
@@ -181,7 +181,7 @@ class TestStageRunner:
         """The same fault on a different host is the same fault, so the breaker still fires."""
         counter = {"n": 0}
 
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             counter["n"] += 1
             return {"ok": False, "error": f"ExecutorLostFailure on host worker-{counter['n']}"}
 
@@ -200,7 +200,7 @@ class TestStageRunner:
         ]
         counter = {"n": 0}
 
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             msg = messages[counter["n"] % len(messages)]
             counter["n"] += 1
             return {"ok": False, "error": msg}
@@ -217,7 +217,7 @@ class TestStageRunner:
 
         from triad_core.models import AuditLog, DecisionRecord, Execution
 
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             return {"ok": False, "error": "insufficient data: too few cutoffs for the gap rule"}
 
         outcome = self._runner().run_stage(self._request(execute=execute))
@@ -255,7 +255,7 @@ class TestStageRunner:
 
         from triad_core.models import FixMemory
 
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             return {"ok": False, "error": "java.lang.OutOfMemoryError in executor 3"}
 
         runner = self._runner()

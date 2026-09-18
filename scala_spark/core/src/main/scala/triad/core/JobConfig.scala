@@ -31,7 +31,20 @@ final case class JobConfig(
   def horizonDays: Int = paramInt("horizon_days", 90)
   def firstCutoff: String = paramStr("first_cutoff", "1970-01-01")
   def lastCutoff: String = paramStr("last_cutoff", "2100-01-01")
-  def dataEnd: String = paramStr("data_end", lastCutoff)
+  /**
+   * Last date for which data exists. There is no safe default: labels mature only when
+   * `snapshot_date + horizon <= data_end`, so defaulting this to the last cutoff makes every
+   * snapshot immature and the job writes no rows - which is how it failed the first time.
+   */
+  def dataEnd: String =
+    params.getOrElse(
+      "data_end",
+      throw new ContractViolation(
+        "--param=data_end is required by this job: it is the last date with data, and a " +
+          "label matures only when snapshot_date + horizon_days <= data_end. Pass the real " +
+          "end of the input, not the last cutoff."
+      )
+    )
 }
 
 object JobConfig {

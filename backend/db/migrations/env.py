@@ -28,7 +28,7 @@ LANGGRAPH_TABLES = {
 }
 
 
-def include_object(obj, name, type_, reflected, compare_to):  # noqa: ANN001, ANN201
+def include_object(obj, name, type_, reflected, compare_to):
     if type_ == "table" and name in LANGGRAPH_TABLES:
         return False
     if type_ == "index" and getattr(obj, "table", None) is not None:

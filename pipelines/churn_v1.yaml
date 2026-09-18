@@ -106,9 +106,15 @@ quality_gate:
   min_quality_score: 0.70
   max_cleaning_passes: 2
 
-retraining:
+retraining:                   # PRD section 19; thresholds are examples, not laws
   cooldown_days: 7
   triggers: [RT-1, RT-2, RT-3, RT-4, RT-5, RT-6, RT-7, RT-8, RT-9]
-  psi_feature_threshold: 0.25
+  psi_feature_threshold: 0.25           # RT-2, any top-10 feature
   psi_feature_count_threshold: {psi: 0.10, features: 3}
-  psi_score_threshold: 0.20
+  psi_score_threshold: 0.20             # RT-3
+  high_risk_share_change: 0.5           # RT-3, relative change in the high-risk share
+  metric_drop_vs_deployment: 0.05       # RT-1
+  concept_drift_window: 3               # RT-4, matured cutoffs that must all decline
+  min_new_label_share: 0.20             # RT-5
+  min_new_labelled_rows: 500            # 19.3 validity gate
+  schedule_days: 30                     # RT-6 monthly

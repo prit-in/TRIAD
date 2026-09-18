@@ -81,11 +81,8 @@ def _type_matches(expected: str, actual: str) -> bool:
         return True
     if e.startswith("decimal") and a.startswith("decimal"):
         return True  # precision/scale differences are handled by the cast rules
-    for _, aliases in _TYPE_ALIASES.items():
-        if e in aliases and a in aliases:
-            return True
     # A decimal column read as double (or vice versa) is a real difference worth flagging.
-    return False
+    return any(e in aliases and a in aliases for aliases in _TYPE_ALIASES.values())
 
 
 @dataclass

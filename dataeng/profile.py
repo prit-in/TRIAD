@@ -296,7 +296,7 @@ def profile_dataframe(
         quality_score=score,
         quality_dimensions=dims,
         schema_hash=sha256_text(canonical_json(sorted(fields))),
-        computed_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+        computed_at=dt.datetime.now(dt.UTC).isoformat(),
         sample_fraction=sample_fraction,
     )
 

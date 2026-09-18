@@ -59,7 +59,7 @@ class GeneratorConfig:
     drift_strength: float = 0.5
 
     def to_dict(self) -> dict[str, Any]:
-        return {k: v for k, v in self.__dict__.items()}
+        return dict(self.__dict__)
 
 
 class SyntheticGenerator:
@@ -341,7 +341,7 @@ class SyntheticGenerator:
         (out / "_GENERATED_SYNTHETIC.json").write_text(
             __import__("json").dumps(
                 {"synthetic": True, "config": self.cfg.to_dict(),
-                 "generated_at": dt.datetime.now(dt.timezone.utc).isoformat()},
+                 "generated_at": dt.datetime.now(dt.UTC).isoformat()},
                 indent=2, default=str,
             ),
             encoding="utf-8",

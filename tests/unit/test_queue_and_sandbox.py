@@ -13,7 +13,6 @@ from sandbox.runner import (
     spark_submit_request,
 )
 
-
 # --- sandbox request validation (no containers needed) -------------------------
 
 
@@ -111,12 +110,12 @@ def test_sandbox_timeout_is_enforced() -> None:
 @pytest.mark.postgres
 class TestQueue:
     @pytest.fixture(autouse=True)
-    def _db(self, postgres_available, db_session):  # noqa: ANN001
+    def _db(self, postgres_available, db_session):
         if not postgres_available:
             pytest.skip("postgres service is not reachable")
         self.session = db_session
 
-    def _run(self, key_suffix: str = "a"):  # noqa: ANN202
+    def _run(self, key_suffix: str = "a"):
         return q.create_run(
             self.session,
             pipeline_name="churn_v1",
@@ -236,3 +235,80 @@ class TestQueue:
             q.set_state(self.session, run, state)
         result = verify_chain(self.session)
         assert result.ok, f"chain broken at {result.broken_at_id}: {result.reason}"
+
+
+class TestRunKeyAllocation:
+    """Run keys are readable and dated (PRD 24.1), which makes them collision-prone.
+
+    A unit test and a demo run creating runs at the same moment actually collided on
+    `run-2026-09-18-009`, because the sequence came from a row *count*.
+    """
+
+    def _create(self, session, suffix: str):
+        return q.create_run(
+            session, pipeline_name="churn_v1", trigger_type="manual",
+            triggered_by="tester", idempotency_key=f"rk-{suffix}",
+        )
+
+    def test_keys_increase_within_a_session(self, db_session) -> None:
+        first = self._create(db_session, "a")
+        second = self._create(db_session, "b")
+        assert first.run_key != second.run_key
+        assert int(second.run_key[-3:]) == int(first.run_key[-3:]) + 1
+
+    def test_a_gap_left_by_a_rolled_back_run_does_not_cause_a_collision(
+        self, db_session, monkeypatch
+    ) -> None:
+        """A row count would propose a number far below the gap and collide."""
+        from triad_core.ids import run_key as make_run_key
+        from triad_core.ids import utcnow
+        from triad_core.models import PipelineRun
+
+        now = utcnow()
+        # Jump well past whatever this database already holds for today, so the gap is real
+        # regardless of how many runs earlier tests or demo runs left behind.
+        gap = q._next_run_sequence(db_session, now) + 20
+        db_session.add(
+            PipelineRun(
+                run_key=make_run_key(now, gap), pipeline_name="churn_v1",
+                trigger_type="manual", triggered_by="earlier", state="COMPLETED",
+                config_json={}, input_versions={}, budget_json={},
+            )
+        )
+        db_session.flush()
+        assert int(self._create(db_session, "gap").run_key[-3:]) == gap + 1
+
+    def test_a_taken_key_is_retried_rather_than_raised(self, db_session, monkeypatch) -> None:
+        """The unique constraint is the real guard; the allocator only proposes."""
+        from triad_core.ids import utcnow
+
+        real = q._next_run_sequence
+        calls = {"n": 0}
+
+        def collide_once(session, now):
+            calls["n"] += 1
+            return real(session, now) - 1 if calls["n"] == 1 else real(session, now)
+
+        taken = self._create(db_session, "taken")
+        monkeypatch.setattr(q, "_next_run_sequence", collide_once)
+
+        recovered = self._create(db_session, "recovered")
+        assert calls["n"] >= 2, "the first attempt must have collided and been retried"
+        assert recovered.run_key != taken.run_key
+        assert utcnow().strftime("%Y-%m-%d") in recovered.run_key
+
+    def test_an_unwinnable_race_fails_closed_with_a_clear_message(
+        self, db_session, monkeypatch
+    ) -> None:
+        self._create(db_session, "blocker")
+        blocked = q._next_run_sequence(db_session, __import__("triad_core.ids",
+                                                              fromlist=["utcnow"]).utcnow()) - 1
+        monkeypatch.setattr(q, "_next_run_sequence", lambda session, now: blocked)
+
+        with pytest.raises(q.QueueError, match="could not allocate a run key"):
+            self._create(db_session, "doomed")
+
+    def test_an_idempotency_key_still_returns_the_same_run(self, db_session) -> None:
+        first = self._create(db_session, "same")
+        again = self._create(db_session, "same")
+        assert first.id == again.id

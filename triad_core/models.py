@@ -91,7 +91,7 @@ class Dataset(Base):
     auto_run_policy: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     created_at: Mapped[dt.datetime] = _now()
 
-    versions: Mapped[list["DatasetVersion"]] = relationship(back_populates="dataset")
+    versions: Mapped[list[DatasetVersion]] = relationship(back_populates="dataset")
 
 
 class DatasetVersion(Base):

@@ -72,7 +72,7 @@ def record(
     it describes; a rolled-back action leaves no audit entry, and vice versa.
     """
     details = details or {}
-    ts = dt.datetime.now(dt.timezone.utc)
+    ts = dt.datetime.now(dt.UTC)
     prev = _last_hash(session)
     payload = _entry_payload(
         ts, actor_type, actor_id, action, resource_type, resource_id, run_id, details, outcome

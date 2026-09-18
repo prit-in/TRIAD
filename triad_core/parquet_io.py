@@ -85,11 +85,72 @@ def _coerce_timestamps(table: Any) -> Any:
     return pa.Table.from_arrays(columns, schema=pa.schema(fields)) if changed else table
 
 
-def read_parquet(path: str | Path, columns: list[str] | None = None) -> pd.DataFrame:
-    """Read a Parquet folder or file written by Spark or by `write_parquet`."""
+def read_parquet(
+    path: str | Path, columns: list[str] | None = None, *, restore_types: bool = True
+) -> pd.DataFrame:
+    """Read a Parquet folder or file written by Spark or by `write_parquet`.
+
+    Partition columns are restored to their declared type (see `_restore_partition_types`),
+    so a column's pandas dtype never depends on whether it happened to be a partition key.
+    """
     import pyarrow.parquet as pq
 
-    return pq.read_table(str(path), columns=columns).to_pandas()
+    frame = pq.read_table(str(path), columns=columns).to_pandas()
+    return _restore_partition_types(frame, Path(path)) if restore_types else frame
+
+
+# Spark's `simpleString` type names, for the columns a Hive path cannot carry a type for.
+_PARTITION_CASTS = {
+    "boolean": "bool",
+    "tinyint": "int64", "smallint": "int64", "int": "int64", "bigint": "int64",
+    "float": "float64", "double": "float64",
+    "string": "object",
+}
+
+
+def _restore_partition_types(frame: pd.DataFrame, root: Path) -> pd.DataFrame:
+    """Give a partition column back the type the writer declared for it.
+
+    A Hive path holds `snapshot_date=2026-04-01`, which is a directory name, so Arrow returns
+    the column dictionary-encoded as *strings*. The same column read from an unpartitioned
+    dataset comes back as `datetime.date`. Joining the two then matches nothing while both
+    row counts look right - which is exactly how the feature/label join silently produced an
+    empty training set.
+
+    The manifest Spark wrote next to the data carries the real schema, so nothing is guessed.
+    Without a manifest the column is still de-categorised, because a Categorical join key is
+    a trap of its own.
+    """
+    import json
+
+    import pandas as pd
+
+    partition_columns = [
+        name for name in frame.columns
+        if isinstance(frame[name].dtype, pd.CategoricalDtype)
+    ]
+    if not partition_columns:
+        return frame
+
+    schema: dict[str, str] = {}
+    manifest = root / "_manifest.json"
+    if manifest.is_file():
+        try:
+            schema = json.loads(manifest.read_text(encoding="utf-8")).get("schema") or {}
+        except (OSError, ValueError):
+            schema = {}
+
+    for name in partition_columns:
+        column = frame[name].astype(object)
+        declared = schema.get(name, "")
+        if declared == "date":
+            column = pd.to_datetime(column).dt.date
+        elif declared.startswith("timestamp"):
+            column = pd.to_datetime(column)
+        elif declared in _PARTITION_CASTS:
+            column = column.astype(_PARTITION_CASTS[declared])
+        frame[name] = column
+    return frame
 
 
 def estimate_in_memory_bytes(path: str | Path) -> int:

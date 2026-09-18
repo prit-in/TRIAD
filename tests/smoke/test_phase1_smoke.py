@@ -360,7 +360,7 @@ def _docker_available() -> bool:
     try:
         subprocess.run(["docker", "version"], capture_output=True, timeout=20)
         return True
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
 
 

@@ -125,6 +125,35 @@ class ChurnTransformsSpec extends SparkFixture {
     assert(labels("C3") == 1)
   }
 
+  test("TC-030d: the same cutoff is unlabelled against a short data_end and labelled against a real one") {
+    // Regression: the demo passed the last cutoff as data_end, so every snapshot was
+    // immature and the job produced an empty output. The rule is right; the caller was not.
+    val daily = ChurnTransforms.customerDaily(lines(), Some(products))
+    val expanded = ChurnTransforms.expandToSnapshots(daily, 365, "2026-04-01", "2026-04-01")
+    val eligible = ChurnTransforms.eligibleCustomers(expanded)
+    val orderDays = daily.select(col("customer_id"), col("day"))
+
+    val immature = ChurnTransforms.labels(eligible, orderDays, 90, "2026-04-01")
+    assert(immature.count() == 0L, "a cutoff with no horizon of data behind it must not be labelled")
+
+    val mature = ChurnTransforms.labels(eligible, orderDays, 90, "2026-06-30")
+    assert(mature.count() == 3L, "the same cutoff labels once the horizon fits inside the data")
+  }
+
+  test("data_end has no default: a job that forgets it fails loudly") {
+    val cfg = JobConfig.parse(
+      Array(
+        "--run-key=test",
+        "--output=file:///tmp/out",
+        "--staging=file:///tmp/staging",
+        "--param=horizon_days=90",
+        "--param=last_cutoff=2026-04-01"
+      )
+    )
+    val thrown = intercept[ContractViolation](cfg.dataEnd)
+    assert(thrown.getMessage.contains("data_end"))
+  }
+
   test("TC-030b: a customer who buys inside the horizon is not churned") {
     val extra = Seq(("O6", 1, "C1", "2026-05-01 10:00:00", "P1", 1, 10.0, 0.0))
     val daily = ChurnTransforms.customerDaily(lines(extra), Some(products))

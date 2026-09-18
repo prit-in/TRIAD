@@ -28,16 +28,16 @@ from agents.codegen.templates import (
 )
 from agents.graph import queue as q
 from agents.graph.stages import StageRequest, StageRunner
-from agents.llm.budget import BudgetExceeded, RunBudget
+from agents.llm.budget import RunBudget
 from agents.routing import RoutingEngine
 from sandbox.runner import get_runner, spark_submit_request
 from triad_core import audit
 from triad_core.config import load_yaml, settings
-from triad_core.contracts import Contract, ContractResult, RowAccounting
+from triad_core.contracts import Contract
 from triad_core.governance import EvidenceBundle, GovernanceService
 from triad_core.ids import utcnow
 from triad_core.models import CodeArtifact, Metric, PipelineRun
-from triad_core.policy import PolicyEngine
+from triad_core.policy import PolicyEngine, Verdict
 from triad_core.storage import Manifest, Storage, storage
 
 SCALA_ROOT = settings().repo_root / "scala_spark"
@@ -212,10 +212,10 @@ class ChurnPipeline:
 
         self._route("profile", read_only=True, kind="profiling")
 
-        def generate(inputs, history):  # noqa: ANN001, ANN202
+        def generate(inputs, history):
             return {"uri": inputs["uri"], "fmt": inputs.get("fmt", "parquet")}
 
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             df = read_for_profiling(spark, artifact["uri"], artifact["fmt"])
             profile = profile_dataframe(
                 df, dataset=dataset, key_columns=self._key_columns(dataset)
@@ -268,6 +268,8 @@ class ChurnPipeline:
         params: dict[str, Any],
         partition_by: list[str] | None = None,
         required_columns: list[str] | None = None,
+        quarantine_dir: Path | None = None,
+        policy_action: str | None = None,
         input_rows: int = 0,
         input_bytes: int = 0,
     ) -> dict[str, Any]:
@@ -282,7 +284,7 @@ class ChurnPipeline:
         staging = self.storage.staging_dir(self.run.run_key, stage)
         report_path = self.storage.sandbox_dir(self.run.run_key) / f"{stage}_report.json"
 
-        def generate(stage_inputs, history):  # noqa: ANN001, ANN202
+        def generate(stage_inputs, history):
             artifact = self._generate_scala(template_id)
             job_args = [
                 f"--run-key={self.run.run_key}",
@@ -291,6 +293,11 @@ class ChurnPipeline:
                 f"--report={report_path}",
                 f"--shuffle-partitions={stage_inputs.get('shuffle_partitions', 8)}",
             ]
+            if quarantine_dir is not None:
+                # Without this the job refuses to run rather than drop rejected rows
+                # (OutputWriter.writeQuarantine); a stage that rejects rows must say where
+                # they go (FR-018).
+                job_args.append(f"--quarantine=file://{quarantine_dir}")
             for name, uri in inputs.items():
                 job_args.append(f"--input={name}:{uri}")
             for key, value in params.items():
@@ -306,10 +313,10 @@ class ChurnPipeline:
                 "resources": {"profile": "small", "master": routing.get("deploy_mode", "local[2]")},
             }
 
-        def validate(artifact):  # noqa: ANN001, ANN202
+        def validate(artifact):
             return self._validate_scala(artifact["artifact"], template_id)
 
-        def execute(artifact):  # noqa: ANN001, ANN202
+        def execute(artifact):
             jar = _newest_jar(SCALA_ROOT / "jobs" / "target" / "scala-2.13")
             core_jar = _newest_jar(SCALA_ROOT / "core" / "target" / "scala-2.13")
             if jar is None or core_jar is None:
@@ -342,6 +349,7 @@ class ChurnPipeline:
                     "staging": str(staging),
                     "row_count": report.get("row_count"),
                     "schema": report.get("schema", {}),
+                    "job_metrics": report.get("metrics", {}),
                 }
                 payload["metrics"] = report.get("metrics", {})
                 payload["spark_app_id"] = report.get("spark_app_id")
@@ -350,7 +358,7 @@ class ChurnPipeline:
                     payload["error"] = json.dumps(report.get("error", {}))
             return payload
 
-        def contract_check(execution):  # noqa: ANN001, ANN202
+        def contract_check(execution):
             from triad_core.contracts import OutputContract
 
             outputs = execution.get("outputs", {})
@@ -384,6 +392,13 @@ class ChurnPipeline:
         )
         self.result.stages.append(outcome.to_dict())
 
+        if outcome.ok and policy_action:
+            verdict = self._check_stage_policy(policy_action, stage, outcome.outputs,
+                                               quarantine_dir is not None)
+            if verdict is not None:
+                self.result.escalation = verdict
+                return {}
+
         if outcome.ok:
             manifest = Manifest(
                 kind=stage,
@@ -402,6 +417,42 @@ class ChurnPipeline:
         self.result.escalation = {"stage": stage, "reason": outcome.reason,
                                   "diagnoses": outcome.diagnoses}
         return {}
+
+    def _check_stage_policy(
+        self, action: str, stage: str, outputs: dict[str, Any], has_quarantine: bool
+    ) -> dict[str, Any] | None:
+        """Hold the executed stage against its bounded-autonomy limits (PRD section 51).
+
+        The job already ran in the sandbox; what is gated here is *committing* its output.
+        Returns None when the action is allowed, otherwise the escalation payload.
+        """
+        metrics = outputs.get("job_metrics") or {}
+        input_rows = int(metrics.get("input_rows") or 0)
+        affected = int(metrics.get("quarantined_rows") or 0) + int(
+            metrics.get("removed_duplicates") or 0
+        )
+        context: dict[str, Any] = {"quarantine": has_quarantine}
+        if input_rows:
+            context["rows_affected_pct"] = round(100.0 * affected / input_rows, 4)
+
+        decision = self.policy.check(action, context=context)
+        self.runner.record_decision(
+            agent="governance",
+            decision_type="policy",
+            decision=f"{action} -> {decision.verdict.value}",
+            summary=decision.reason[:500],
+            evidence={"stage": stage, **context},
+            policy_rules=decision.rule_ids,
+        )
+        if decision.verdict is Verdict.ALLOW:
+            return None
+        return {
+            "stage": stage,
+            "reason": f"{action}: {decision.reason}",
+            "verdict": decision.verdict.value,
+            "approvers": decision.approvers,
+            "evidence": context,
+        }
 
     # -- governance ------------------------------------------------------------
     def request_promotion(

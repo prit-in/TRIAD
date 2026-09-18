@@ -1,6 +1,6 @@
 package triad.jobs
 
-import org.apache.spark.sql.functions.{col, to_date}
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import triad.core.{ChurnTransforms, Inputs, JobConfig, TriadJob}
 

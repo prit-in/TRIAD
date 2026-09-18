@@ -30,7 +30,6 @@ from python_ml.triad_ml.evaluate import (
 from python_ml.triad_ml.splits import SplitData
 
 if TYPE_CHECKING:  # pragma: no cover
-    import pandas as pd
     from sklearn.pipeline import Pipeline
 
 LABEL = "churned_90d"
@@ -110,7 +109,7 @@ def train_candidate(
     started = time.perf_counter()
     try:
         pipeline.fit(x_train, y_train)
-    except Exception as exc:  # noqa: BLE001 - reported as a failed candidate
+    except Exception as exc:
         empty = Metrics(split="valid")
         return TrainedModel(
             candidate, pipeline, Metrics(split="train"), empty, 0.0, 0.0, seed,
@@ -288,7 +287,7 @@ def select_model(
                 )
             continue
         screened.append(m)
-    rules.append("AP-3"); rules.append("AP-4"); rules.append("AP-7")
+    rules.extend(("AP-3", "AP-4", "AP-7"))
 
     if not screened:
         return SelectionResult(
@@ -309,8 +308,8 @@ def select_model(
 
     # --- AP-2 parsimony -------------------------------------------------------
     margin = float(policy.get("AP2_parsimony_margin", 0.01))
-    if logreg is not None and best.family != "logreg":
-        if best.valid_pr_auc - logreg.valid_pr_auc < margin:
+    if (logreg is not None and best.family != "logreg"
+            and best.valid_pr_auc - logreg.valid_pr_auc < margin):
             rejected.append({
                 "family": best.family,
                 "reason": f"beats logistic regression by less than the {margin} parsimony margin",

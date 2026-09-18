@@ -27,6 +27,8 @@ TEMPLATE_ROOT = REPO_ROOT / "scala_spark" / "jobs" / "src" / "main" / "scala" / 
 GENERATED_ROOT = TEMPLATE_ROOT / "generated"
 GENERATED_PACKAGE = "triad.jobs.generated"
 
+NOT_A_TEMPLATE = re.compile(r"declares no slots|no `object X extends Y")
+
 BEGIN = re.compile(r"^(?P<indent>[ \t]*)//\s*BEGIN GENERATED SLOT:\s*(?P<slot>[\w.-]+)\s*$")
 END = re.compile(r"^[ \t]*//\s*END GENERATED SLOT:\s*(?P<slot>[\w.-]+)\s*$")
 PACKAGE_LINE = re.compile(r"^package\s+[\w.]+\s*$")
@@ -127,10 +129,44 @@ def parse_template(path: str | Path, *, version: str = "1.0") -> Template:
             "instead, because a generated copy is renamed"
         )
 
+    unused = _unused_imports(lines)
+    if unused:
+        raise TemplateError(
+            f"{p.name}: imports nothing in the template uses: {', '.join(unused)}. "
+            "Warnings are errors inside triad.jobs.generated, so this compiles here but "
+            "fails gate 4 on every generated copy."
+        )
+
     return Template(
         template_id=p.stem, version=version, path=p, lines=lines, slots=slots,
         object_name=object_name,
     )
+
+
+def _unused_imports(lines: list[str]) -> list[str]:
+    """Names imported by the template that never appear in its body.
+
+    Deliberately simple: it only looks at the explicit names a Scala import binds, and a
+    wildcard import binds none, so it is skipped. A name mentioned anywhere outside the
+    import lines counts as used, which is why this under-reports rather than over-reports -
+    the compiler remains the authority, this just moves the common case to parse time.
+    """
+    body = "\n".join(line for line in lines if not line.strip().startswith("import "))
+    missing: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped.startswith("import ") or stripped.endswith("_"):
+            continue
+        tail = stripped[len("import ") :]
+        braced = re.search(r"\{([^}]*)\}\s*$", tail)
+        names = braced.group(1).split(",") if braced else [tail.rsplit(".", 1)[-1]]
+        for raw in names:
+            name = raw.split("=>")[-1].strip()
+            if not name or name == "_":
+                continue
+            if not re.search(r"\b" + re.escape(name) + r"\b", body):
+                missing.append(name)
+    return missing
 
 
 def load_templates(root: str | Path = TEMPLATE_ROOT) -> dict[str, Template]:
@@ -139,8 +175,13 @@ def load_templates(root: str | Path = TEMPLATE_ROOT) -> dict[str, Template]:
     for p in sorted(Path(root).glob("*.scala")):
         try:
             out[p.stem] = parse_template(p)
-        except TemplateError:
-            continue  # a job file without slots is simply not a template
+        except TemplateError as exc:
+            # A file with no slots or no object declaration is simply not a template. Any
+            # other TemplateError is a defect in a real template and must not be swallowed,
+            # or the stage that needs it fails later with a confusing KeyError.
+            if NOT_A_TEMPLATE.search(str(exc)):
+                continue
+            raise
     return out
 
 

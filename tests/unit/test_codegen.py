@@ -15,8 +15,9 @@ from agents.codegen.gates import (
     scan_scala,
 )
 from agents.codegen.templates import (
-    SlotViolation,
     TEMPLATE_ROOT,
+    SlotViolation,
+    TemplateError,
     diff_outside_slots,
     load_templates,
     parse_template,
@@ -25,7 +26,7 @@ from agents.codegen.templates import (
 
 
 @pytest.fixture(scope="module")
-def feature_template():  # noqa: ANN201
+def feature_template():
     return parse_template(TEMPLATE_ROOT / "FeatureJob.scala")
 
 
@@ -200,3 +201,107 @@ def test_gate4_python_byte_compile() -> None:
     bad = gate4_byte_compile_python("def broken(:\n  pass")
     assert bad.passed is False
     assert bad.errors and bad.errors[0]["line"]
+
+
+# --- template defects caught at parse time ------------------------------------
+#
+# Both checks below exist because the defect they catch actually shipped: warnings are
+# errors inside triad.jobs.generated, so a template can compile in place and then fail
+# gate 4 on every generated copy, three sbt attempts deep into a run.
+
+TEMPLATE_SHELL = """package triad.jobs
+
+{imports}
+import triad.core.{{Inputs, JobConfig, TriadJob}}
+
+object SampleJob extends TriadJob {{
+
+  override def name: String = "sample"
+
+  override def transform(spark: SparkSession, in: Inputs, cfg: JobConfig): DataFrame = {{
+    // BEGIN GENERATED SLOT: transform
+    in("source").select(col("customer_id"))
+    // END GENERATED SLOT: transform
+  }}
+{extra}}}
+"""
+
+
+def _write_template(tmp_path, imports: str, extra: str = ""):
+    path = tmp_path / "SampleJob.scala"
+    path.write_text(TEMPLATE_SHELL.format(imports=imports, extra=extra), encoding="utf-8")
+    return path
+
+
+GOOD_IMPORTS = (
+    "import org.apache.spark.sql.functions.col\n"
+    "import org.apache.spark.sql.{DataFrame, SparkSession}"
+)
+
+
+def test_a_template_with_only_used_imports_parses(tmp_path) -> None:
+    template = parse_template(_write_template(tmp_path, GOOD_IMPORTS))
+    assert template.object_name == "SampleJob"
+
+
+def test_an_unused_import_is_refused_at_parse_time(tmp_path) -> None:
+    imports = (
+        "import org.apache.spark.sql.functions.{col, to_date}\n"
+        "import org.apache.spark.sql.{DataFrame, SparkSession}"
+    )
+    with pytest.raises(TemplateError) as exc:
+        parse_template(_write_template(tmp_path, imports))
+    assert "to_date" in str(exc.value)
+    assert "col" not in str(exc.value)   # the import that *is* used must not be named
+
+
+def test_a_wildcard_import_is_not_reported_as_unused(tmp_path) -> None:
+    imports = (
+        "import org.apache.spark.sql.functions._\n"
+        "import org.apache.spark.sql.{DataFrame, SparkSession}"
+    )
+    assert parse_template(_write_template(tmp_path, imports)).object_name == "SampleJob"
+
+
+def test_a_renamed_import_is_judged_on_the_name_it_binds(tmp_path) -> None:
+    imports = (
+        "import org.apache.spark.sql.functions.{col => column}\n"
+        "import org.apache.spark.sql.{DataFrame, SparkSession}"
+    )
+    with pytest.raises(TemplateError) as exc:
+        parse_template(_write_template(tmp_path, imports))
+    assert "column" in str(exc.value)
+
+
+def test_a_self_reference_by_name_is_refused(tmp_path) -> None:
+    extra = "\n  def peek: String = SampleJob.name\n"
+    with pytest.raises(TemplateError) as exc:
+        parse_template(_write_template(tmp_path, GOOD_IMPORTS, extra))
+    assert "refers to itself" in str(exc.value)
+
+
+def test_this_instead_of_the_object_name_is_accepted(tmp_path) -> None:
+    extra = "\n  def peek: String = this.name\n"
+    assert parse_template(_write_template(tmp_path, GOOD_IMPORTS, extra)).slot_ids() == \
+        ["transform"]
+
+
+def test_load_templates_raises_on_a_broken_template_rather_than_hiding_it(tmp_path) -> None:
+    """Swallowing this would turn a clear message into a KeyError in the stage that needs it."""
+    imports = (
+        "import org.apache.spark.sql.functions.{col, to_date}\n"
+        "import org.apache.spark.sql.{DataFrame, SparkSession}"
+    )
+    _write_template(tmp_path, imports)
+    with pytest.raises(TemplateError):
+        load_templates(tmp_path)
+
+
+def test_load_templates_still_skips_a_file_that_is_not_a_template(tmp_path) -> None:
+    (tmp_path / "Helper.scala").write_text(
+        "package triad.jobs\n\nobject Helper {\n  val x = 1\n}\n", encoding="utf-8"
+    )
+    (tmp_path / "SampleJob.scala").write_text(
+        TEMPLATE_SHELL.format(imports=GOOD_IMPORTS, extra=""), encoding="utf-8"
+    )
+    assert sorted(load_templates(tmp_path)) == ["SampleJob"]

@@ -114,7 +114,7 @@ def docker_available() -> bool:
         return False
     try:
         return subprocess.run(["docker", "info"], capture_output=True, timeout=20).returncode == 0
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
 
 
@@ -129,7 +129,7 @@ def _scrubbed_env(extra: dict[str, str]) -> dict[str, str]:
         "PYTHONPATH": "/workspace",
         "TRIAD_SANDBOX": "1",
     }
-    base.update({k: v for k, v in extra.items()})
+    base.update(extra)
     return base
 
 
@@ -257,7 +257,7 @@ def image_digest(image: str) -> str | None:
             capture_output=True, text=True, timeout=30,
         )
         return proc.stdout.strip() or None
-    except Exception:  # noqa: BLE001
+    except Exception:
         return None
 
 

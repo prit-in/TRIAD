@@ -36,7 +36,6 @@ from python_ml.triad_ml.hygiene import (
 )
 from python_ml.triad_ml.splits import (
     GapRuleViolation,
-    SplitSpec,
     apply_split,
     assert_no_overlap,
     check_gap_rule,

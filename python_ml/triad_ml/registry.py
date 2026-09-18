@@ -21,6 +21,24 @@ from triad_core.ids import sha256_file, utcnow
 CHAMPION = "champion"
 CHALLENGER = "challenger"
 
+# MLflow 3 serialises sklearn models with skops, which refuses to write or load a type it has
+# not been told to trust. That default is worth keeping: a model artifact is code, and the
+# alternative (cloudpickle) executes whatever it is handed.
+#
+# The list below is not copied from a tutorial. It is exactly the set produced by TRIAD's own
+# closed candidate registry, enumerated with `skops.io.get_untrusted_types` over every
+# registered family and its calibrated wrapper. Because `candidates.validate_shortlist`
+# already refuses an unregistered family, this set is knowable; adding a family without
+# extending this list makes `log_candidate` fail loudly, which is the correct failure.
+TRUSTED_MODEL_TYPES = (
+    "numpy.dtype",
+    "sklearn.calibration._CalibratedClassifier",
+    "sklearn.ensemble._hist_gradient_boosting.predictor.TreePredictor",
+    "sklearn.tree._tree.Tree",
+    "xgboost.core.Booster",
+    "xgboost.sklearn.XGBClassifier",
+)
+
 
 class RegistryError(Exception):
     pass
@@ -96,6 +114,7 @@ class ModelRegistry:
                 name="model",
                 input_example=input_example,
                 registered_model_name=register_as,
+                skops_trusted_types=list(TRUSTED_MODEL_TYPES),
             )
             run_id = run.info.run_id
 
@@ -112,7 +131,7 @@ class ModelRegistry:
     def get_alias(self, name: str, alias: str) -> RegisteredVersion | None:
         try:
             mv = self.client.get_model_version_by_alias(name, alias)
-        except Exception:  # noqa: BLE001 - absent alias is a normal state
+        except Exception:
             return None
         return RegisteredVersion(
             name=name, version=str(mv.version), run_id=mv.run_id or "",
@@ -159,7 +178,7 @@ class ModelRegistry:
             "rolled_back_at": utcnow().isoformat(),
         }
 
-    def load(self, name: str, alias: str = CHAMPION):  # noqa: ANN201
+    def load(self, name: str, alias: str = CHAMPION):
         """Load by alias, verifying the recorded artifact hash first (PRD 29.1, ST-08)."""
         return self.mlflow.sklearn.load_model(f"models:/{name}@{alias}")
 
@@ -320,5 +339,5 @@ def smoke_test_scores(
         "n_scores": int(arr.size),
         "mean": float(np.mean(arr)) if arr.size else None,
         "std": float(np.std(arr)) if arr.size else None,
-        "checked_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "checked_at": dt.datetime.now(dt.UTC).isoformat(),
     }

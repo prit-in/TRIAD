@@ -24,7 +24,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 @pytest.fixture(scope="session")
-def spark():  # noqa: ANN201 - pyspark type import would slow collection
+def spark():
     """Local SparkSession with the PRD's production settings (ANSI on, UTC, micros)."""
     from pyspark.sql import SparkSession
 
@@ -57,14 +57,14 @@ def tmp_data_root() -> Iterator[Path]:
 
 
 @pytest.fixture()
-def storage(tmp_data_root: Path):  # noqa: ANN201
+def storage(tmp_data_root: Path):
     from triad_core.storage import Storage
 
     return Storage(tmp_data_root)
 
 
 @pytest.fixture()
-def db_session():  # noqa: ANN201
+def db_session():
     """A session whose work is rolled back afterwards, so tests never pollute each other.
 
     Everything runs inside one outer transaction; `commit()` inside the code under test hits
@@ -81,7 +81,7 @@ def db_session():  # noqa: ANN201
     session = Session(bind=connection, join_transaction_mode="create_savepoint")
 
     @event.listens_for(session, "after_transaction_end")
-    def _restart_savepoint(sess, trans):  # noqa: ANN001, ANN202
+    def _restart_savepoint(sess, trans):
         if trans.nested and not trans._parent.nested:
             sess.begin_nested()
 

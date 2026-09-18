@@ -19,7 +19,7 @@ def _cmd(args: list[str], pattern: str | None = None) -> str:
     try:
         out = subprocess.run(args, capture_output=True, text=True, timeout=180)
         text = (out.stdout or "") + (out.stderr or "")
-    except Exception as exc:  # noqa: BLE001 - reporting tool, never fatal
+    except Exception as exc:
         return f"ERROR: {exc}"
     if pattern:
         m = re.search(pattern, text)

@@ -59,4 +59,7 @@ object CleanJob extends TriadJob {
 
   /** Exposed so the fixture tests can assert on the counts without re-running the job. */
   @volatile var lastResult: Option[CleaningResult] = None
+
+  override def jobMetrics: Map[String, String] =
+    this.lastResult.map(_.metrics).getOrElse(Map.empty)
 }

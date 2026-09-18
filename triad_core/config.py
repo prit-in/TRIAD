@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

@@ -254,7 +254,15 @@ def gate3_dependencies(
 def gate4_compile(
     *, scala: bool = True, timeout: int = 3600, sbt_home: str | None = None
 ) -> GateResult:
-    """sbt incremental compile for Scala. Warnings are fatal in the generated module."""
+    """sbt incremental compile for Scala. Warnings are fatal in the generated module.
+
+    `package` rather than `compile`, because gates 6 and 9 submit JARs: compiling alone
+    leaves the freshly generated class in `target/classes` and `spark-submit` would load a
+    JAR packaged before this attempt existed. Both projects are packaged because the job is
+    submitted as `jobs.jar` with `--jars core.jar` (DEC-04), so a stale core JAR is the same
+    bug one level down. `package` depends on `compile`, so compile errors surface here
+    exactly as before.
+    """
     import time
 
     started = time.perf_counter()
@@ -267,13 +275,13 @@ def gate4_compile(
                           error_class=ErrorClass.UNKNOWN)
 
     proc = subprocess.run(
-        [str(sbt), "-batch", "jobs/compile"],
+        [str(sbt), "-batch", "core/package", "jobs/package"],
         cwd=SCALA_ROOT, capture_output=True, text=True, timeout=timeout,
     )
     duration = int((time.perf_counter() - started) * 1000)
     output = proc.stdout + proc.stderr
     if proc.returncode == 0:
-        return GateResult(4, "compile", True, "compiled", duration_ms=duration)
+        return GateResult(4, "compile", True, "compiled and packaged", duration_ms=duration)
 
     errors: list[CompileError] = parse_scala_errors(output)
     return GateResult(
@@ -302,7 +310,7 @@ def gate4_explain_sql(sql: str, spark: Any) -> GateResult:
     """Parse and analyse SQL with EXPLAIN, without executing it."""
     try:
         spark.sql(f"EXPLAIN {sql}").collect()
-    except Exception as exc:  # noqa: BLE001 - the message is the verdict
+    except Exception as exc:
         return GateResult(4, "compile", False, str(exc),
                           error_class=ErrorClass.UNRESOLVED_COLUMN)
     return GateResult(4, "compile", True, "SQL analysed")

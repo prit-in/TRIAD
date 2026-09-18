@@ -41,7 +41,7 @@ class PredictionSet:
             "feature_set_version": self.feature_set_version,
             "score_date": self.score_date,
             "set": self.set_type,
-            "rows": int(len(self.frame)),
+            "rows": len(self.frame),
             "mean_score": float(self.frame["churn_probability"].mean()),
             "high_risk_count": int(band_counts.get("high", 0)),
             "risk_bands": {k: int(v) for k, v in band_counts.items()},
@@ -159,7 +159,6 @@ def explain(
     coefficients for linear models. The method is always named, because a chart without its
     method is not an explanation (FR-067).
     """
-    import pandas as pd
 
     x = features[feature_cols]
     if len(x) > sample:
@@ -175,7 +174,7 @@ def explain(
         try:
             transformed = prep.transform(x)
             transformed_names = [str(n) for n in prep.get_feature_names_out()]
-        except Exception:  # noqa: BLE001 - fall back to raw columns
+        except Exception:
             transformed, transformed_names = x, list(feature_cols)
 
     # 1) linear coefficients
@@ -222,7 +221,7 @@ def explain(
         return Explanations(method="SHAP (TreeExplainer)",
                             global_importance=global_importance,
                             per_customer=per_customer)
-    except Exception:  # noqa: BLE001 - SHAP is optional for some estimators
+    except Exception:
         pass
 
     # 3) permutation importance as the general fallback
@@ -243,7 +242,7 @@ def explain(
                     for i in order
                 ],
             )
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
 
     return Explanations(method="unavailable", global_importance=[])
