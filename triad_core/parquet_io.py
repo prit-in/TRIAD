@@ -58,18 +58,31 @@ def write_parquet(
 
 
 def _coerce_timestamps(table: Any) -> Any:
-    """Rewrite every timestamp column to microseconds, keeping any timezone."""
-    import pyarrow as pa
+    """Rewrite every timestamp column to microseconds, keeping any timezone.
 
+    Nanosecond values that are not whole microseconds are truncated on purpose:
+    `spark.sql.parquet.outputTimestampType` is pinned to TIMESTAMP_MICROS, so the extra
+    digits could not survive the round trip anyway, and a safe cast would simply refuse.
+    """
+    import pyarrow as pa
+    import pyarrow.compute as pc
+
+    columns = []
     fields = []
     changed = False
-    for field in table.schema:
+    for i, field in enumerate(table.schema):
+        column = table.column(i)
         if pa.types.is_timestamp(field.type) and field.type.unit != TIMESTAMP_UNIT:
-            fields.append(field.with_type(pa.timestamp(TIMESTAMP_UNIT, field.type.tz)))
+            target = pa.timestamp(TIMESTAMP_UNIT, field.type.tz)
+            # safe=False permits the sub-microsecond truncation; the target type is fixed,
+            # so no other lossy conversion can happen here.
+            columns.append(pc.cast(column, target, safe=False))
+            fields.append(field.with_type(target))
             changed = True
         else:
+            columns.append(column)
             fields.append(field)
-    return table.cast(pa.schema(fields)) if changed else table
+    return pa.Table.from_arrays(columns, schema=pa.schema(fields)) if changed else table
 
 
 def read_parquet(path: str | Path, columns: list[str] | None = None) -> pd.DataFrame:

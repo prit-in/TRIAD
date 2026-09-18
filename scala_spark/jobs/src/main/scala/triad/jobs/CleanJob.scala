@@ -1,9 +1,8 @@
 package triad.jobs
 
-import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import triad.core.CleaningRules.CleaningResult
-import triad.core.{CleaningRules, ContractViolation, Inputs, JobConfig, OutputWriter, TriadJob}
+import triad.core.{CleaningRules, Inputs, JobConfig, OutputWriter, TriadJob}
 
 /**
  * Cleaning job template (stage P3).
@@ -52,7 +51,9 @@ object CleanJob extends TriadJob {
       perRule = perRule
     )
     result.requireBalanced()   // FR-023: a mismatch fails the stage, never continues
-    CleanJob.lastResult = Some(result)
+    // `this`, never the object's own name: a generated copy is renamed, so a self-reference
+    // by name would not compile (caught by gate 4 the first time it was written that way).
+    this.lastResult = Some(result)
     deduped
   }
 

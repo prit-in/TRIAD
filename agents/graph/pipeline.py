@@ -21,6 +21,7 @@ from agents.codegen import gates as G
 from agents.codegen.templates import (
     TEMPLATE_ROOT,
     RenderedArtifact,
+    clean_generated,
     load_templates,
     render,
     write_artifact,
@@ -93,6 +94,7 @@ class ChurnPipeline:
         self.sandbox = get_runner()
         self.templates = load_templates(TEMPLATE_ROOT)
         self.replay = replay
+        self._generated_objects: set[str] = set()
         self.result = PipelineResult(run_key=run.run_key, state=run.state, ok=False)
 
     # -- helpers ---------------------------------------------------------------
@@ -150,6 +152,10 @@ class ChurnPipeline:
         }
         artifact = render(template, bodies)
         write_artifact(artifact)
+        # Generated sources compile as one module, so an artifact left behind by an earlier
+        # run would fail this run's build. Only this run's artifacts stay on disk.
+        self._generated_objects.add(artifact.object_name)
+        clean_generated(keep=self._generated_objects)
 
         row = CodeArtifact(
             run_id=self.run.id,
@@ -256,8 +262,8 @@ class ChurnPipeline:
         *,
         stage: str,
         template_id: str,
-        main_class: str,
         inputs: dict[str, str],
+        main_class: str | None = None,
         output_dir: Path,
         params: dict[str, Any],
         partition_by: list[str] | None = None,
@@ -309,12 +315,15 @@ class ChurnPipeline:
             if jar is None or core_jar is None:
                 return {"ok": False, "error": "no packaged JAR found; run `sbt core/package jobs/package`"}
 
+            # The class to submit is the object this attempt actually generated, so a
+            # repaired artifact is the one that runs.
+            generated_class = f"triad.jobs.generated.{artifact['artifact'].object_name}"
             request = spark_submit_request(
                 run_key=self.run.run_key,
                 stage=stage,
                 jar=str(jar),
                 core_jar=str(core_jar),
-                main_class=f"{main_class}",
+                main_class=main_class or generated_class,
                 job_args=artifact["job_args"],
                 master=self.config.get("spark_master", "local[2]"),
             )

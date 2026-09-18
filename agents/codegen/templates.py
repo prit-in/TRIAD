@@ -116,6 +116,17 @@ def parse_template(path: str | Path, *, version: str = "1.0") -> Template:
     if not object_name:
         raise TemplateError(f"{p.name}: no `object X extends Y {{` declaration found")
 
+    # A template must not refer to itself by name: rendering renames the object so several
+    # generated artifacts can coexist, and a self-reference would then fail to compile.
+    body_without_declaration = "\n".join(
+        line for line in lines if not OBJECT_LINE.match(line)
+    )
+    if re.search(rf"\b{re.escape(object_name)}\s*\.", body_without_declaration):
+        raise TemplateError(
+            f"{p.name}: the template refers to itself as `{object_name}.`; use `this.` "
+            "instead, because a generated copy is renamed"
+        )
+
     return Template(
         template_id=p.stem, version=version, path=p, lines=lines, slots=slots,
         object_name=object_name,

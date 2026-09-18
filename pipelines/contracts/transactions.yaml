@@ -11,8 +11,9 @@ columns:
   - {name: order_date, type: timestamp, required: true, nullable: false}
   - {name: product_id, type: string, required: false, nullable: true}
   - {name: quantity, type: int, required: true, nullable: false}
-  - {name: price, type: decimal(18,2), required: true, nullable: false}
-  - {name: discount, type: decimal(18,2), required: false, nullable: true}
+  # Quoted: an unquoted decimal(18,2) would split on its comma inside a YAML flow mapping.
+  - {name: price, type: "decimal(18,2)", required: true, nullable: false}
+  - {name: discount, type: "decimal(18,2)", required: false, nullable: true}
   - {name: promo_code, type: string, required: false, nullable: true}
   - {name: payment_method, type: string, required: false, nullable: true}
   - {name: channel, type: string, required: false, nullable: true}

@@ -231,8 +231,25 @@ class DatasetRegistry:
         ).scalar_one_or_none()
 
     def _next_version_no(self, dataset: Dataset) -> int:
+        """Next free version number, considering both the catalogue and the storage layout.
+
+        A run whose transaction rolled back can leave a `v=<n>` folder on disk with no row to
+        match it. Allocating purely from the catalogue would then collide with that orphan and
+        the write-once copy would refuse, so the filesystem is consulted too.
+        """
         latest = self.latest_version(dataset)
-        return (latest.version_no + 1) if latest else 1
+        from_db = latest.version_no if latest else 0
+
+        from_disk = 0
+        base = self.storage.root / "raw" / dataset.name
+        if base.exists():
+            for child in base.iterdir():
+                if child.is_dir() and child.name.startswith("v="):
+                    try:
+                        from_disk = max(from_disk, int(child.name[2:]))
+                    except ValueError:
+                        continue
+        return max(from_db, from_disk) + 1
 
     def register_version(
         self,

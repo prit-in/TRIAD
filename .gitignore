@@ -14,6 +14,9 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 
+# Generated Scala artifacts: produced per run from the templates, never source
+scala_spark/jobs/src/main/scala/triad/jobs/generated/
+
 # Scala / sbt
 target/
 project/target/
@@ -50,3 +53,7 @@ Thumbs.db
 
 # Experiment raw outputs (configs are committed, results are not by default)
 experiments/*/results/
+
+# Tooling artefacts that are not part of the project
+.claude-flow/
+.claude/
