@@ -57,3 +57,6 @@ experiments/*/results/
 # Tooling artefacts that are not part of the project
 .claude-flow/
 .claude/
+
+# Ad-hoc diagnostics live in scripts/; .triad holds only caches and toolchains
+.triad/
