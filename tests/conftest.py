@@ -63,6 +63,36 @@ def storage(tmp_data_root: Path):  # noqa: ANN201
     return Storage(tmp_data_root)
 
 
+@pytest.fixture()
+def db_session():  # noqa: ANN201
+    """A session whose work is rolled back afterwards, so tests never pollute each other.
+
+    Everything runs inside one outer transaction; `commit()` inside the code under test hits
+    a SAVEPOINT, and the outer transaction is rolled back at the end.
+    """
+    from sqlalchemy import event
+
+    from triad_core.db import engine
+
+    connection = engine().connect()
+    transaction = connection.begin()
+    from sqlalchemy.orm import Session
+
+    session = Session(bind=connection, join_transaction_mode="create_savepoint")
+
+    @event.listens_for(session, "after_transaction_end")
+    def _restart_savepoint(sess, trans):  # noqa: ANN001, ANN202
+        if trans.nested and not trans._parent.nested:
+            sess.begin_nested()
+
+    try:
+        yield session
+    finally:
+        session.close()
+        transaction.rollback()
+        connection.close()
+
+
 def _service_up(host: str, port: int, timeout: float = 1.5) -> bool:
     import socket
 
