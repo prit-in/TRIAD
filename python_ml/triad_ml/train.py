@@ -214,6 +214,8 @@ def select_model(
     label_col: str = LABEL,
     threshold_strategy: str = "capacity",
     capacity_share: float = 0.15,
+    tuning: dict[str, Any] | None = None,
+    seed: int = 42,
 ) -> SelectionResult:
     """PRD section 18.4, implemented literally.
 
@@ -289,6 +291,38 @@ def select_model(
         screened.append(m)
     rules.extend(("AP-3", "AP-4", "AP-7"))
 
+    # --- stage B: tune the finalists (PRD 18.4) -------------------------------
+    # Only the finalists, and only on validation. A tuned model then goes through exactly the
+    # same hard constraints as a screened one: a search is not a licence to return a model
+    # that is too large or too slow to deploy.
+    tuning_records: list[dict[str, Any]] = []
+    if tuning and screened:
+        from python_ml.triad_ml.tune import tune_finalists
+
+        tuned, tuning_records = tune_finalists(screened, split, config=tuning, seed=seed)
+        for m in tuned:
+            verdict = check_acceptance(
+                m.valid_metrics, policy, logreg_pr_auc=logreg_pr,
+                train_pr_auc=m.train_metrics.get("pr_auc"),
+                model_size_mb=m.model_size_mb, train_minutes=m.train_seconds / 60.0,
+                is_logreg=False,
+            )
+            blocking = [c for c in verdict.reason_codes
+                        if c in {"MODEL_TOO_LARGE", "TRAINING_TOO_SLOW",
+                                 "ROC_AUC_BELOW_FLOOR", "LEAKAGE_SUSPECTED"}]
+            if blocking:
+                rejected.append({
+                    "family": f"{m.family} (tuned)",
+                    "reason": f"the tuned model is rejected by {', '.join(blocking)}",
+                    "rule": "AP-3/AP-7 or the leakage alarm",
+                    "evidence": verdict.evidence,
+                })
+                continue
+            verdicts[f"{m.family} (tuned)"] = verdict
+            screened.append(m)
+        if tuning_records:
+            rules.append("optuna_tuning")
+
     if not screened:
         return SelectionResult(
             "ESCALATE", None, "no candidate passed the hard constraints", rules,
@@ -305,6 +339,7 @@ def select_model(
                                rejected=rejected, verdicts=verdicts)
     best = ranked[0]
     rules.append("rank_by_valid_pr_auc")
+    search_evidence: dict[str, Any] = {"tuning": tuning_records} if tuning_records else {}
 
     # --- AP-2 parsimony -------------------------------------------------------
     margin = float(policy.get("AP2_parsimony_margin", 0.01))
@@ -424,6 +459,8 @@ def select_model(
         else "balanced",
         "ece_after_calibration": best.valid_metrics.get("ece"),
         "brier_skill_after_calibration": best.valid_metrics.get("brier_skill"),
+        "selected_role": best.candidate.role,
+        **search_evidence,
     }
 
     # --- stage E: compare with the champion on the same cutoff ---------------

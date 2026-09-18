@@ -402,3 +402,61 @@ def test_a_failing_candidate_is_dropped_and_the_run_continues() -> None:
     result = select_model(models, split, POLICY)
     assert result.outcome in ("PROPOSE_PROMOTION", "KEEP_CHAMPION", "ESCALATE")
     assert any(r.get("reason", "").startswith("training failed") for r in result.rejected)
+
+
+# --- tuning inside the selection procedure (PRD 18.4) --------------------------
+
+
+@pytest.mark.slow
+def test_selection_tunes_the_finalists_and_records_the_search() -> None:
+    """`tuned = [optuna_tune(f, ...) for f in finalists]` is a step of the procedure, and
+    the decision record has to show what the search actually did."""
+    df = make_features(400)
+    split = apply_split(df, plan_split(sorted(df.snapshot_date.unique()), horizon_days=90))
+    models = train_all(shortlist(n_rows=len(split.train), n_features=4), split, seed=42)
+
+    result = select_model(
+        models, split, POLICY, seed=42,
+        # A small budget: this test is about the procedure, not about finding a better model.
+        tuning={"enabled": True, "n_trials": 4, "timeout_seconds": 60, "finalists": 2},
+    )
+    assert "optuna_tuning" in result.rules_applied
+    records = result.evidence["tuning"]
+    assert records, "the search must be recorded even when it improves nothing"
+    for record in records:
+        assert record["trials_run"] <= record["trials_requested"]
+        assert record["baseline_value"] is not None
+        # A record that claims an improvement must have a value that actually beats it.
+        if record["improved"]:
+            assert record["best_value"] > record["baseline_value"]
+
+
+@pytest.mark.slow
+def test_selection_without_tuning_is_unchanged() -> None:
+    """Tuning is a step, not a rewrite: omitting it must leave the old behaviour intact."""
+    df = make_features(400)
+    split = apply_split(df, plan_split(sorted(df.snapshot_date.unique()), horizon_days=90))
+    models = train_all(shortlist(n_rows=len(split.train), n_features=4), split, seed=42)
+
+    result = select_model(models, split, POLICY)
+    assert "optuna_tuning" not in result.rules_applied
+    assert "tuning" not in result.evidence
+
+
+@pytest.mark.slow
+def test_a_tuned_model_still_has_to_pass_the_hard_constraints() -> None:
+    """A search is not a licence to return a model too large or too slow to deploy."""
+    df = make_features(400)
+    split = apply_split(df, plan_split(sorted(df.snapshot_date.unique()), horizon_days=90))
+    models = train_all(shortlist(n_rows=len(split.train), n_features=4), split, seed=42)
+
+    # AP-7 set so tight that nothing can pass it; the tuned models must be rejected by name.
+    strict = {**POLICY, "AP7_max_model_size_mb": 0.0000001}
+    result = select_model(
+        models, split, strict, seed=42,
+        tuning={"enabled": True, "n_trials": 3, "timeout_seconds": 60, "finalists": 1},
+    )
+    tuned_rejections = [r for r in result.rejected if "(tuned)" in r["family"]]
+    if result.evidence.get("tuning") and any(r["improved"] for r in result.evidence["tuning"]):
+        assert tuned_rejections, "a tuned model that improved must still face AP-7"
+        assert all("MODEL_TOO_LARGE" in r["reason"] for r in tuned_rejections)

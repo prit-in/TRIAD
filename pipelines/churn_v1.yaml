@@ -76,13 +76,16 @@ acceptance_policy:            # PRD section 17.6, thresholds configurable
   leakage_alarm_roc_auc: 0.98
   min_positive_examples: 200
 
-tuning:
+tuning:                       # PRD section 18.4: only the finalists are searched
+  enabled: true
   sampler: tpe
-  seed: 42
+  seed: 42                    # 18.3 reproducibility: the same seed searches the same points
   n_trials: 30
-  timeout_seconds: 900
+  timeout_seconds: 900        # per study
   pruner: median
   objective: valid_pr_auc
+  finalists: 2                # "finalists = top_families(screened, k = 2)"
+  max_search_minutes: 30      # the whole search, so tuning cannot eat the run's budget
 
 threshold:
   strategy: capacity          # capacity | f_beta

@@ -329,7 +329,20 @@ def prepare(
         models, split, pipeline.config["acceptance_policy"],
         champion_scores=champion_scores,
         segment_cols=["country"] if "country" in dataset.columns else None,
+        tuning=pipeline.config.get("tuning"),
+        seed=seed,
     )
+    for record in selection.evidence.get("tuning", []):
+        if record.get("skipped"):
+            say("tune", record["skipped"], True)
+            continue
+        say("tune", f"{record['family']}: {record['trials_run']} of "
+                    f"{record['trials_requested']} trials in {record['seconds']}s -> "
+                    + (f"{record['best_value']:.4f} (was {record['baseline_value']:.4f})"
+                       if record["improved"]
+                       else "no improvement on the screened model")
+                    + (f"; {record['stopped_because']}" if record["stopped_because"] else ""),
+            True)
     say("select", f"{selection.outcome}: {selection.reason}", selection.outcome != "ESCALATE")
     if selection.outcome == "ESCALATE":
         pipeline.finish("ESCALATED", ok=False, reason=selection.reason)
