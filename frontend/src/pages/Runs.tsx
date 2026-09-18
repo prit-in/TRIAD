@@ -1,0 +1,200 @@
+import { useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { api } from "../api";
+import type { Artifact, Decision, LogLine, RunDetail } from "../api";
+import { Empty, Panel, Problem, State, useLoad, when } from "../shared";
+
+export function Runs() {
+  const [state, setState] = useState("");
+  const runs = useLoad(() => api.runs(state ? `?limit=50&state=${state}` : "?limit=50"), [state]);
+
+  return (
+    <Panel
+      title="Runs"
+      provenance="Measured"
+      actions={
+        <select value={state} onChange={(e) => setState(e.target.value)}>
+          <option value="">every state</option>
+          {["RECEIVED", "APPROVAL_REQUIRED", "PUBLISHED", "COMPLETED", "ESCALATED", "CANCELLED"].map(
+            (option) => (
+              <option key={option} value={option}>
+                {option.replaceAll("_", " ").toLowerCase()}
+              </option>
+            ),
+          )}
+        </select>
+      }
+    >
+      <Problem error={runs.problem} />
+      {runs.data && runs.data.items.length > 0 ? (
+        <table>
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Pipeline</th>
+              <th>State</th>
+              <th>Stage</th>
+              <th>Started</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.data.items.map((run) => (
+              <tr key={run.run_id}>
+                <td>
+                  <Link to={`/runs/${run.run_id}`}>{run.run_id}</Link>
+                </td>
+                <td>{run.pipeline}</td>
+                <td>
+                  <State value={run.state} />
+                </td>
+                <td>{run.current_stage ?? "—"}</td>
+                <td>{when(run.started_at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <Empty what="runs in this state" />
+      )}
+    </Panel>
+  );
+}
+
+export function RunDetailPage() {
+  const { runId = "" } = useParams();
+  const run = useLoad<RunDetail>(() => api.run(runId), [runId]);
+  const decisions = useLoad<Decision[]>(() => api.runDecisions(runId), [runId]);
+  const artifacts = useLoad<Artifact[]>(() => api.runArtifacts(runId), [runId]);
+  const logs = useLoad<LogLine[]>(() => api.runLogs(runId), [runId]);
+
+  return (
+    <>
+      <Problem error={run.problem} />
+      <Panel
+        title={runId}
+        provenance="Measured"
+        actions={
+          run.data && !["COMPLETED", "PUBLISHED", "CANCELLED", "ABORTED"].includes(run.data.state) ? (
+            <button className="link" onClick={() => api.cancelRun(runId).then(run.refresh)}>
+              Cancel
+            </button>
+          ) : undefined
+        }
+      >
+        {run.data && (
+          <>
+            <p>
+              <State value={run.data.state} /> {run.data.pipeline} · {run.data.mode} · started{" "}
+              {when(run.data.started_at)}
+            </p>
+            {run.data.error_summary && <p className="problem">{run.data.error_summary}</p>}
+            {run.data.pending_approval && (
+              <p className="waiting-note">
+                Waiting on a decision for {run.data.pending_approval.target_ref} —{" "}
+                <Link to="/approvals">go to approvals</Link>
+              </p>
+            )}
+            <table>
+              <thead>
+                <tr>
+                  <th>Stage</th>
+                  <th>Status</th>
+                  <th>Attempts</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                {run.data.stages.map((stage, index) => (
+                  <tr key={`${stage.name}-${index}`}>
+                    <td>{stage.name}</td>
+                    <td>
+                      <State value={stage.status.toUpperCase()} />
+                    </td>
+                    <td>{stage.attempts}</td>
+                    <td>{stage.duration_s === null ? "—" : `${stage.duration_s}s`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="muted">
+              Budget used: {run.data.budget_used.llm_calls ?? 0} LLM calls, cost{" "}
+              {run.data.budget_used.llm_cost_usd ?? 0}
+            </p>
+          </>
+        )}
+      </Panel>
+
+      <Panel title="Agent decisions" provenance="Decision records">
+        {decisions.data && decisions.data.length > 0 ? (
+          <ul className="decisions">
+            {decisions.data.map((decision) => (
+              <li key={decision.id}>
+                <span className="pill busy">{decision.decision_type}</span>
+                <strong>{decision.decision}</strong>
+                {decision.summary && <span className="muted"> — {decision.summary}</span>}
+                {decision.policy_rule_ids.length > 0 && (
+                  <span className="rules">{decision.policy_rule_ids.join(", ")}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Empty what="decisions" />
+        )}
+      </Panel>
+
+      <Panel title="Generated code" provenance="Measured">
+        {artifacts.data && artifacts.data.length > 0 ? (
+          <table>
+            <thead>
+              <tr>
+                <th>Template</th>
+                <th>Slot</th>
+                <th>Hash</th>
+                <th>Gates</th>
+              </tr>
+            </thead>
+            <tbody>
+              {artifacts.data.map((artifact) => (
+                <tr key={artifact.id}>
+                  <td>{artifact.template_id}</td>
+                  <td>{artifact.slot_id ?? "—"}</td>
+                  <td className="mono">{artifact.content_hash.slice(0, 12)}</td>
+                  <td>
+                    {(artifact.gate_results.gates ?? []).map((gate) => (
+                      <span
+                        key={gate.gate}
+                        className={`gate ${gate.passed ? "good" : "bad"}`}
+                        title={`${gate.name}: ${gate.detail}`}
+                      >
+                        {gate.gate}
+                      </span>
+                    ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <Empty what="generated artifacts" />
+        )}
+      </Panel>
+
+      <Panel title="Timeline" provenance="Measured, redacted">
+        {logs.data && logs.data.length > 0 ? (
+          <ul className="logs">
+            {logs.data.map((line, index) => (
+              <li key={index} className={line.level}>
+                <span className="log-at">{when(line.at)}</span>
+                <span className="log-stage">{line.stage ?? "—"}</span>
+                <span className="log-message">{line.message}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Empty what="recorded timeline" />
+        )}
+      </Panel>
+    </>
+  );
+}

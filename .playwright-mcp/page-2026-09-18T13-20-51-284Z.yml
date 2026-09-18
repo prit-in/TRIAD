@@ -1,0 +1,10 @@
+- generic [ref=e4]:
+  - heading "TRIAD" [level=1] [ref=e5]
+  - paragraph [ref=e6]: Governed, agentic churn analytics.
+  - generic [ref=e7]:
+    - text: Email
+    - textbox "Email" [ref=e8]
+  - generic [ref=e9]:
+    - text: Password
+    - textbox "Password" [ref=e10]
+  - button "Sign in" [ref=e11] [cursor=pointer]

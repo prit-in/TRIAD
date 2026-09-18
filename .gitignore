@@ -60,3 +60,7 @@ experiments/*/results/
 
 # Ad-hoc diagnostics live in scripts/; .triad holds only caches and toolchains
 .triad/
+
+# The dev server installs into a named volume; the lockfile is what is committed
+frontend/node_modules/
+frontend/dist/

@@ -196,34 +196,27 @@ def main() -> int:
             return 1
 
         # --- the approval gate, played by two people ---------------------------
-        requester = _user(session, "ml_engineer", "requester@triad.test")
-        approver = _user(session, "ml_engineer", "approver@triad.test")
-
-        from triad_core.governance import SelfApprovalRefused
-
+        outcome = (prepared.details.get("selection") or {}).get("outcome")
         governance = _governance(session)
         pending = governance.pending_for(run.id)
-        if not pending:
-            raise SystemExit(f"{run.run_key} has no pending approval to decide")
-        approval = pending[0]
-        approval.requested_by = str(requester.id)
-        session.flush()
 
-        try:
-            governance.decide(approval.id, approver=requester, approved=True,
-                              comment="approving my own request")
-            log("approval", "SELF-APPROVAL WAS ALLOWED - this is a defect", ok=False)
-            return 3
-        except SelfApprovalRefused:
-            log("approval", "self-approval refused with 403, as required", ok=True)
-
-        decided = governance.decide(
-            approval.id, approver=approver, approved=not args.reject,
-            comment=("rejected for the demonstration path" if args.reject
-                     else "metrics and segment checks reviewed; promote"),
-        )
-        log("approval", f"decision: {decided.status} by {approver.email}", ok=True)
-        summary["steps"].append({"step": "approval", "status": decided.status})
+        if outcome != "PROPOSE_PROMOTION":
+            # The acceptance policy kept the champion, so there is nothing to approve. The
+            # challenger is still scored, as shadow, and still reported.
+            log("approval", f"{outcome}: no promotion proposed, so nothing to decide", ok=True)
+            if pending:
+                log("approval", "a run that proposed nothing still asked for approval - "
+                                "this is a defect", ok=False)
+                return 3
+            summary["steps"].append({"step": "approval", "status": "not requested",
+                                     "outcome": outcome})
+        else:
+            _decide_as_two_people(
+                session, governance, run, pending,
+                requester=_user(session, "ml_engineer", "requester@triad.test"),
+                approver=_user(session, "ml_engineer", "approver@triad.test"),
+                reject=args.reject, summary=summary,
+            )
 
         # --- phase two: carry the decision out ---------------------------------
         published = churn.publish(
@@ -247,6 +240,34 @@ def main() -> int:
             return 4
         log("done", f"{run.run_key} completed in {elapsed:.0f}s", ok=True)
     return 0
+
+
+def _decide_as_two_people(session, governance, run, pending, *, requester, approver,
+                          reject: bool, summary) -> None:
+    """The separation-of-duties rule, demonstrated rather than asserted (PRD 30.5)."""
+    from triad_core.governance import SelfApprovalRefused
+
+    if not pending:
+        raise SystemExit(f"{run.run_key} proposed a promotion but asked for no approval")
+    approval = pending[0]
+    approval.requested_by = str(requester.id)
+    session.flush()
+
+    try:
+        governance.decide(approval.id, approver=requester, approved=True,
+                          comment="approving my own request")
+        log("approval", "SELF-APPROVAL WAS ALLOWED - this is a defect", ok=False)
+        raise SystemExit(3)
+    except SelfApprovalRefused:
+        log("approval", "self-approval refused with 403, as required", ok=True)
+
+    decided = governance.decide(
+        approval.id, approver=approver, approved=not reject,
+        comment=("rejected for the demonstration path" if reject
+                 else "metrics and segment checks reviewed; promote"),
+    )
+    log("approval", f"decision: {decided.status} by {approver.email}", ok=True)
+    summary["steps"].append({"step": "approval", "status": decided.status})
 
 
 def _governance(session):

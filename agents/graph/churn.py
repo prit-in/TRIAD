@@ -393,6 +393,41 @@ def prepare(
     say("monitor", f"catalogue version {model_version.id} recorded; "
                    f"reference captured from {len(split.train)} training rows", True)
 
+    state = {
+        "run_key": run.run_key,
+        "model_name": MODEL_NAME,
+        "model_version_id": str(model_version.id),
+        "mlflow_version": mlflow_version,
+        "registry_error": registry_error,
+        "selection_outcome": selection.outcome,
+        "features_uri": features_out["uri"],
+        "labels_uri": labels_out["uri"],
+        "clean_uri": clean_out["uri"],
+        "reference_uri": reference_uri,
+        "split": spec.to_dict(),
+        "feature_columns": feature_cols,
+        "numeric_columns": num_cols,
+        "categorical_columns": cat_cols,
+        "threshold": threshold,
+        "selection": selection.to_dict(),
+        "quality_score": profile_out.get("quality_score"),
+        "cutoffs": window,
+        "seed": seed,
+    }
+
+    # Only a proposal asks a person to decide. KEEP_CHAMPION already *is* the decision, and
+    # asking someone to approve a promotion the acceptance policy just refused would invite
+    # them to overrule it without saying so - which is how a model that did not win gets
+    # deployed anyway.
+    if selection.outcome != "PROPOSE_PROMOTION":
+        state["approval_id"] = None
+        write_state(store, run, state)
+        say("select", f"{selection.outcome}: no promotion is proposed, so no approval is "
+                      "requested; the challenger is kept for shadow scoring", True)
+        pipeline._persist_budget()
+        pipeline._advance("SELECTED", stage="select")
+        return PhaseResult(True, "SELECTED", selection.reason, state)
+
     # -- request approval -------------------------------------------------------
     evidence = EvidenceBundle(
         action_type="model_promotion",
@@ -412,27 +447,7 @@ def prepare(
     )
     say("approval", f"requested {approval_id}; run paused in APPROVAL_REQUIRED", True)
 
-    state = {
-        "run_key": run.run_key,
-        "model_name": MODEL_NAME,
-        "model_version_id": str(model_version.id),
-        "mlflow_version": mlflow_version,
-        "registry_error": registry_error,
-        "approval_id": approval_id,
-        "features_uri": features_out["uri"],
-        "labels_uri": labels_out["uri"],
-        "clean_uri": clean_out["uri"],
-        "reference_uri": reference_uri,
-        "split": spec.to_dict(),
-        "feature_columns": num_cols + cat_cols,
-        "numeric_columns": num_cols,
-        "categorical_columns": cat_cols,
-        "threshold": threshold,
-        "selection": selection.to_dict(),
-        "quality_score": profile_out.get("quality_score"),
-        "cutoffs": window,
-        "seed": seed,
-    }
+    state["approval_id"] = approval_id
     write_state(store, run, state)
     pipeline._persist_budget()
     return PhaseResult(True, "APPROVAL_REQUIRED", "awaiting a decision", state)
@@ -474,11 +489,15 @@ def publish(
                                Approval.action_type == "model_promotion")
         .order_by(Approval.requested_at.desc())
     ).scalars().first()
-    if approval is None:
+    proposed = state.get("selection_outcome") == "PROPOSE_PROMOTION"
+    if approval is None and proposed:
         return PhaseResult(False, run.state, "no promotion request exists for this run")
-    if approval.status == "pending":
+    if approval is not None and approval.status == "pending":
         return PhaseResult(False, "APPROVAL_REQUIRED",
                            "the promotion has not been decided yet")
+    if not proposed:
+        say("deploy", f"{state.get('selection_outcome')}: the champion is unchanged and this "
+                      "challenger is scored as shadow", True)
 
     model_version = session.get(ModelVersion, state["model_version_id"])
     if model_version is None:
@@ -502,14 +521,16 @@ def publish(
     registry = ModelRegistry(settings().mlflow_tracking_uri)
     promoted: dict[str, Any] | None = None
 
-    if approval.status == "approved" and mlflow_version:
+    approved = approval is not None and approval.status == "approved"
+    if approved and mlflow_version:
         promoted = registry.promote(
             state["model_name"], mlflow_version,
-            approval_id=str(approval.id), approved_by=str(approval.decided_by),
+            approval_id=str(approval.id), approved_by=str(approval.decided_by),  # type: ignore[union-attr]
         )
         say("deploy", f"champion -> v{mlflow_version} "
                       f"(previous {promoted['previous_champion']})", True)
-        monitor.set_status(model_version, "champion", promoted_by=approval.decided_by)
+        monitor.set_status(model_version, "champion",
+                           promoted_by=approval.decided_by if approval else None)
         pipeline._advance("DEPLOYED", stage="deploy")
 
         champion = registry.load(state["model_name"], "champion")
@@ -538,7 +559,7 @@ def publish(
                             reason="smoke test failed after promotion")
             return PhaseResult(False, "ESCALATED", "smoke test failed after promotion",
                                {"smoke": smoke})
-    elif approval.status == "approved":
+    elif approved:
         say("deploy", "approved but not promoted: the challenger was never registered", False)
         pipeline.governance.alert(
             alert_type="promotion_blocked", severity="critical", run_id=run.id,
@@ -546,7 +567,7 @@ def publish(
             evidence={"approval_id": str(approval.id),
                       "registry_error": state.get("registry_error", "")},
         )
-    else:
+    elif approval is not None:
         say("deploy", "rejected: the champion is unchanged and shadow scores archived", True)
 
     # -- score ------------------------------------------------------------------
@@ -667,7 +688,7 @@ def publish(
                   f"{report.claim.facts_verified} facts verified; registered as "
                   f"{report_row.id}", report.claim.passed)
 
-    if approval.status == "approved" and not promoted:
+    if approved and not promoted:
         pipeline.finish("ESCALATED", ok=False,
                         reason="promotion approved but the challenger was never registered")
         return PhaseResult(False, "ESCALATED",
