@@ -1,0 +1,16 @@
+# Implementation decisions
+
+Small decisions taken while building, where the PRD left a detail open or where measurement
+showed the literal reading would misfire. Anything architectural gets a full ADR in
+`docs/adr/` instead.
+
+| ID | Decision | Why | PRD anchor |
+| --- | --- | --- | --- |
+| DEC-01 | Calibration-sensitive acceptance rules (AP-4 Brier skill, AP-5 calibration error) are judged **after** stage C calibration, not during stage A screening. Screening keeps AP-3, AP-7 and the leakage alarm. | PRD 17.7 states that class weighting distorts probabilities, and AP-5 is defined as "at most 0.05 **after calibration**". Measured on the fixture: every weighted candidate had a negative Brier skill before calibration, so screening on it rejected the whole shortlist and escalated a healthy run. | 17.6, 17.7, 18.2 stage C, 18.4 |
+| DEC-02 | A segment counts towards the AP-6 recall gap only with at least 50 rows **and 30 positives**; otherwise it is marked `insufficient_data`. | UC-10's exception flow already marks thin segments. Recall from ~12 churners is sampling noise; without the positives rule the gap was 0.34 on a fixture whose segments were statistically indistinguishable. | UC-10, AP-6 |
+| DEC-03 | The MISCALIBRATED remedy chain is isotonic -> sigmoid -> refit without class weighting, each attempt recorded in the decision evidence. | This is PRD 19.4's remedy row implemented literally ("Recalibrate (isotonic, then sigmoid)" then "Reduce class weighting"). | 19.4 |
+| DEC-04 | Thin JARs: `sbt core/package jobs/package`, and the Execution Agent submits with `--jars <core>`. No assembly plugin. | Spark stays `provided` (FR-041) and no extra build plugin has to be downloaded or trusted. Found during the Phase-1 smoke test, where `jobs/package` alone produced `NoClassDefFoundError: triad/core/Inputs`. | FR-041, 36.3 |
+| DEC-05 | Every Python-side Parquet write goes through `triad_core.parquet_io.write_parquet`, which coerces timestamps to microseconds. | pandas/PyArrow default to nanoseconds and Spark 4 refuses to read them (`PARQUET_TYPE_ILLEGAL`). PRD 13.5 already pins `TIMESTAMP_MICROS` on the Spark side; this closes the other half. | 13.5, 23.2 |
+| DEC-06 | `sha256_dir` excludes `_SUCCESS`, `_manifest.json` and `.crc` sidecars. | The manifest contains the content hash, so including it would make the hash depend on itself and `verify()` could never pass. | 14.2, NFR-REP-02 |
+| DEC-07 | A shared `triad_core/` package holds config, models, storage, audit, policy, contracts and errors; `dataeng/` holds M02-M04 services. | PRD 38's tree has no shared layer, so backend, agents and python_ml would each need their own copy of the state handling. Module boundaries from PRD 37 are preserved. | 37, 38 |
+| DEC-08 | Profiling always reports nulls in an `identifier` column, even below the 20% warn rate. | Those rows cannot be joined to a customer and are quarantined as `NO_CUSTOMER_KEY` in P3, so the profile must surface them. The PRD's own example calls out "3% of lines lack a customer ID" as a finding. | UC-02, UC-03, FR-010 |
