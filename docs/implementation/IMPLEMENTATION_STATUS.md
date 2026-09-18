@@ -112,7 +112,8 @@ and separation-of-duties rules already guard.
 
 ## Not started
 
-- REST API (`backend/`) and the React frontend (`frontend/`).
+- REST API and the React frontend. `backend/db/` already holds the Alembic migrations
+  that built the 21 tables; there is no FastAPI application and no `frontend/` at all.
 - **Optuna tuning (`tune.py`).** `configs`' `tuning:` block is read by nothing; `train_all`
   fits each family with fixed parameters. PRD 18 and the module map both specify it.
 - **`predictions` and `reports` rows.** Predictions are written to Parquet and reports to
