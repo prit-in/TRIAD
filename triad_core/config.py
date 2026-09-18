@@ -34,7 +34,9 @@ class Settings(BaseSettings):
     db_dsn: str = "postgresql://triad:triad_dev_pw@postgres:5432/triad"
 
     # Auth -------------------------------------------------------------------
-    jwt_secret: str = "dev-only-secret-change-me"
+    # 32+ bytes, because HS256 keys shorter than the digest weaken the MAC (RFC 7518 3.2).
+    # The name is the warning: `check_jwt_secret` refuses this value outside dev.
+    jwt_secret: str = "dev-only-insecure-secret-change-me-before-any-real-deployment"
     jwt_algorithm: str = "HS256"
     jwt_ttl_minutes: int = 60
 
