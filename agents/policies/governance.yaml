@@ -1,0 +1,137 @@
+# TRIAD governance policy (PRD section 30.3). Versioned and reviewed like source.
+# Autonomy levels: forbidden (L0), advisory (L1), supervised (L2), bounded (L3).
+# If this file is missing, unparseable or inconsistent, every gated action is refused.
+policy_version: "1.0"
+fail_closed: true
+
+defaults:
+  max_code_repair_attempts: 3
+  max_infra_retries: 2
+  max_optimisation_cycles: 2
+  max_llm_calls_per_run: 60
+  max_llm_cost_usd_per_run: 3.0
+  max_wall_clock_minutes: 240
+  max_identical_fingerprint: 2
+  approval_expiry_hours: 72
+  max_cleaning_passes: 2
+
+actions:
+  # --- read-only / bounded autonomous (L3) -----------------------------------
+  profiling.run:
+    autonomy: bounded
+    limits: {read_only: true}
+
+  cleaning.propose:
+    autonomy: bounded
+    limits: {proposal_only: true}
+
+  cleaning.execute:
+    autonomy: bounded
+    limits:
+      max_rows_affected_pct: 5.0
+      allow_column_drop: false
+      quarantine_required: true
+    on_limit_exceeded: require_approval
+    approvers: [data_engineer, admin]
+    required_evidence: [impact_estimate, sample_rows]
+
+  code.generate:
+    autonomy: bounded
+    limits: {templates_only: true, slots_only: true, allow_dependency_change: false}
+
+  sandbox.run:
+    autonomy: bounded
+    limits: {profiles: [small, medium, large], network: internal_only}
+
+  spark.config_change:
+    autonomy: bounded
+    allowlist:
+      - spark.sql.shuffle.partitions
+      - spark.sql.autoBroadcastJoinThreshold
+      - spark.executor.memory
+      - spark.sql.adaptive.skewJoin.enabled
+    limits: {within_run_quota: true}
+
+  ml.train:
+    autonomy: bounded
+    limits: {registered_families_only: true}
+
+  ml.tune:
+    autonomy: bounded
+    limits: {within_budget: true}
+
+  report.generate_internal:
+    autonomy: bounded
+    limits: {claim_check_required: true}
+
+  model.rollback_to_previous:
+    autonomy: bounded
+    condition: post_deploy_smoke_failed
+    limits: {target: previous_recorded_champion_only}
+
+  # --- supervised (L2): needs a named approver -------------------------------
+  model.promote:
+    autonomy: supervised
+    approvers: [ml_engineer, admin]
+    separation_of_duties: true
+    required_evidence:
+      - metrics_vs_champion
+      - segment_checks
+      - calibration
+      - drift_summary
+      - model_card
+
+  model.promote_with_failed_check:
+    autonomy: supervised
+    approvers_all_of: [ml_engineer, admin]
+    separation_of_duties: true
+    required_evidence: [override_note, metrics_vs_champion, model_card]
+
+  schema.change:
+    autonomy: supervised
+    approvers: [data_engineer, admin]
+    required_evidence: [schema_diff, impact_estimate]
+
+  churn_definition.change:
+    autonomy: supervised
+    approvers_all_of: [ml_engineer, business_analyst]
+    required_evidence: [label_impact_analysis]
+
+  quota.increase:
+    autonomy: supervised
+    approvers: [admin]
+    required_evidence: [cost_estimate]
+
+  llm_budget.increase:
+    autonomy: supervised
+    approvers: [admin]
+    required_evidence: [usage_history]
+
+  report.publish_external:
+    autonomy: supervised
+    approvers: [business_analyst, admin]
+    required_evidence: [verified_report]
+
+  # --- advisory (L1) ---------------------------------------------------------
+  source_mapping.confirm:
+    autonomy: advisory
+    performer_roles: [data_engineer, admin]
+
+  # --- forbidden to agents (L0) ----------------------------------------------
+  dependency.add:
+    autonomy: forbidden
+    reason: "Dependencies change the build surface; admin only, through code review."
+  data.delete:
+    autonomy: forbidden
+    reason: "Irreversible. Manual administrator procedure only."
+  external_message.send:
+    autonomy: forbidden
+    reason: "Out of scope (ASM-10); the platform recommends, people act."
+  policy.change:
+    autonomy: forbidden
+    reason: "Autonomy must never widen itself; reviewed code change only."
+  registry.set_alias:
+    autonomy: forbidden
+    reason: >-
+      Agents never move aliases directly. The Governance service applies an approved
+      promotion or the pre-approved rollback (ATC-02).

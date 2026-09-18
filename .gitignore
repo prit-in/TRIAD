@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Scala / sbt
+target/
+project/target/
+project/project/
+.bloop/
+.metals/
+.bsp/
+
+# Project-local toolchains, caches, runtime state (never committed)
+.triad/toolchains/
+.triad/cache/
+.triad/runtime/
+
+# Data: nothing bulky is ever committed
+data/
+datasets/raw/
+datasets/downloads/
+datasets/synthetic/out/
+!datasets/fixtures/**
+mlruns/
+mlartifacts/
+
+# Secrets and local env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+
+# Experiment raw outputs (configs are committed, results are not by default)
+experiments/*/results/

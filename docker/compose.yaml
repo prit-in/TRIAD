@@ -1,0 +1,203 @@
+# TRIAD MVP stack (PRD section 10.3), sized for Env-A-mini: 8 cores / ~5.3 GB in the
+# Docker VM (see docs/adr/ADR-0002-env-a-mini.md). Profiles keep the resident set small:
+#
+#   core    postgres + mlflow + api + orchestrator + frontend   (always needed)
+#   spark   spark-master + spark-worker                         (cluster demos, EXP-*)
+#   tools   dev shell / test runner                             (on demand)
+#
+# Only sandbox-runner may start containers (DD-04); nothing else mounts the docker socket.
+name: triad
+
+x-triad-image: &triad-image
+  image: triad-base:0.1
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile.base
+
+x-common-env: &common-env
+  TRIAD_ENV: ${TRIAD_ENV:-dev}
+  TRIAD_DATA_ROOT: /data/triad
+  TRIAD_DB_URL: postgresql+psycopg://triad:${POSTGRES_PASSWORD:-triad_dev_pw}@postgres:5432/triad
+  TRIAD_DB_DSN: postgresql://triad:${POSTGRES_PASSWORD:-triad_dev_pw}@postgres:5432/triad
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  SPARK_MASTER_URL: ${SPARK_MASTER_URL:-local[2]}
+  TZ: UTC
+  PYTHONPATH: /workspace
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: triad
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-triad_dev_pw}
+      POSTGRES_DB: triad
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=60
+    ports: ["${TRIAD_PG_PORT:-55432}:5432"]
+    volumes:
+      - triad-pgdata:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U triad -d triad"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits: {memory: 400M}
+    networks: [triad-net]
+
+  mlflow:
+    <<: *triad-image
+    environment:
+      <<: *common-env
+    command:
+      - bash
+      - -lc
+      - >-
+        mlflow server --host 0.0.0.0 --port 5000 --workers 1
+        --allowed-hosts mlflow,mlflow:5000,localhost,localhost:5000,127.0.0.1,127.0.0.1:5500
+        --backend-store-uri postgresql+psycopg://triad:${POSTGRES_PASSWORD:-triad_dev_pw}@postgres:5432/mlflow
+        --default-artifact-root /data/triad/mlartifacts
+    depends_on:
+      postgres: {condition: service_healthy}
+    ports: ["${TRIAD_MLFLOW_PORT:-5500}:5000"]
+    volumes:
+      - triad-data:/data/triad
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:5000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    deploy:
+      resources:
+        limits: {memory: 1200M}
+    networks: [triad-net]
+
+  api:
+    <<: *triad-image
+    environment:
+      <<: *common-env
+      TRIAD_JWT_SECRET: ${TRIAD_JWT_SECRET:-dev-only-secret-change-me}
+    command: ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+    ports: ["${TRIAD_API_PORT:-8010}:8000"]
+    volumes:
+      - ..:/workspace
+      - triad-data:/data/triad
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    deploy:
+      resources:
+        limits: {memory: 700M}
+    networks: [triad-net]
+
+  orchestrator:
+    <<: *triad-image
+    environment:
+      <<: *common-env
+      TRIAD_WORKER_NAME: orchestrator-1
+    command: ["python", "-m", "agents.worker"]
+    depends_on:
+      postgres: {condition: service_healthy}
+    volumes:
+      - ..:/workspace
+      - triad-data:/data/triad
+      - triad-ivy:/home/triad/.ivy2
+      - triad-sbt:/home/triad/.sbt
+    deploy:
+      resources:
+        limits: {memory: 1600M}
+    networks: [triad-net]
+
+  frontend:
+    image: node:24-alpine
+    working_dir: /app
+    command: ["sh", "-lc", "npm ci --no-audit --no-fund || npm install --no-audit --no-fund; npm run dev -- --host 0.0.0.0 --port 5173"]
+    environment:
+      VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8010/api/v1}
+    ports: ["${TRIAD_WEB_PORT:-5173}:5173"]
+    volumes:
+      - ../frontend:/app
+      - triad-node-modules:/app/node_modules
+    deploy:
+      resources:
+        limits: {memory: 700M}
+    networks: [triad-net]
+
+  spark-master:
+    <<: *triad-image
+    profiles: ["spark"]
+    command: ["bash", "-c", "$$SPARK_HOME/bin/spark-class org.apache.spark.deploy.master.Master --host spark-master --port 7077 --webui-port 8080"]
+    environment:
+      <<: *common-env
+      SPARK_NO_DAEMONIZE: "true"
+    ports:
+      - "${TRIAD_SPARK_UI_PORT:-8090}:8080"
+      - "7077:7077"
+    volumes:
+      - triad-data:/data/triad
+    deploy:
+      resources:
+        limits: {memory: 700M}
+    networks: [triad-net, triad-sandbox-net]
+
+  spark-worker:
+    <<: *triad-image
+    profiles: ["spark"]
+    command: ["bash", "-c", "$$SPARK_HOME/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 --cores ${SPARK_WORKER_CORES:-2} --memory ${SPARK_WORKER_MEMORY:-1800m} --webui-port 8081"]
+    environment:
+      <<: *common-env
+      SPARK_NO_DAEMONIZE: "true"
+    depends_on: [spark-master]
+    volumes:
+      - triad-data:/data/triad
+    deploy:
+      resources:
+        limits: {memory: 2400M}
+    networks: [triad-net, triad-sandbox-net]
+
+  dev:
+    <<: *triad-image
+    profiles: ["tools"]
+    environment:
+      <<: *common-env
+      TRIAD_DB_URL: postgresql+psycopg://triad:${POSTGRES_PASSWORD:-triad_dev_pw}@postgres:5432/triad
+    command: ["sleep", "infinity"]
+    volumes:
+      - ..:/workspace
+      - triad-data:/data/triad
+      - triad-ivy:/home/triad/.ivy2
+      - triad-sbt:/home/triad/.sbt
+      - triad-coursier:/home/triad/.cache/coursier
+    deploy:
+      resources:
+        limits: {memory: 3000M}
+    networks: [triad-net, triad-sandbox-net]
+
+networks:
+  triad-net:
+    driver: bridge
+  # Sandbox jobs reach only Spark and storage: no route off the host (PRD section 22.2).
+  triad-sandbox-net:
+    driver: bridge
+    internal: true
+
+volumes:
+  triad-pgdata:
+  triad-data:
+  triad-ivy:
+  triad-sbt:
+  triad-coursier:
+  triad-node-modules:

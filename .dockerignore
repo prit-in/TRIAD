@@ -1,0 +1,6 @@
+# Keep the build context tiny: only what Dockerfile.base actually copies.
+*
+!requirements.in
+!requirements.lock.txt
+!.triad/toolchains/spark-4.1.3-bin-hadoop3.tgz
+!.triad/toolchains/spark-4.1.3-bin-hadoop3.tgz.sha512

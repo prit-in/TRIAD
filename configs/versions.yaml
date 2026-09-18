@@ -1,0 +1,103 @@
+# TRIAD pinned version manifest (PRD section 36.1).
+#
+# Every value below was READ from the built image, not typed from the PRD:
+#   docker run --rm -v "$PWD:/workspace" -w /workspace triad-base:0.1 \
+#       python scripts/report_versions.py
+# Recorded 18-09-2026 against triad-base:0.1.
+manifest_version: "1.0"
+recorded_at: "2026-09-18"
+image: triad-base:0.1
+environment: Env-A-mini (see docs/adr/ADR-0002-env-a-mini.md)
+
+host:
+  os: Windows 11 Pro 10.0.26200
+  container_os: Debian 12 (bookworm) on WSL2 kernel 6.18.33.2
+  cores: 8
+  host_ram_gb: 10.96
+  docker_engine: 29.8.0
+  docker_compose: v5.5.1
+
+runtime:
+  java:
+    required_by: CR-03
+    version: 17.0.20.1
+    vendor: Eclipse Temurin (Temurin-17.0.20.1+1)
+  scala:
+    required_by: CR-02
+    version: 2.13.17          # equals scala-library bundled with the Spark build
+    note: sbt project pins this exact patch; Spark 4 ships only for 2.13
+  sbt:
+    version: 1.13.0
+  spark:
+    required_by: CR-01
+    version: 4.1.3
+    distribution: spark-4.1.3-bin-hadoop3
+    scala_build: "2.13"
+    sha512_verified: true
+  python:
+    required_by: CR-04
+    version: 3.11.16
+
+data_stack:
+  pyspark: 4.1.3              # must equal the cluster Spark version
+  pandas: 2.3.3               # PySpark 4.1 minimum is 2.2.0
+  pyarrow: 22.0.0             # PySpark 4.1 minimum is 15.0.0
+  numpy: 2.4.6
+  scipy: 1.17.1
+
+ml:
+  scikit-learn: 1.9.1
+  xgboost: 3.2.0
+  optuna: 4.9.0
+  shap: 0.51.0
+  mlflow: 3.16.1              # aliases API (CR-14)
+
+platform:
+  fastapi: 0.141.1
+  pydantic: 2.13.5
+  sqlalchemy: 2.0.54
+  alembic: 1.20.0
+  uvicorn: 0.53.0
+  psycopg: 3.3.5
+  postgresql: "16 (postgres:16-alpine)"
+  langgraph: 1.1.10
+  langgraph-checkpoint-postgres: 2.0.25
+
+frontend:
+  node: 24.19.0
+  npm: 11.17.0
+  react: "19.x (see frontend/package.json)"
+  vite: "7.x"
+  typescript: "5.x"
+  echarts: "6.x"
+
+quality:
+  pytest: 9.1.1
+  hypothesis: 6.168.0
+  ruff: 0.16.8
+  bandit: 1.9.4
+  pip-audit: 2.10.1
+  detect-secrets: 1.5.0
+  scalatest: 3.2.19
+
+deviations:
+  - id: DEV-01
+    field: python
+    prd_value: "3.11 on every machine"
+    actual: "3.11 inside the images; the Windows host has 3.12/3.14"
+    adr: ADR-0001
+  - id: DEV-02
+    field: spark_download
+    prd_value: "downloaded in the image build"
+    actual: "downloaded on the host by scripts/fetch_toolchains.*, SHA-512 verified twice"
+    reason: "the container route to the Apache mirrors stalls at a few KB/s on this network"
+  - id: DEV-03
+    field: environment
+    prd_value: "Env-A 32 GB RAM / Env-B lab cluster"
+    actual: "Env-A-mini: 10.96 GB host, 5.27 GB in the Docker VM, single host"
+    adr: ADR-0002
+  - id: DEV-04
+    field: llm_provider
+    prd_value: "an LLM with tool calling is reachable (ASM-04)"
+    actual: "none configured; template_only + recorded providers used"
+    adr: ADR-0003

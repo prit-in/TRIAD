@@ -1,0 +1,92 @@
+# TRIAD toolchain image: Python 3.11 + Eclipse Temurin JDK 17 + Spark 4.1.3 + sbt.
+#
+# One image serves api, orchestrator, ml-worker, spark-master, spark-worker, mlflow,
+# sandbox jobs and the dev/test shell. Rationale: on a single 11 GB workstation, one
+# cached layer set beats six near-identical images (ADR-0001). Services differ only by
+# command, user and mounted volumes.
+FROM python:3.11-slim-bookworm
+
+ARG SPARK_VERSION=4.1.3
+ARG SPARK_DIST=spark-${SPARK_VERSION}-bin-hadoop3
+ARG SBT_VERSION=1.13.0
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    SPARK_HOME=/opt/spark \
+    JAVA_HOME=/opt/java/temurin-17 \
+    SBT_HOME=/opt/sbt \
+    TZ=UTC
+
+# --- OS packages -------------------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl gnupg procps tini git libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Eclipse Temurin JDK 17 (PRD CR-03; same vendor and major as the host) ----
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) tjarch=x64 ;; \
+      arm64) tjarch=aarch64 ;; \
+      *) echo "unsupported arch $arch" >&2; exit 1 ;; \
+    esac; \
+    mkdir -p /opt/java; \
+    curl -fsSL -o /tmp/temurin.tar.gz \
+      "https://api.adoptium.net/v3/binary/latest/17/ga/linux/${tjarch}/jdk/hotspot/normal/eclipse"; \
+    tar -xzf /tmp/temurin.tar.gz -C /opt/java; \
+    mv /opt/java/jdk-17* /opt/java/temurin-17; \
+    rm -f /tmp/temurin.tar.gz; \
+    "${JAVA_HOME}/bin/java" -version
+
+# --- Apache Spark 4.1.3 (PRD CR-01), checksum-verified ------------------------
+# The tarball is fetched on the host by scripts/fetch_toolchains.ps1 (or .sh) because the
+# container's route to the Apache mirrors is throttled to a standstill on this network.
+# It is verified here against the publisher's SHA-512 exactly as if it had been downloaded
+# in-layer, and it is never committed to git (see .gitignore).
+COPY .triad/toolchains/spark-${SPARK_VERSION}-bin-hadoop3.tgz /tmp/spark.tgz
+COPY .triad/toolchains/spark-${SPARK_VERSION}-bin-hadoop3.tgz.sha512 /tmp/spark.tgz.sha512
+RUN set -eux; \
+    cd /tmp; \
+    expected="$(tr -d ' \n' < spark.tgz.sha512 | sed 's/.*://' | sed 's/spark.*$//' \
+                | tr 'A-Z' 'a-z' | cut -c1-128)"; \
+    actual="$(sha512sum spark.tgz | cut -d' ' -f1)"; \
+    [ "$actual" = "$expected" ] || { echo "SHA512 mismatch: $actual != $expected" >&2; exit 1; }; \
+    mkdir -p /opt/spark; \
+    tar -xzf /tmp/spark.tgz -C /opt/spark --strip-components=1; \
+    rm -f /tmp/spark.tgz /tmp/spark.tgz.sha512; \
+    rm -rf /opt/spark/examples /opt/spark/data
+
+# --- sbt (Spark is `provided`; the build pins Scala 2.13, PRD CR-02) ----------
+RUN set -eux; \
+    curl -fsSL -o /tmp/sbt.tgz \
+      "https://github.com/sbt/sbt/releases/download/v${SBT_VERSION}/sbt-${SBT_VERSION}.tgz"; \
+    tar -xzf /tmp/sbt.tgz -C /opt; \
+    rm -f /tmp/sbt.tgz
+
+ENV PATH="${JAVA_HOME}/bin:${SPARK_HOME}/bin:${SPARK_HOME}/sbin:${SBT_HOME}/bin:${PATH}" \
+    PYSPARK_PYTHON=python3 \
+    PYSPARK_DRIVER_PYTHON=python3
+
+# --- Python dependencies ------------------------------------------------------
+COPY requirements.in /tmp/requirements.in
+COPY requirements.lock.txt /tmp/requirements.lock.txt
+RUN set -eux; \
+    python -m pip install --upgrade pip setuptools wheel; \
+    if [ -s /tmp/requirements.lock.txt ]; then \
+        pip install --no-cache-dir -r /tmp/requirements.lock.txt; \
+    else \
+        pip install --no-cache-dir -r /tmp/requirements.in; \
+    fi; \
+    rm -f /tmp/requirements.in /tmp/requirements.lock.txt
+
+# --- Non-root runtime user (sandbox controls, PRD section 22.2) ---------------
+RUN groupadd -g 1000 triad && useradd -u 1000 -g 1000 -m -s /bin/bash triad \
+    && mkdir -p /data/triad /opt/spark/work /home/triad/.ivy2 /home/triad/.sbt /home/triad/.cache \
+    && chown -R triad:triad /data/triad /opt/spark/work /home/triad
+
+WORKDIR /workspace
+ENV PYTHONPATH=/workspace
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["bash"]

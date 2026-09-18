@@ -1,0 +1,509 @@
+# TRIAD feature catalogue (PRD section 16.1). Single source of truth for both languages:
+# a deterministic generator turns this into Scala case classes and a Python validation
+# schema (PRD section 13.4), so the two sides can never drift.
+#
+# Every entry carries: name, group, definition as of cutoff T, source tables, computation
+# pattern, window, leakage tag and owner (FR-029). A feature whose source table is absent
+# is marked unavailable, never faked (FR-025).
+catalog_version: "1.0"
+label_horizon_days: 90
+windows: [30, 90, 180, 365]
+grain: [customer_id, snapshot_date]
+
+# Computation patterns the code generator understands. A new feature is a catalogue entry
+# plus one generated expression, never a hand-written job (PRD section 16.3).
+patterns:
+  - windowed_sum
+  - windowed_count
+  - windowed_distinct
+  - windowed_mean
+  - windowed_stddev
+  - windowed_flag
+  - as_of_lookup
+  - validity_range_join
+  - derived_ratio
+  - derived_difference
+  - min_age
+  - mode_value
+  - calendar
+
+features:
+  # --- RFM ---------------------------------------------------------------------
+  - name: recency_days
+    group: rfm
+    definition: Days from the last completed order to T
+    sources: [transactions]
+    pattern: min_age
+    expression: min(age_days)
+    window: 365
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+  - name: frequency_30d
+    group: rfm
+    definition: Distinct completed orders in the 30 days before T
+    sources: [transactions]
+    pattern: windowed_sum
+    expression: sum(within(30, orders))
+    window: 30
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+  - name: frequency_90d
+    group: rfm
+    definition: Distinct completed orders in the 90 days before T
+    sources: [transactions]
+    pattern: windowed_sum
+    expression: sum(within(90, orders))
+    window: 90
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+  - name: frequency_180d
+    group: rfm
+    definition: Distinct completed orders in the 180 days before T
+    sources: [transactions]
+    pattern: windowed_sum
+    expression: sum(within(180, orders))
+    window: 180
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+  - name: frequency_365d
+    group: rfm
+    definition: Distinct completed orders in the 365 days before T
+    sources: [transactions]
+    pattern: windowed_sum
+    expression: sum(orders)
+    window: 365
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+  - name: monetary_90d
+    group: rfm
+    definition: Net revenue (quantity * price - discount) in the 90 days before T
+    sources: [transactions]
+    pattern: windowed_sum
+    expression: sum(within(90, net_revenue))
+    window: 90
+    dtype: double
+    leakage_tag: point_in_time
+    owner: data_science
+  - name: monetary_365d
+    group: rfm
+    definition: Net revenue in the 365 days before T
+    sources: [transactions]
+    pattern: windowed_sum
+    expression: sum(net_revenue)
+    window: 365
+    dtype: double
+    leakage_tag: point_in_time
+    owner: data_science
+
+  # --- Purchase behaviour -------------------------------------------------------
+  - name: aov_365d
+    group: purchase_behaviour
+    definition: Average order value over 365 days (monetary_365d / frequency_365d)
+    sources: [transactions]
+    pattern: derived_ratio
+    expression: try_divide(monetary_365d, frequency_365d)
+    window: 365
+    dtype: double
+    leakage_tag: derived
+    owner: data_science
+  - name: items_per_order_365d
+    group: purchase_behaviour
+    definition: Units bought per order over 365 days
+    sources: [transactions]
+    pattern: derived_ratio
+    expression: try_divide(units_365d, frequency_365d)
+    window: 365
+    dtype: double
+    leakage_tag: derived
+    owner: data_science
+  - name: order_count_lifetime
+    group: purchase_behaviour
+    definition: All completed orders strictly before T
+    sources: [transactions]
+    pattern: as_of_lookup
+    expression: sum(orders)
+    window: lifetime
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+  - name: clv_proxy_lifetime
+    group: purchase_behaviour
+    definition: Cumulative net revenue before T (historical value, not predicted value)
+    sources: [transactions]
+    pattern: as_of_lookup
+    expression: sum(net_revenue)
+    window: lifetime
+    dtype: double
+    leakage_tag: point_in_time
+    owner: data_science
+  - name: return_count_365d
+    group: purchase_behaviour
+    definition: Returned lines in the 365 days before T, dated by return date
+    sources: [returns]
+    pattern: windowed_sum
+    expression: sum(returned_lines)
+    window: 365
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [returns]
+  - name: return_rate_365d
+    group: purchase_behaviour
+    definition: Returned units divided by bought units over 365 days
+    sources: [returns, transactions]
+    pattern: derived_ratio
+    expression: try_divide(returned_units_365d, units_365d)
+    window: 365
+    dtype: double
+    leakage_tag: derived
+    owner: data_science
+    unavailable_without: [returns]
+  - name: discount_share_365d
+    group: purchase_behaviour
+    definition: Share of order lines carrying a discount
+    sources: [transactions]
+    pattern: derived_ratio
+    expression: try_divide(discounted_lines_365d, lines_365d)
+    window: 365
+    dtype: double
+    leakage_tag: derived
+    owner: data_science
+  - name: promo_order_share_365d
+    group: purchase_behaviour
+    definition: Share of orders using a promotion code, joined on order date
+    sources: [transactions, promotions]
+    pattern: derived_ratio
+    expression: try_divide(promo_orders_365d, frequency_365d)
+    window: 365
+    dtype: double
+    leakage_tag: derived
+    owner: data_science
+    unavailable_without: [promotions]
+  - name: category_count_365d
+    group: purchase_behaviour
+    definition: Distinct top-level categories bought in 365 days
+    sources: [transactions, products]
+    pattern: windowed_distinct
+    expression: size(array_distinct(flatten(collect_list(categories))))
+    window: 365
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [products]
+  - name: preferred_payment_method
+    group: purchase_behaviour
+    definition: Most frequent payment method before T
+    sources: [transactions]
+    pattern: mode_value
+    expression: mode(payment_method)
+    window: 365
+    dtype: string
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [payment_method]
+
+  # --- Customer service ---------------------------------------------------------
+  - name: tickets_90d
+    group: customer_service
+    definition: Support tickets created in the 90 days before T
+    sources: [support_tickets]
+    pattern: windowed_sum
+    expression: sum(within(90, tickets))
+    window: 90
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [support_tickets]
+  - name: tickets_365d
+    group: customer_service
+    definition: Support tickets created in the 365 days before T
+    sources: [support_tickets]
+    pattern: windowed_sum
+    expression: sum(tickets)
+    window: 365
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [support_tickets]
+  - name: complaint_tickets_90d
+    group: customer_service
+    definition: Tickets in delivery, refund or quality categories in 90 days
+    sources: [support_tickets]
+    pattern: windowed_sum
+    expression: sum(within(90, complaint_tickets))
+    window: 90
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [support_tickets]
+  - name: open_tickets_at_cutoff
+    group: customer_service
+    definition: Tickets created before T and not resolved before T (resolution after T still counts as open)
+    sources: [support_tickets]
+    pattern: windowed_sum
+    expression: sum(open_at_cutoff)
+    window: 365
+    dtype: int
+    leakage_tag: point_in_time_strict
+    owner: data_science
+    unavailable_without: [support_tickets]
+  - name: avg_resolution_hours_365d
+    group: customer_service
+    definition: Mean hours to resolve, over tickets resolved before T
+    sources: [support_tickets]
+    pattern: windowed_mean
+    expression: try_divide(resolution_hours_sum, resolved_tickets)
+    window: 365
+    dtype: double
+    leakage_tag: point_in_time_strict
+    owner: data_science
+    unavailable_without: [support_tickets]
+  - name: avg_csat_365d
+    group: customer_service
+    definition: Mean satisfaction score recorded before T
+    sources: [support_tickets]
+    pattern: windowed_mean
+    expression: try_divide(csat_sum, csat_count)
+    window: 365
+    dtype: double
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [support_tickets]
+
+  # --- Engagement ---------------------------------------------------------------
+  - name: sessions_30d
+    group: engagement
+    definition: Sessions started in the 30 days before T
+    sources: [web_sessions]
+    pattern: windowed_sum
+    expression: sum(within(30, sessions))
+    window: 30
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [web_sessions]
+  - name: sessions_90d
+    group: engagement
+    definition: Sessions started in the 90 days before T
+    sources: [web_sessions]
+    pattern: windowed_sum
+    expression: sum(within(90, sessions))
+    window: 90
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [web_sessions]
+  - name: days_since_last_session
+    group: engagement
+    definition: Days from the last session start to T
+    sources: [web_sessions]
+    pattern: min_age
+    expression: min(session_age_days)
+    window: 365
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [web_sessions]
+  - name: product_views_90d
+    group: engagement
+    definition: Product page views in the 90 days before T
+    sources: [web_sessions]
+    pattern: windowed_sum
+    expression: sum(within(90, product_views))
+    window: 90
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [web_sessions]
+  - name: add_to_cart_90d
+    group: engagement
+    definition: Add-to-cart events in the 90 days before T
+    sources: [web_sessions]
+    pattern: windowed_sum
+    expression: sum(within(90, add_to_cart))
+    window: 90
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+    unavailable_without: [web_sessions]
+  - name: cart_conversion_90d
+    group: engagement
+    definition: Orders divided by add-to-cart events over 90 days
+    sources: [web_sessions, transactions]
+    pattern: derived_ratio
+    expression: try_divide(frequency_90d, add_to_cart_90d)
+    window: 90
+    dtype: double
+    leakage_tag: derived
+    owner: data_science
+    unavailable_without: [web_sessions]
+  - name: app_session_share_90d
+    group: engagement
+    definition: App sessions divided by all sessions over 90 days
+    sources: [web_sessions]
+    pattern: derived_ratio
+    expression: try_divide(app_sessions_90d, sessions_90d)
+    window: 90
+    dtype: double
+    leakage_tag: derived
+    owner: data_science
+    unavailable_without: [web_sessions]
+  - name: avg_session_minutes_90d
+    group: engagement
+    definition: Mean session length in minutes, sessions ending before T
+    sources: [web_sessions]
+    pattern: windowed_mean
+    expression: try_divide(session_minutes_90d, sessions_90d)
+    window: 90
+    dtype: double
+    leakage_tag: point_in_time_strict
+    owner: data_science
+    unavailable_without: [web_sessions]
+
+  # --- Temporal -----------------------------------------------------------------
+  - name: tenure_days
+    group: temporal
+    definition: Days from first order (or signup) to T
+    sources: [transactions, customers]
+    pattern: min_age
+    expression: max(age_days)
+    window: lifetime
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+  - name: inter_purchase_mean_days_365d
+    group: temporal
+    definition: Mean gap in days between consecutive order days, gaps ending before T
+    sources: [transactions]
+    pattern: windowed_mean
+    expression: avg(order_gap_days)
+    window: 365
+    dtype: double
+    leakage_tag: point_in_time
+    owner: data_science
+  - name: inter_purchase_std_days_365d
+    group: temporal
+    definition: Standard deviation of those gaps
+    sources: [transactions]
+    pattern: windowed_stddev
+    expression: stddev_samp(order_gap_days)
+    window: 365
+    dtype: double
+    leakage_tag: point_in_time
+    owner: data_science
+  - name: overdue_ratio
+    group: temporal
+    definition: recency_days divided by inter_purchase_mean_days_365d
+    sources: [transactions]
+    pattern: derived_ratio
+    expression: try_divide(recency_days, inter_purchase_mean_days_365d)
+    window: 365
+    dtype: double
+    leakage_tag: derived
+    owner: data_science
+  - name: trend_90_vs_prior_90
+    group: temporal
+    definition: Orders in the last 90 days minus orders in days 91 to 180
+    sources: [transactions]
+    pattern: derived_difference
+    expression: frequency_90d - (frequency_180d - frequency_90d)
+    window: 180
+    dtype: int
+    leakage_tag: derived
+    owner: data_science
+  - name: snapshot_month
+    group: temporal
+    definition: Calendar month of the cutoff T
+    sources: []
+    pattern: calendar
+    expression: month(snapshot_date)
+    window: none
+    dtype: int
+    leakage_tag: known_at_cutoff
+    owner: data_science
+  - name: holiday_season_buyer
+    group: temporal
+    definition: Any order in the most recent October-December window before T
+    sources: [transactions]
+    pattern: windowed_flag
+    expression: max(holiday_order_flag)
+    window: 365
+    dtype: int
+    leakage_tag: point_in_time
+    owner: data_science
+
+  # --- Profile ------------------------------------------------------------------
+  - name: acquisition_channel
+    group: profile
+    definition: How the customer first arrived
+    sources: [customers]
+    pattern: validity_range_join
+    expression: first(acquisition_channel)
+    window: none
+    dtype: string
+    leakage_tag: static_attribute
+    owner: data_engineering
+    unavailable_without: [customers]
+  - name: country
+    group: profile
+    definition: Customer country
+    sources: [customers]
+    pattern: validity_range_join
+    expression: first(country)
+    window: none
+    dtype: string
+    leakage_tag: static_attribute
+    owner: data_engineering
+  - name: loyalty_tier_at_cutoff
+    group: profile
+    definition: Loyalty tier valid on T (current-only tiers are excluded, ASM-11)
+    sources: [customer_snapshots]
+    pattern: validity_range_join
+    expression: first(loyalty_tier)
+    window: none
+    dtype: string
+    leakage_tag: point_in_time_attribute
+    owner: data_engineering
+    unavailable_without: [customer_snapshots]
+  - name: marketing_opt_in_at_cutoff
+    group: profile
+    definition: Marketing consent flag valid on T
+    sources: [customer_snapshots]
+    pattern: validity_range_join
+    expression: first(marketing_opt_in)
+    window: none
+    dtype: int
+    leakage_tag: point_in_time_attribute
+    owner: data_engineering
+    unavailable_without: [customer_snapshots]
+
+# Not a model input. Used only for revenue-at-risk reporting (PRD section 16.1).
+reporting_values:
+  - name: expected_value_90d
+    definition: monetary_365d / 4, an explicit assumption stated in every report
+    sources: [transactions]
+    pattern: derived_ratio
+    expression: try_divide(monetary_365d, 4)
+    dtype: double
+    model_input: false
+
+# Excluded by default; using any of these needs governance approval (PRD section 30).
+excluded_attributes: [gender, age, ethnicity, religion, disability]
+
+# Feature hygiene rules H1..H7 (PRD section 16.2), enforced by python_ml/hygiene.
+hygiene:
+  h1_nothing_dated_on_or_after_T: true
+  h2_identifiers_never_features: true
+  h3_no_label_window_columns: true
+  h4_max_null_share: 0.95
+  h4_max_dominant_value_share: 0.99
+  h5_linear_max_abs_correlation: 0.98
+  h5_money_log1p: true
+  h5_winsorise_quantiles: [0.01, 0.99]
+  h6_target_encoding_out_of_fold_only: true
+  h7_catalogue_entry_required: true

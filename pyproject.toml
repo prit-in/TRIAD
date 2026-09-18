@@ -1,0 +1,41 @@
+[project]
+name = "triad"
+version = "0.1.0"
+description = "TRIAD: Tri-engine Reasoning for Intelligent, Autonomous Data science"
+requires-python = ">=3.11,<3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra --strict-markers"
+markers = [
+    "smoke: Phase-1 compatibility smoke test (hard gate)",
+    "spark: needs a SparkSession",
+    "postgres: needs the postgres service",
+    "mlflow: needs the mlflow service",
+    "slow: takes more than ~30 seconds",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:pyspark.*",
+    "ignore::FutureWarning:shap.*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [".triad", "frontend", "scala_spark", "datasets/downloads"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF"]
+ignore = [
+    "E501",    # line length is handled by the formatter
+    "B008",    # FastAPI's Depends() in defaults is idiomatic
+    "RUF012",  # mutable class attributes without ClassVar
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011", "SIM117"]
+
+[tool.coverage.run]
+source = ["triad_core", "agents", "backend", "python_ml"]
+omit = ["*/tests/*", "*/migrations/*"]

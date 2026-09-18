@@ -1,0 +1,114 @@
+# TRIAD churn pipeline definition (PRD section 15). Declarative: the orchestrator reads
+# this, never hard-codes stage names, and the config hash goes into every run record.
+pipeline: churn_v1
+version: "1.0"
+description: E-commerce customer churn, month-start cutoffs, 90-day horizon.
+
+label:
+  name: churned_90d
+  horizon_days: 90
+  definition: >-
+    1 when an eligible customer places no completed order in [T, T + horizon).
+  eligible_population: at least one completed order in the 365 days before T
+  maturity_rule: a snapshot is labelled only when T + horizon falls within the data
+
+snapshots:
+  cadence: month_start
+  max_window_days: 365
+
+# Inputs. `required: false` sources may be absent; their features are then marked
+# unavailable rather than faked (FR-025).
+inputs:
+  transactions: {required: true, contract: contracts/transactions.yaml}
+  customers: {required: false, contract: contracts/customers.yaml}
+  products: {required: false, contract: contracts/products.yaml}
+  returns: {required: false, contract: contracts/returns.yaml}
+  web_sessions: {required: false, contract: contracts/web_sessions.yaml}
+  support_tickets: {required: false, contract: contracts/support_tickets.yaml}
+  promotions: {required: false, contract: contracts/promotions.yaml}
+  customer_snapshots: {required: false}
+
+# Stages P0..P10 (PRD section 15.2). `engine` is the default; the routing rules in
+# agents/policies/routing.yaml can still move a stage and must log the rule they used.
+stages:
+  - {id: P0, name: land_and_register, engine: python, agent: data_discovery}
+  - {id: P1, name: contract_check, engine: spark_sql, agent: verification}
+  - {id: P2, name: profile, engine: pyspark, agent: data_profiling}
+  - {id: P3, name: clean_and_conform, engine: scala_spark, agent: data_cleaning,
+     template: CleanJob}
+  - {id: P4, name: customer_day_aggregate, engine: scala_spark, agent: spark_planning,
+     template: FeatureJob}
+  - {id: P5, name: snapshot_expansion, engine: scala_spark, agent: spark_planning,
+     template: FeatureJob}
+  - {id: P6, name: labels, engine: scala_spark, agent: code_generation, template: LabelJob}
+  - {id: P7, name: window_features, engine: scala_spark, agent: code_generation,
+     template: FeatureJob}
+  - {id: P8, name: contract_check_features, engine: python, agent: verification}
+  - {id: P9, name: training_sets, engine: python, agent: training}
+  - {id: P10, name: scoring_set, engine: scala_spark, agent: code_generation, template: FeatureJob}
+
+split:
+  strategy: temporal_with_gap
+  gap_days: 90          # one horizon (PRD section 17.2)
+  calibration_fraction: 0.2   # held out from the training cutoffs (selection stage C)
+
+candidates:
+  - {family: dummy, role: floor, always: true}
+  - {family: logreg, role: parsimony_reference, always: true}
+  - {family: random_forest, role: non_linear}
+  - {family: hist_gb, role: non_linear}
+  - {family: xgboost, role: primary_non_linear}
+  # A neural network enters only when 17.4 holds: >= 200k training rows AND
+  # high-dimensional (sequence/embedding) features present.
+  - {family: mlp, role: conditional, min_rows: 200000, requires_high_dim: true}
+
+acceptance_policy:            # PRD section 17.6, thresholds configurable
+  AP1_min_pr_auc_over_churn_rate: 0.10
+  AP2_parsimony_margin: 0.01
+  AP3_min_roc_auc: 0.70
+  AP4_min_brier_skill: 0.10
+  AP5_max_ece_after_calibration: 0.05
+  AP6_max_segment_recall_gap: 0.10
+  AP7_max_train_minutes_per_family: 30
+  AP7_max_model_size_mb: 200
+  AP7_max_scoring_minutes_per_million: 5
+  AP8_promotion_requires_positive_lower_bound: true
+  leakage_alarm_roc_auc: 0.98
+  min_positive_examples: 200
+
+tuning:
+  sampler: tpe
+  seed: 42
+  n_trials: 30
+  timeout_seconds: 900
+  pruner: median
+  objective: valid_pr_auc
+
+threshold:
+  strategy: capacity          # capacity | f_beta
+  capacity_share: 0.15
+  f_beta: 2.0
+
+risk_bands:
+  high: 0.66
+  medium: 0.33
+
+budgets:                      # PRD section 12.6; the orchestrator enforces these
+  max_code_repair_attempts: 3
+  max_infra_retries: 2
+  max_optimisation_cycles: 2
+  max_llm_calls: 60
+  max_llm_cost_usd: 3.0
+  max_wall_clock_minutes: 240
+  max_identical_fingerprint: 2
+
+quality_gate:
+  min_quality_score: 0.70
+  max_cleaning_passes: 2
+
+retraining:
+  cooldown_days: 7
+  triggers: [RT-1, RT-2, RT-3, RT-4, RT-5, RT-6, RT-7, RT-8, RT-9]
+  psi_feature_threshold: 0.25
+  psi_feature_count_threshold: {psi: 0.10, features: 3}
+  psi_score_threshold: 0.20

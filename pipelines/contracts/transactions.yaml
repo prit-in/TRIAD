@@ -1,0 +1,28 @@
+# Ingest contract (FR-007). Violations are blocking or non-blocking; a missing required
+# column stops the run with a reason code and never reaches profiling.
+contract: transactions
+version: "1.0"
+grain: [order_id, line_id]
+columns:
+  - {name: order_id, type: string, required: true, nullable: false}
+  - {name: line_id, type: int, required: true, nullable: false}
+  - {name: customer_id, type: string, required: true, nullable: true,
+     note: "null customer_id is quarantined as NO_CUSTOMER_KEY, not dropped"}
+  - {name: order_date, type: timestamp, required: true, nullable: false}
+  - {name: product_id, type: string, required: false, nullable: true}
+  - {name: quantity, type: int, required: true, nullable: false}
+  - {name: price, type: decimal(18,2), required: true, nullable: false}
+  - {name: discount, type: decimal(18,2), required: false, nullable: true}
+  - {name: promo_code, type: string, required: false, nullable: true}
+  - {name: payment_method, type: string, required: false, nullable: true}
+  - {name: channel, type: string, required: false, nullable: true}
+  - {name: order_status, type: string, required: false, nullable: true}
+  - {name: return_flag, type: boolean, required: false, nullable: true}
+  - {name: currency, type: string, required: false, nullable: true}
+checks:
+  - {id: C-TX-01, rule: "quantity <> 0", severity: blocking,
+     note: "negative quantity on a cancellation invoice becomes a return in P3"}
+  - {id: C-TX-02, rule: "price > 0", severity: blocking}
+  - {id: C-TX-03, rule: "order_date <= current_timestamp()", severity: blocking}
+  - {id: C-TX-04, rule: "customer_id IS NOT NULL", severity: warning, max_violation_pct: 5.0}
+  - {id: C-TX-05, rule: "discount IS NULL OR discount >= 0", severity: warning}

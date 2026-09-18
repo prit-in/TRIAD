@@ -1,0 +1,65 @@
+# Deterministic language/engine routing (PRD section 13.3, rules LR-01..LR-10).
+# The LLM never chooses the runtime. Each stage records the rule ID it matched, the
+# evidence behind it and a timestamp (PO-03, SC-02, TC-052).
+routing_version: "1.0"
+
+thresholds:
+  event_rows_for_spark: 5000000        # LR-01 (EX)
+  small_data_bytes: 1073741824         # LR-07: 1 GB -> Spark local mode
+  broadcast_join_bytes: 67108864       # 64 MB (EX)
+  ml_worker_ram_bytes: 4294967296      # assumed ML worker RAM on Env-A-mini
+  pandas_max_fraction_of_ram: 0.25     # LR-06 (EX)
+  target_partition_bytes: 134217728    # ~128 MB per shuffle partition (heuristic)
+  scoring_rows_for_spark_udf: 1000000  # LR-08
+
+rules:
+  - id: LR-01
+    condition: stage.kind == 'transformation' and stage.input_rows > thresholds.event_rows_for_spark
+    route: {engine: spark}
+    rationale: Event-level data above the size threshold must not leave Spark.
+  - id: LR-02
+    condition: stage.kind in ('cleaning', 'labels', 'features')
+    route: {engine: spark, language: scala, source: template}
+    rationale: Reusable pipeline stages are compiled, typed and versioned Scala jobs.
+  - id: LR-03
+    condition: stage.needs_row_logic or stage.needs_custom_aggregation
+    route: {engine: spark, language: scala}
+    rationale: Typed Datasets/aggregators instead of Python UDFs on event data.
+    forbids: [python_udf_on_event_data]
+  - id: LR-04
+    condition: stage.kind == 'profiling' and stage.read_only
+    route: {engine: spark, language: python}
+    rationale: Read-only profiling and exploration run from PySpark/Spark SQL.
+  - id: LR-05
+    condition: stage.kind in ('training', 'tuning', 'evaluation', 'explanation')
+    route: {engine: python}
+    rationale: The ML and statistics ecosystem lives in Python.
+  - id: LR-06
+    condition: stage.kind == 'handoff'
+    route: {format: parquet, target: pandas_if_fits_else_distributed}
+    rationale: >-
+      Spark-to-Python hand-off is Parquet. pandas only when the estimated in-memory size is
+      at most 25% of ML worker RAM; otherwise the distributed trainer.
+  - id: LR-07
+    condition: stage.input_bytes <= thresholds.small_data_bytes
+    route: {engine: spark, deploy_mode: local}
+    rationale: Small inputs run the same Spark job in local mode, not a separate pandas path.
+  - id: LR-08
+    condition: stage.kind == 'scoring'
+    route: {target: python_if_small_else_spark_udf}
+    rationale: In-process Python below the threshold; MLflow Spark UDF above it.
+  - id: LR-09
+    condition: code.calls_collect_or_topandas_on_unbounded_data
+    route: {decision: forbid}
+    rationale: Unbounded driver-side collection is blocked by the static scan (NFR-SCA-03).
+  - id: LR-10
+    condition: stage.kind == 'spark_config_change'
+    route: {scope: per_job_only, allowlist_from: governance.yaml}
+    rationale: Cluster defaults are never edited; per-job settings come from the allowlist.
+
+# Sampling to fit a model on one node is allowed only with a recorded decision, and never
+# for the final test evaluation (PRD section 13.3).
+sampling:
+  allowed: true
+  requires_decision_record: true
+  forbidden_for: [test_evaluation]
