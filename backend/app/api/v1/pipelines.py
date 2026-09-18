@@ -99,6 +99,41 @@ def _pending_approval(session: DbSession, run: PipelineRun) -> PendingApprovalVi
     )
 
 
+def _resolve_inputs(session: DbSession, inputs: dict[str, str]) -> dict[str, str]:
+    """Turn dataset names into the storage URI of their latest version.
+
+    A caller may pass either a `file://` URI or a registered dataset name. Names are resolved
+    here, at request time, so "that dataset has no versions yet" is answered immediately
+    rather than becoming a worker failure ten minutes later.
+    """
+    from triad_core.models import Dataset, DatasetVersion
+
+    resolved: dict[str, str] = {}
+    for logical, reference in inputs.items():
+        if reference.startswith(("file://", "s3://", "abfss://")):
+            resolved[logical] = reference
+            continue
+
+        dataset = session.execute(
+            select(Dataset).where(Dataset.name == reference)
+        ).scalar_one_or_none()
+        if dataset is None:
+            raise problems.unprocessable(
+                f"input {logical!r}: no dataset named {reference!r} is registered."
+            )
+        version = session.execute(
+            select(DatasetVersion)
+            .where(DatasetVersion.dataset_id == dataset.id)
+            .order_by(DatasetVersion.version_no.desc())
+        ).scalars().first()
+        if version is None:
+            raise problems.unprocessable(
+                f"input {logical!r}: dataset {reference!r} has no registered version."
+            )
+        resolved[logical] = version.storage_uri
+    return resolved
+
+
 def _summary(run: PipelineRun) -> RunSummary:
     return RunSummary(
         run_id=run.run_key, pipeline=run.pipeline_name, state=run.state,
@@ -127,6 +162,8 @@ def start_run(
 ) -> StartRunResponse:
     body_hash = config_hash({"pipeline": payload.pipeline, "inputs": payload.inputs,
                              "mode": payload.mode, "overrides": payload.config_overrides})
+    resolved_inputs = _resolve_inputs(session, payload.inputs)
+
 
     if idempotency_key:
         existing = session.execute(
@@ -146,6 +183,23 @@ def start_run(
             response.headers["Location"] = f"/api/v1/pipelines/{existing.run_key}"
             return _start_response(existing)
 
+    # Only now, after the idempotency check: a retry of a request that already started a run
+    # must get that run back, not "the pipeline is busy" - the busy one *is* its own run.
+    active = session.execute(
+        select(PipelineRun).where(
+            PipelineRun.pipeline_name == payload.pipeline,
+            PipelineRun.state.notin_(tuple(FINISHED_STATES | {"ESCALATED", "FAILED"})),
+        ).order_by(PipelineRun.started_at.desc())
+    ).scalars().first()
+    if active is not None and active.state != "APPROVAL_REQUIRED":
+        raise problems.conflict(
+            "A run of this pipeline is already active",
+            f"{active.run_key} is {active.state}. Runs of {payload.pipeline} share their "
+            "clean, feature and label folders, so they are run one at a time; cancel it "
+            "or wait.",
+            problem_type="pipeline-busy",
+        )
+
     run = q.create_run(
         session,
         pipeline_name=payload.pipeline,
@@ -153,15 +207,17 @@ def start_run(
         triggered_by=str(user.id),
         config={"inputs": payload.inputs, "overrides": payload.config_overrides,
                 "pipeline": payload.pipeline, "mode": payload.mode},
-        input_versions=payload.inputs,
+        input_versions=resolved_inputs,
         budget=payload.budget,
         mode=payload.mode,
         idempotency_key=idempotency_key,
     )
     run.config_hash = body_hash
+    # One task for the run's preparation phase. The worker claims it and drives the stages;
+    # the run then pauses at the approval gate and a second task carries out the decision.
     q.enqueue(
-        session, run, stage="profile", agent_name="data_profiling",
-        task_type="stage", input_refs=payload.inputs,
+        session, run, stage="pipeline", agent_name="orchestrator",
+        task_type="run", input_refs=resolved_inputs,
     )
     audit.record(
         session, actor_type="user", actor_id=str(user.id), action="run.requested",
@@ -418,9 +474,14 @@ def resume_run(
             f"Run {run.run_key} is {run.state}; only an ESCALATED run can be resumed.",
         )
 
-    stage = run.current_stage or "profile"
-    q.enqueue(session, run, stage=stage, agent_name="code_generation",
-              task_type="stage", input_refs={"resumed_from": run.state})
+    # Re-queue the phase the run was in, with the inputs it was given, as a task type the
+    # worker actually handles. Queuing anything else would escalate again immediately.
+    stage = run.current_stage or "pipeline"
+    task_type = "publish" if stage == "publish" else "run"
+    q.enqueue(
+        session, run, stage=stage, agent_name="orchestrator", task_type=task_type,
+        input_refs={**(run.input_versions or {}), "resumed_from": run.state},
+    )
     q.set_state(session, run, "RETRYING", stage=stage, actor=str(user.id))
     audit.record(
         session, actor_type="user", actor_id=str(user.id), action="run.resumed",

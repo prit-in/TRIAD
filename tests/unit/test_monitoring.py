@@ -222,3 +222,82 @@ def test_thresholds_come_from_the_pipeline_config(db_session, storage) -> None:
     service = MonitoringService(db_session, store=storage, config=config)
     assert service.policy.config["cooldown_days"] == config["retraining"]["cooldown_days"]
     assert service.policy.enabled_rules == set(config["retraining"]["triggers"])
+
+
+# --- predictions and reports in the catalogue ---------------------------------
+
+
+def _prediction_set(n: int = 5):
+    from python_ml.triad_ml.predict import OFFICIAL, PredictionSet
+
+    frame = pd.DataFrame(
+        {
+            "customer_ref": [f"C-{i:04d}" for i in range(n)],
+            "churn_probability": np.linspace(0.05, 0.95, n),
+            "risk_band": ["low", "low", "medium", "high", "high"][:n],
+            "score_date": ["2026-04-01"] * n,
+            "feature_set_version": ["fsv=1"] * n,
+            "top_reasons": [[{"feature": "recency_days", "value": 0.3}] for _ in range(n)],
+        }
+    )
+    return PredictionSet(
+        frame=frame, model_name="churn_classifier", model_version="1",
+        feature_set_version="fsv=1", score_date="2026-04-01", set_type=OFFICIAL,
+    )
+
+
+def test_predictions_are_stored_with_their_provenance(db_session, monitor, version, run) -> None:
+    from triad_core.models import Prediction
+
+    written = monitor.record_predictions(version, _prediction_set(), run=run)
+    assert written == 5
+    rows = db_session.execute(
+        select(Prediction).where(Prediction.model_version_id == version.id)
+    ).scalars().all()
+    assert {r.feature_set_version for r in rows} == {"fsv=1"}
+    assert {r.prediction_set for r in rows} == {"official"}
+    assert all(r.run_id == run.id for r in rows)
+
+
+def test_customer_references_are_pseudonymous_by_default(db_session, monitor, version, run) -> None:
+    from triad_core.models import Prediction
+
+    monitor.record_predictions(version, _prediction_set(), run=run)
+    refs = db_session.execute(
+        select(Prediction.customer_ref).where(Prediction.model_version_id == version.id)
+    ).scalars().all()
+    assert not any(r.startswith("C-") for r in refs), "raw identifiers must not be stored"
+    assert len(set(refs)) == 5, "the mapping must stay one-to-one, or rows collapse"
+
+
+def test_the_same_identifier_always_maps_to_the_same_reference(monitor, version, run) -> None:
+    """Without this a customer cannot be followed across scoring runs."""
+    from agents.llm.redaction import mask_customer_ref
+
+    assert mask_customer_ref("C-0001") == mask_customer_ref("C-0001")
+    assert mask_customer_ref("C-0001") != mask_customer_ref("C-0002")
+
+
+def test_an_empty_prediction_set_writes_nothing(monitor, version, run) -> None:
+    assert monitor.record_predictions(version, pd.DataFrame(), run=run) == 0
+
+
+def test_a_report_that_passed_its_claim_check_is_published(db_session, monitor, run) -> None:
+    row = monitor.record_report(
+        run, report_type="business", storage_uri="file:///data/triad/reports/r.html",
+        claim_check={"passed": True, "facts_verified": 4},
+    )
+    assert row.status == "published" and row.claim_check_status == "passed"
+
+
+def test_a_report_that_failed_its_claim_check_is_held(db_session, monitor, run) -> None:
+    """An unverified number must not reach a reader as a published report."""
+    row = monitor.record_report(
+        run, report_type="business", storage_uri="file:///data/triad/reports/r.html",
+        claim_check={"passed": False, "unverified": ["42"]},
+    )
+    assert row.status == "draft" and row.claim_check_status == "failed"
+    entry = db_session.execute(
+        select(AuditLog).where(AuditLog.resource_id == str(row.id))
+    ).scalar_one()
+    assert entry.action == "report.held"

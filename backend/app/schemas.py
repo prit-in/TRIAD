@@ -304,7 +304,9 @@ class AuditEntryView(ApiModel):
 class ChainStatus(ApiModel):
     ok: bool
     entries_checked: int
+    chains_checked: int
     broken_at: int | None = None
+    broken_scope: str | None = None
     detail: str | None = None
 
 

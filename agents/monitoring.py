@@ -164,6 +164,105 @@ class MonitoringService:
         )
         return version
 
+    def record_predictions(
+        self,
+        version: ModelVersion,
+        predictions: Any,
+        *,
+        run: PipelineRun | None = None,
+        pseudonymise: bool = True,
+    ) -> int:
+        """Store a scored set so it can be queried, filtered and exported later.
+
+        Customer references are pseudonymous by default (PRD 25.1): the catalogue keeps a
+        stable one-way reference, and the raw identifier stays in the feature store where
+        access is already controlled. `pseudonymise=False` exists for a run that is scoring
+        an internal test fixture, not as a convenience.
+        """
+        import datetime as dt
+
+        from agents.llm.redaction import mask_customer_ref
+        from triad_core.models import Prediction
+
+        frame = getattr(predictions, "frame", predictions)
+        if frame is None or not len(frame):
+            return 0
+
+        set_type = getattr(predictions, "set_type", "official")
+        feature_set_version = getattr(predictions, "feature_set_version", None)
+        rows = []
+        for record in frame.to_dict("records"):
+            reference = str(record["customer_ref"])
+            score_date = record["score_date"]
+            if isinstance(score_date, str):
+                score_date = dt.date.fromisoformat(score_date)
+            rows.append(
+                Prediction(
+                    model_version_id=version.id,
+                    prediction_set=set_type,
+                    customer_ref=mask_customer_ref(reference) if pseudonymise else reference,
+                    score_date=score_date,
+                    churn_probability=float(record["churn_probability"]),
+                    risk_band=str(record["risk_band"]),
+                    top_reasons=record.get("top_reasons") or [],
+                    feature_set_version=record.get("feature_set_version")
+                    or feature_set_version,
+                    run_id=run.id if run else None,
+                )
+            )
+        self.session.add_all(rows)
+        self.session.flush()
+        audit.record(
+            self.session,
+            actor_type="system",
+            actor_id="monitoring",
+            action="predictions.published",
+            resource_type="model_version",
+            resource_id=str(version.id),
+            run_id=run.id if run else None,
+            outcome=set_type,
+            details={"rows": len(rows), "pseudonymous": pseudonymise},
+        )
+        return len(rows)
+
+    def record_report(
+        self,
+        run: PipelineRun,
+        *,
+        report_type: str,
+        storage_uri: str,
+        claim_check: dict[str, Any] | None = None,
+        fmt: str = "html",
+    ) -> Any:
+        """Register a produced report, with the claim check that let it be published."""
+        from triad_core.models import Report
+
+        claim = claim_check or {}
+        passed = bool(claim.get("passed", False))
+        row = Report(
+            run_id=run.id,
+            report_type=report_type,
+            storage_uri=storage_uri,
+            format=fmt,
+            status="published" if passed else "draft",
+            claim_check_status="passed" if passed else "failed",
+            claim_check_json=claim,
+        )
+        self.session.add(row)
+        self.session.flush()
+        audit.record(
+            self.session,
+            actor_type="system",
+            actor_id="monitoring",
+            action="report.published" if passed else "report.held",
+            resource_type="report",
+            resource_id=str(row.id),
+            run_id=run.id,
+            outcome="published" if passed else "held",
+            details={"report_type": report_type, "claim_check": claim.get("passed")},
+        )
+        return row
+
     # -- reference and drift ---------------------------------------------------
     def capture_reference(
         self,

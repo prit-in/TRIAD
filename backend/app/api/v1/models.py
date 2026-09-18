@@ -25,6 +25,7 @@ from backend.app.schemas import (
     RollbackRequest,
 )
 from backend.app.security import ML_ENGINEER
+from backend.app.services import enqueue_publish
 from triad_core import audit
 from triad_core.config import settings
 from triad_core.governance import (
@@ -163,6 +164,8 @@ def _decide(
                                 problem_type="nothing-pending") from exc
     except PolicyDenied as exc:
         raise problems.forbidden(str(exc), problem_type="policy-denied") from exc
+
+    enqueue_publish(session, decided)
     return ApprovalView.model_validate(decided)
 
 

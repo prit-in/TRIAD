@@ -270,7 +270,9 @@ def verify_audit_chain(session: DbSession) -> ChainStatus:
     result = audit.verify_chain(session)
     return ChainStatus(
         ok=result.ok, entries_checked=result.entries_checked,
-        broken_at=result.broken_at_id, detail=result.reason,
+        chains_checked=result.chains_checked,
+        broken_at=result.broken_at_id, broken_scope=result.broken_scope,
+        detail=result.reason,
     )
 
 

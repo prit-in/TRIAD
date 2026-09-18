@@ -24,6 +24,19 @@ from triad_core.models import User
 pytestmark = pytest.mark.postgres
 
 PASSWORD = "correct horse battery staple"
+# A `file://` reference is passed through; a bare name is resolved to the
+# latest registered version (see the resolution tests below).
+SOURCE_URI = "file:///data/triad/raw/transactions/v=1"
+
+
+def _pipeline() -> str:
+    """A pipeline name of this test's own.
+
+    Runs of one pipeline are refused while another is active, on purpose, so
+    tests that start several runs would otherwise collide with that rule rather
+    than with what they are actually checking.
+    """
+    return f"churn_v1_{uuid.uuid4().hex[:8]}"
 
 
 @pytest.fixture()
@@ -156,7 +169,7 @@ def test_a_token_survives_its_user_being_deactivated_but_the_request_does_not(
 
 def test_a_viewer_may_not_start_a_run(client, users) -> None:
     response = client.post("/api/v1/pipelines/run", headers=_auth(users["viewer"]),
-                           json={"pipeline": "churn_v1"})
+                           json={"pipeline": _pipeline()})
     assert response.status_code == 403
     assert response.json()["type"].endswith("/role")
 
@@ -169,7 +182,7 @@ def test_only_an_admin_may_read_the_audit_trail(client, users) -> None:
 
 def test_an_admin_is_never_locked_out_of_a_role_gated_endpoint(client, users) -> None:
     response = client.post("/api/v1/pipelines/run", headers=_auth(users["admin"]),
-                           json={"pipeline": "churn_v1"})
+                           json={"pipeline": _pipeline()})
     assert response.status_code == 202
 
 
@@ -179,7 +192,7 @@ def test_an_admin_is_never_locked_out_of_a_role_gated_endpoint(client, users) ->
 def test_starting_a_run_returns_202_with_a_location(client, users) -> None:
     response = client.post(
         "/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-        json={"pipeline": "churn_v1", "inputs": {"transactions": "dsv_1"}},
+        json={"pipeline": _pipeline(), "inputs": {"transactions": SOURCE_URI}},
     )
     assert response.status_code == 202
     body = response.json()
@@ -195,7 +208,7 @@ def test_a_started_run_is_queued_not_executed_in_the_request(client, users, db_s
     from triad_core.models import AgentTask, PipelineRun
 
     body = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-                       json={"pipeline": "churn_v1"}).json()
+                       json={"pipeline": _pipeline()}).json()
     run = db_session.execute(
         select(PipelineRun).where(PipelineRun.run_key == body["run_id"])
     ).scalar_one()
@@ -207,7 +220,7 @@ def test_a_started_run_is_queued_not_executed_in_the_request(client, users, db_s
 
 def test_the_same_idempotency_key_returns_the_same_run(client, users) -> None:
     key = str(uuid.uuid4())
-    payload = {"pipeline": "churn_v1", "inputs": {"transactions": "dsv_1"}}
+    payload = {"pipeline": _pipeline(), "inputs": {"transactions": SOURCE_URI}}
     first = client.post("/api/v1/pipelines/run", headers={**_auth(users["data_engineer"]),
                                                           "Idempotency-Key": key}, json=payload)
     second = client.post("/api/v1/pipelines/run", headers={**_auth(users["data_engineer"]),
@@ -221,16 +234,16 @@ def test_the_same_key_with_a_different_body_is_a_conflict(client, users) -> None
     key = str(uuid.uuid4())
     headers = {**_auth(users["data_engineer"]), "Idempotency-Key": key}
     client.post("/api/v1/pipelines/run", headers=headers,
-                json={"pipeline": "churn_v1", "inputs": {"transactions": "dsv_1"}})
+                json={"pipeline": _pipeline(), "inputs": {"transactions": SOURCE_URI}})
     clash = client.post("/api/v1/pipelines/run", headers=headers,
-                        json={"pipeline": "churn_v1", "inputs": {"transactions": "dsv_2"}})
+                        json={"pipeline": _pipeline(), "inputs": {"transactions": SOURCE_URI + "-other"}})
     assert clash.status_code == 409
     assert clash.json()["type"].endswith("/idempotency-conflict")
 
 
 def test_an_unknown_field_in_the_body_is_refused(client, users) -> None:
     response = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-                           json={"pipeline": "churn_v1", "run_shell": "rm -rf /"})
+                           json={"pipeline": _pipeline(), "run_shell": "rm -rf /"})
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
 
@@ -247,12 +260,15 @@ def test_an_unknown_run_is_a_problem_not_a_crash(client, users) -> None:
 
 def test_a_run_detail_reports_its_stages_and_budget(client, users) -> None:
     started = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-                          json={"pipeline": "churn_v1",
+                          json={"pipeline": _pipeline(),
                                 "budget": {"max_llm_calls": 5}}).json()
     detail = client.get(f"/api/v1/pipelines/{started['run_id']}",
                         headers=_auth(users["data_engineer"])).json()
     assert detail["state"] == "RECEIVED"
-    assert [s["name"] for s in detail["stages"]] == ["profile"]
+    # One task for the preparation phase; the worker drives the stages inside it and the
+    # publish phase is queued separately once the approval is decided.
+    assert [s["name"] for s in detail["stages"]] == ["pipeline"]
+    assert detail["stages"][0]["status"] == "queued"
     assert detail["budget_limits"]["max_llm_calls"] == 5
     assert detail["budget_used"]["llm_calls"] == 0
     assert detail["pending_approval"] is None
@@ -260,7 +276,7 @@ def test_a_run_detail_reports_its_stages_and_budget(client, users) -> None:
 
 def test_only_the_starter_or_an_admin_may_cancel(client, users) -> None:
     started = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-                          json={"pipeline": "churn_v1"}).json()
+                          json={"pipeline": _pipeline()}).json()
     stranger = client.post(f"/api/v1/pipelines/{started['run_id']}/cancel",
                            headers=_auth(users["ml_engineer"]))
     assert stranger.status_code == 403
@@ -272,7 +288,7 @@ def test_only_the_starter_or_an_admin_may_cancel(client, users) -> None:
 
 def test_cancelling_a_finished_run_is_a_conflict(client, users) -> None:
     started = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-                          json={"pipeline": "churn_v1"}).json()
+                          json={"pipeline": _pipeline()}).json()
     client.post(f"/api/v1/pipelines/{started['run_id']}/cancel",
                 headers=_auth(users["data_engineer"]))
     again = client.post(f"/api/v1/pipelines/{started['run_id']}/cancel",
@@ -286,7 +302,7 @@ def test_cancelling_also_cancels_the_queued_work(client, users, db_session) -> N
     from triad_core.models import AgentTask, PipelineRun
 
     started = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-                          json={"pipeline": "churn_v1"}).json()
+                          json={"pipeline": _pipeline()}).json()
     client.post(f"/api/v1/pipelines/{started['run_id']}/cancel",
                 headers=_auth(users["data_engineer"]))
     run = db_session.execute(
@@ -300,7 +316,7 @@ def test_cancelling_also_cancels_the_queued_work(client, users, db_session) -> N
 
 def test_resuming_a_run_that_is_not_escalated_is_a_conflict(client, users) -> None:
     started = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-                          json={"pipeline": "churn_v1"}).json()
+                          json={"pipeline": _pipeline()}).json()
     response = client.post(f"/api/v1/pipelines/{started['run_id']}/resume",
                            headers=_auth(users["data_engineer"]),
                            json={"fix_note": "widened the contract for the renamed column"})
@@ -309,7 +325,7 @@ def test_resuming_a_run_that_is_not_escalated_is_a_conflict(client, users) -> No
 
 def test_resuming_requires_a_substantial_fix_note(client, users) -> None:
     started = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-                          json={"pipeline": "churn_v1"}).json()
+                          json={"pipeline": _pipeline()}).json()
     response = client.post(f"/api/v1/pipelines/{started['run_id']}/resume",
                            headers=_auth(users["data_engineer"]), json={"fix_note": "ok"})
     assert response.status_code == 422
@@ -321,7 +337,7 @@ def test_an_escalated_run_resumes_and_is_requeued(client, users, db_session) -> 
     from triad_core.models import AgentTask, PipelineRun
 
     started = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-                          json={"pipeline": "churn_v1"}).json()
+                          json={"pipeline": _pipeline()}).json()
     run = db_session.execute(
         select(PipelineRun).where(PipelineRun.run_key == started["run_id"])
     ).scalar_one()
@@ -501,19 +517,22 @@ def test_the_audit_chain_verifies_through_the_api(client, users) -> None:
 
 
 def test_api_actions_appear_in_the_audit_trail(client, users, db_session) -> None:
+    name = _pipeline()
     started = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-                          json={"pipeline": "churn_v1"}).json()
+                          json={"pipeline": name}).json()
     entries = client.get(
         "/api/v1/audit-logs?action=run.requested", headers=_auth(users["admin"])
     ).json()
-    assert any(e["details"].get("pipeline") == "churn_v1" for e in entries)
+    assert any(e["details"].get("pipeline") == name for e in entries), (
+        "the request this test made must be in the trail, not merely some request"
+    )
     assert started["run_id"]
 
 
 def test_dashboard_stats_are_computed_not_stored(client, users) -> None:
     before = client.get("/api/v1/stats", headers=_auth(users["admin"])).json()
     client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
-                json={"pipeline": "churn_v1"})
+                json={"pipeline": _pipeline()})
     after = client.get("/api/v1/stats", headers=_auth(users["admin"])).json()
     assert after["runs_today"] == before["runs_today"] + 1
 
@@ -573,3 +592,108 @@ def test_dev_warns_rather_than_refusing(monkeypatch) -> None:
         assert "not safe outside development" in (security.check_jwt_secret() or "")
     finally:
         settings.cache_clear()
+
+
+# --- input resolution ----------------------------------------------------------
+
+
+def test_a_dataset_name_is_resolved_to_its_latest_version(client, users, db_session) -> None:
+    from sqlalchemy import select
+
+    from triad_core.models import Dataset, DatasetVersion, PipelineRun
+
+    name = f"tx-{uuid.uuid4().hex[:8]}"
+    dataset = Dataset(name=name, entity_type="transactions", source_type="parquet")
+    db_session.add(dataset)
+    db_session.flush()
+    for version_no in (1, 2):
+        db_session.add(DatasetVersion(
+            dataset_id=dataset.id, version_no=version_no,
+            storage_uri=f"file:///data/triad/raw/{name}/v={version_no}",
+            checksum_sha256=f"{version_no:064d}", size_bytes=1, row_count=10,
+        ))
+    db_session.flush()
+
+    body = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                       json={"pipeline": _pipeline(), "inputs": {"transactions": name}}).json()
+    run = db_session.execute(
+        select(PipelineRun).where(PipelineRun.run_key == body["run_id"])
+    ).scalar_one()
+    assert run.input_versions["transactions"].endswith("v=2"), "the newest version wins"
+
+
+def test_an_unknown_dataset_name_is_refused_at_request_time(client, users) -> None:
+    """Better than a worker failure ten minutes later with the same cause."""
+    response = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                           json={"pipeline": _pipeline(),
+                                 "inputs": {"transactions": "no-such-dataset"}})
+    assert response.status_code == 422
+    assert "no-such-dataset" in response.json()["detail"]
+
+
+def test_a_dataset_with_no_versions_is_refused(client, users, db_session) -> None:
+    from triad_core.models import Dataset
+
+    name = f"empty-{uuid.uuid4().hex[:8]}"
+    db_session.add(Dataset(name=name, entity_type="transactions", source_type="parquet"))
+    db_session.flush()
+
+    response = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                           json={"pipeline": _pipeline(), "inputs": {"transactions": name}})
+    assert response.status_code == 422
+    assert "no registered version" in response.json()["detail"]
+
+
+def test_a_second_run_of_the_same_pipeline_is_refused_while_one_is_active(client, users) -> None:
+    """They share their clean, feature and label folders, so the second would overwrite the
+    first one's inputs mid-flight. Observed for real before this rule existed."""
+    name = _pipeline()
+    first = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                        json={"pipeline": name})
+    assert first.status_code == 202
+
+    second = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                         json={"pipeline": name})
+    assert second.status_code == 409
+    assert second.json()["type"].endswith("/pipeline-busy")
+    assert first.json()["run_id"] in second.json()["detail"]
+
+
+def test_a_different_pipeline_is_unaffected(client, users) -> None:
+    client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                json={"pipeline": _pipeline()})
+    other = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                        json={"pipeline": _pipeline()})
+    assert other.status_code == 202
+
+
+def test_a_cancelled_run_frees_the_pipeline(client, users) -> None:
+    name = _pipeline()
+    first = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                        json={"pipeline": name}).json()
+    client.post(f"/api/v1/pipelines/{first['run_id']}/cancel",
+                headers=_auth(users["data_engineer"]))
+    again = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                        json={"pipeline": name})
+    assert again.status_code == 202
+
+
+def test_a_run_waiting_for_approval_does_not_block_the_next_one(client, users, db_session) -> None:
+    """A run can sit at the approval gate for days; blocking the pipeline that long would
+    make the gate a denial of service."""
+    from sqlalchemy import select
+
+    from triad_core.models import PipelineRun
+
+    name = _pipeline()
+    first = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                        json={"pipeline": name}).json()
+    run = db_session.execute(
+        select(PipelineRun).where(PipelineRun.run_key == first["run_id"])
+    ).scalar_one()
+    run.state = "APPROVAL_REQUIRED"
+    db_session.flush()
+
+    again = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                        json={"pipeline": name})
+    assert again.status_code == 202

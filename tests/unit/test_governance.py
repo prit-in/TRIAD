@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from itertools import pairwise
 
 import pytest
 
@@ -306,3 +307,132 @@ class TestApprovalWorkflow:
         assert result.ok is False
         assert result.broken_at_id == entry.id
         assert "entry_hash" in (result.reason or "")
+
+
+class TestAuditChainUnderConcurrency:
+    """The defect this class exists for was real: two writers forked the chain.
+
+    `verify_chain` then reported "prev_hash does not match", which reads as tampering. A
+    tamper-evidence mechanism that cries wolf under ordinary load is worse than none, because
+    the real alarm is the one that gets ignored.
+
+    These tests commit. They have to: a fork only happens when two *open* transactions read
+    the same last entry, so nothing can be proved inside a single rolled-back one.
+    """
+
+    def _append(self, run_id, actor: str, ready, go):
+        from triad_core import audit
+        from triad_core.db import session_factory
+
+        session = session_factory()()
+        try:
+            # Read the chain head, then wait for the other thread to have done the same.
+            # Under the old code both threads then chained from the identical entry.
+            audit.record(
+                session, actor_type="system", actor_id=actor,
+                action="test.concurrent_append", resource_type="test",
+                resource_id=actor, run_id=run_id, details={"actor": actor},
+            )
+            ready.set()
+            go.wait(timeout=10)
+            session.commit()
+        finally:
+            session.close()
+
+    def test_two_writers_on_one_chain_do_not_fork_it(self, db_session) -> None:
+        import threading
+
+        from sqlalchemy import func, select
+
+        from agents.graph import queue as q
+        from triad_core import audit
+        from triad_core.db import session_scope
+        from triad_core.models import AuditLog
+
+        # A committed run of its own, so the appended entries belong to a chain no other
+        # test or run touches.
+        with session_scope() as setup:
+            run = q.create_run(
+                setup, pipeline_name="churn_v1", trigger_type="manual",
+                triggered_by="concurrency-test",
+                idempotency_key=f"audit-race-{uuid.uuid4()}",
+            )
+            run_id = run.id
+
+        first_ready, second_ready = threading.Event(), threading.Event()
+        go = threading.Event()
+        threads = [
+            threading.Thread(target=self._append, args=(run_id, "writer-a", first_ready, go)),
+            threading.Thread(target=self._append, args=(run_id, "writer-b", second_ready, go)),
+        ]
+        for thread in threads:
+            thread.start()
+        # Release both only once at least one has taken the lock and written.
+        first_ready.wait(timeout=15)
+        second_ready.wait(timeout=15)
+        go.set()
+        for thread in threads:
+            thread.join(timeout=30)
+            assert not thread.is_alive(), "an append blocked for ever instead of serialising"
+
+        with session_scope() as check:
+            rows = check.execute(
+                select(AuditLog).where(AuditLog.run_id == run_id).order_by(AuditLog.id)
+            ).scalars().all()
+            assert len(rows) >= 2
+            prev_hashes = [r.prev_hash for r in rows]
+            assert len(set(prev_hashes)) == len(prev_hashes), (
+                "two entries share a prev_hash: the chain forked"
+            )
+            assert audit.verify_chain(check).ok
+
+            # GENESIS is the head of every chain, so sharing *it* is correct. Any other
+            # repeated prev_hash means two entries claim the same predecessor.
+            forked = check.execute(
+                select(AuditLog.prev_hash, func.count())
+                .where(AuditLog.prev_hash != audit.GENESIS_HASH)
+                .group_by(AuditLog.prev_hash).having(func.count() > 1)
+            ).all()
+            assert forked == [], f"forked links remain: {forked}"
+
+    def test_entries_are_chained_per_run(self, db_session) -> None:
+        """Interleaving two runs must produce two chains, not one interleaved mess."""
+        from agents.graph import queue as q
+        from triad_core import audit
+
+        runs = [
+            q.create_run(db_session, pipeline_name="churn_v1", trigger_type="manual",
+                         triggered_by="t", idempotency_key=f"chain-{i}-{uuid.uuid4()}")
+            for i in range(2)
+        ]
+        entries = []
+        for _ in range(3):
+            for run in runs:
+                entries.append(audit.record(
+                    db_session, actor_type="system", actor_id="t", action="test.interleaved",
+                    resource_type="test", resource_id="x", run_id=run.id,
+                ))
+
+        from sqlalchemy import select
+
+        from triad_core.models import AuditLog
+
+        for run in runs:
+            # `create_run` already wrote this run's first entry, so the chain starts there.
+            chain = db_session.execute(
+                select(AuditLog).where(AuditLog.run_id == run.id).order_by(AuditLog.id)
+            ).scalars().all()
+            assert chain[0].prev_hash == audit.GENESIS_HASH, "each run starts its own chain"
+            for earlier, later in pairwise(chain):
+                assert later.prev_hash == earlier.entry_hash, (
+                    "an interleaved write from the other run broke this chain"
+                )
+            assert [e.id for e in entries if e.run_id == run.id]
+        assert audit.verify_chain(db_session).ok
+
+
+def test_the_system_chain_is_separate_from_every_run(db_session) -> None:
+    from triad_core import audit
+
+    assert audit.chain_scope(None) == audit.SYSTEM_SCOPE
+    assert audit.chain_scope(uuid.uuid4()) != audit.SYSTEM_SCOPE

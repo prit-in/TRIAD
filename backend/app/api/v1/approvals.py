@@ -16,6 +16,7 @@ from sqlalchemy import select
 from backend.app import problems
 from backend.app.deps import CurrentUser, DbSession
 from backend.app.schemas import AlertView, ApprovalView, DecisionRequest
+from backend.app.services import enqueue_publish
 from triad_core.config import settings
 from triad_core.governance import (
     CommentRequired,
@@ -99,6 +100,10 @@ def decide(
                                 problem_type="nothing-pending") from exc
     except PolicyDenied as exc:
         raise problems.forbidden(str(exc), problem_type="policy-denied") from exc
+
+    # An approved promotion still has to be carried out, and a rejected one still has to
+    # archive its shadow scores and say so in a report. Both are the orchestrator's work.
+    enqueue_publish(session, decided)
     return ApprovalView.model_validate(decided)
 
 
