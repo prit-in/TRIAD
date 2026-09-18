@@ -301,3 +301,86 @@ def test_a_report_that_failed_its_claim_check_is_held(db_session, monitor, run) 
         select(AuditLog).where(AuditLog.resource_id == str(row.id))
     ).scalar_one()
     assert entry.action == "report.held"
+
+
+# --- acting on a trigger (FR-074) ---------------------------------------------
+
+
+def test_a_fired_trigger_queues_a_retraining_run(db_session, monitor, run) -> None:
+    from agents.graph import queue as q
+    from triad_core.models import AgentTask, PipelineRun
+
+    run.input_versions = {"transactions": "file:///data/triad/raw/transactions/v=1"}
+    db_session.flush()
+
+    decision = monitor.policy.evaluate(
+        MonitoringState(
+            last_trained_at=utcnow() - timedelta(days=40),
+            labelled_rows_at_training=10000, labelled_rows_now=13000,
+        )
+    )
+    assert decision.should_retrain
+
+    queued = monitor.start_retraining(decision, source=run)
+    assert queued is not None
+    assert queued.trigger_type == "retrain"
+    assert queued.parent_run_id == run.id
+    assert queued.input_versions == run.input_versions, "it retrains on the same inputs"
+
+    tasks = db_session.execute(
+        select(AgentTask).where(AgentTask.run_id == queued.id)
+    ).scalars().all()
+    assert [(t.task_type, t.status) for t in tasks] == [("run", "queued")]
+    assert isinstance(queued, PipelineRun) and q  # the queue module did the enqueuing
+
+
+def test_a_quiet_decision_queues_nothing(db_session, monitor, run) -> None:
+    decision = monitor.policy.evaluate(MonitoringState())
+    assert not decision.should_retrain
+    assert monitor.start_retraining(decision, source=run) is None
+
+
+def test_a_trigger_does_not_start_a_second_run_inside_the_cooldown(
+    db_session, monitor, run
+) -> None:
+    """The cooldown runs from the last *training*, which does not move when a retrain keeps
+    the champion. Without this guard a fired trigger starts a run every time it is looked at.
+    """
+    decision = monitor.policy.evaluate(
+        MonitoringState(
+            last_trained_at=utcnow() - timedelta(days=40),
+            labelled_rows_at_training=10000, labelled_rows_now=13000,
+        )
+    )
+    first = monitor.start_retraining(decision, source=run)
+    assert first is not None
+
+    again = monitor.start_retraining(decision, source=run)
+    assert again is None, "a second run inside the cooldown must not start"
+
+    entry = db_session.execute(
+        select(AuditLog).where(AuditLog.action == "retraining.not_started")
+        .order_by(AuditLog.id.desc())
+    ).scalars().first()
+    assert entry is not None and first.run_key in entry.details["reason"]
+
+
+def test_the_monitoring_state_is_built_from_what_was_recorded(
+    db_session, monitor, version, run
+) -> None:
+    """Anything not recorded stays None, so its rule reports "not evaluated"."""
+    uri = monitor.capture_reference(version, _frame(1000), FEATURES)
+    monitor.report_drift(version, reference_uri=uri, current=_frame(1000, shift=45.0),
+                         current_ref="file:///x", run=run)
+
+    state = monitor.monitoring_state(version)
+    assert state.drift is not None and state.drift.features
+    assert state.last_trained_at == version.created_at
+    # Labels mature 90 days after scoring, so there is genuinely nothing to report yet.
+    assert state.matured_pr_auc == []
+    assert state.labelled_rows_now is None
+
+    decision = monitor.policy.evaluate(state)
+    reasons = {s.rule_id: s.reason for s in decision.signals}
+    assert "not evaluated" in reasons["RT-1"]
+    assert "not evaluated" in reasons["RT-4"]

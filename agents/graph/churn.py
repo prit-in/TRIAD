@@ -656,6 +656,13 @@ def publish(
                    f"{'retrain' if retrain.should_retrain else (retrain.blocked_by or 'wait')}",
         True)
 
+    # A trigger that fires has to start something, or RT-1..RT-9 are a report rather than a
+    # control (FR-074, PO-06). The queued run goes through the same gates as any other, so
+    # nothing is promoted without a person.
+    queued = monitor.start_retraining(retrain, source=run)
+    if queued is not None:
+        say("retrain", f"queued {queued.run_key} to retrain", True)
+
     # -- report -----------------------------------------------------------------
     sheet = FactSheet()
     sheet.add("customers_scored", summary["rows"], definition="rows in the prediction set")

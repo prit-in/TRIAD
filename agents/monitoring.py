@@ -11,6 +11,7 @@ reports, predictions and approvals point at, so a registration has to land in bo
 
 from __future__ import annotations
 
+import datetime as dt
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +22,7 @@ from sqlalchemy import select
 from agents.retraining import MonitoringState, RetrainingDecision, RetrainingPolicy
 from triad_core import audit
 from triad_core.governance import GovernanceService
+from triad_core.ids import utcnow
 from triad_core.models import DriftReport, Model, ModelVersion, PipelineRun
 from triad_core.storage import Storage, storage
 
@@ -386,6 +388,124 @@ class MonitoringService:
                 evidence=decision.to_dict(),
             )
         return decision
+
+    # -- acting on a trigger (FR-074) ------------------------------------------
+    def monitoring_state(self, version: ModelVersion) -> MonitoringState:
+        """Build the trigger inputs from what the platform has actually recorded.
+
+        Anything not recorded stays `None`, so the rule that needs it reports "not evaluated"
+        rather than passing by default. Matured performance in particular is genuinely absent
+        here: churn labels mature 90 days after scoring, so RT-1 and RT-4 have nothing to
+        look at until then, and saying so is the honest answer.
+        """
+        from python_ml.triad_ml.drift import DriftResult, FeatureDrift, ScoreDrift
+
+        latest = self.session.execute(
+            select(DriftReport)
+            .where(DriftReport.model_version_id == version.id)
+            .order_by(DriftReport.computed_at.desc())
+        ).scalars().first()
+
+        drift = None
+        if latest is not None:
+            payload = latest.psi_json or {}
+            score = payload.get("score")
+            drift = DriftResult(
+                features=[
+                    FeatureDrift(
+                        feature=f["feature"], kind=f.get("kind", "numeric"),
+                        psi=float(f.get("psi") or 0.0), test=f.get("test", "none"),
+                        flagged=bool(f.get("flagged")), note=f.get("note", ""),
+                    )
+                    for f in payload.get("features", [])
+                ],
+                score=ScoreDrift(
+                    psi=float(score.get("psi") or 0.0),
+                    reference_high_risk_share=score.get("reference_high_risk_share"),
+                    current_high_risk_share=score.get("current_high_risk_share"),
+                    share_change=score.get("share_change"),
+                    flagged=bool(score.get("flagged")),
+                    reason=score.get("reason", ""),
+                ) if score else None,
+                thresholds=payload.get("thresholds", {}),
+                n_rows=int(payload.get("n_rows") or 0),
+                computed_at=payload.get("computed_at", ""),
+            )
+
+        return MonitoringState(
+            drift=drift,
+            last_trained_at=version.created_at,
+            feature_catalog_version=self.config.get("feature_set_version", "fsv=1"),
+            model_feature_catalog_version=version.feature_set_version,
+        )
+
+    def start_retraining(
+        self, decision: RetrainingDecision, *, source: PipelineRun, pipeline: str | None = None
+    ) -> PipelineRun | None:
+        """Queue a retraining run for a decision that fired and passed the validity gate.
+
+        Returns None when nothing should start. Two guards, and the second is the important
+        one: the cooldown is measured from the last *training*, which does not move when a
+        retrain keeps the champion, so without a guard on recent **attempts** a fired trigger
+        would start a new run every time the monitor looked.
+        """
+        from agents.graph import queue as q
+
+        if not decision.should_retrain:
+            return None
+
+        name = pipeline or source.pipeline_name
+        cooldown = dt.timedelta(days=float(self.policy.config["cooldown_days"]))
+        since = utcnow() - cooldown
+
+        recent = self.session.execute(
+            select(PipelineRun)
+            .where(
+                PipelineRun.pipeline_name == name,
+                PipelineRun.trigger_type == "retrain",
+                PipelineRun.started_at >= since,
+            )
+            .order_by(PipelineRun.started_at.desc())
+        ).scalars().first()
+        if recent is not None:
+            audit.record(
+                self.session, actor_type="system", actor_id="monitoring",
+                action="retraining.not_started", resource_type="pipeline_run",
+                resource_id=str(recent.id), run_id=source.id, outcome="already_attempted",
+                details={"reason": f"{recent.run_key} was already started for this trigger "
+                                   f"within the {self.policy.config['cooldown_days']}-day "
+                                   "cooldown", "fired": decision.rule_ids},
+            )
+            return None
+
+        run = q.create_run(
+            self.session,
+            pipeline_name=name,
+            trigger_type="retrain",
+            triggered_by="system",
+            config={"retraining": decision.to_dict(), "parent_run": source.run_key},
+            input_versions=dict(source.input_versions or {}),
+            budget=dict(source.budget_json or {}),
+        )
+        run.parent_run_id = source.id
+        q.enqueue(
+            self.session, run, stage="pipeline", agent_name="orchestrator",
+            task_type="run", input_refs=dict(source.input_versions or {}),
+        )
+        audit.record(
+            self.session, actor_type="system", actor_id="monitoring",
+            action="retraining.started", resource_type="pipeline_run",
+            resource_id=str(run.id), run_id=run.id, outcome="queued",
+            details={"fired": decision.rule_ids, "because": decision.reason[:500],
+                     "parent_run": source.run_key},
+        )
+        if self.governance is not None:
+            self.governance.alert(
+                alert_type="retraining_started", severity="info", run_id=run.id,
+                message=f"{run.run_key} was queued by {', '.join(decision.rule_ids)}",
+                evidence=decision.to_dict(),
+            )
+        return run
 
     # -- helpers ---------------------------------------------------------------
     def _reference_path(self, version: ModelVersion) -> Path:
