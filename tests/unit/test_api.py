@@ -683,7 +683,7 @@ def test_a_run_waiting_for_approval_does_not_block_the_next_one(client, users, d
     make the gate a denial of service."""
     from sqlalchemy import select
 
-    from triad_core.models import PipelineRun
+    from triad_core.models import AgentTask, PipelineRun
 
     name = _pipeline()
     first = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
@@ -691,9 +691,57 @@ def test_a_run_waiting_for_approval_does_not_block_the_next_one(client, users, d
     run = db_session.execute(
         select(PipelineRun).where(PipelineRun.run_key == first["run_id"])
     ).scalar_one()
+    # At the gate the preparation task has *succeeded*: that is what leaves the run paused
+    # with no live work. Leaving the task queued would describe a state that never happens.
     run.state = "APPROVAL_REQUIRED"
+    for task in db_session.execute(
+        select(AgentTask).where(AgentTask.run_id == run.id)
+    ).scalars():
+        task.status = "succeeded"
     db_session.flush()
 
     again = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
                         json={"pipeline": name})
-    assert again.status_code == 202
+    assert again.status_code == 202, again.json()
+
+
+def test_an_abandoned_run_does_not_block_the_pipeline_for_ever(client, users, db_session) -> None:
+    """A run whose state is not final but which has no live task is going nowhere.
+
+    Reading the state column alone meant one abandoned row - a crashed process, or a test that
+    committed a run and walked away - refused every future run of that pipeline until someone
+    cancelled it by hand. That happened, through the real API.
+    """
+    from sqlalchemy import select
+
+    from triad_core.models import AgentTask, PipelineRun
+
+    name = _pipeline()
+    first = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                        json={"pipeline": name}).json()
+    run = db_session.execute(
+        select(PipelineRun).where(PipelineRun.run_key == first["run_id"])
+    ).scalar_one()
+
+    # The worker dies: the task never runs and the run keeps its non-final state.
+    for task in db_session.execute(
+        select(AgentTask).where(AgentTask.run_id == run.id)
+    ).scalars():
+        task.status = "failed"
+    db_session.flush()
+    assert run.state == "RECEIVED", "the state column still says the run is alive"
+
+    again = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                        json={"pipeline": name})
+    assert again.status_code == 202, again.json()
+
+
+def test_a_run_with_live_work_still_blocks_the_pipeline(client, users, db_session) -> None:
+    """The relaxation must not lose the rule it relaxed."""
+    name = _pipeline()
+    client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                json={"pipeline": name})
+    blocked = client.post("/api/v1/pipelines/run", headers=_auth(users["data_engineer"]),
+                          json={"pipeline": name})
+    assert blocked.status_code == 409
+    assert "still queued" in blocked.json()["detail"]

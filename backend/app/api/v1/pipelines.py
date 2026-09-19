@@ -99,6 +99,28 @@ def _pending_approval(session: DbSession, run: PipelineRun) -> PendingApprovalVi
     )
 
 
+def _active_run(session: DbSession, pipeline: str) -> PipelineRun | None:
+    """The run, if any, that genuinely still holds this pipeline's shared outputs.
+
+    "Active" is defined by **live work**, not by the state column. A run whose state is not
+    final but which has no queued, leased or running task is going nowhere: nothing will ever
+    move it on. Reading the state alone meant one abandoned row - a crashed process, or a test
+    that committed a run and walked away - refused every future run of that pipeline until a
+    person cancelled it by hand. That happened.
+    """
+    return session.execute(
+        select(PipelineRun)
+        .join(AgentTask, AgentTask.run_id == PipelineRun.id)
+        .where(
+            PipelineRun.pipeline_name == pipeline,
+            PipelineRun.state.notin_(tuple(FINISHED_STATES | {"ESCALATED", "FAILED"})),
+            AgentTask.status.in_(("queued", "leased", "running")),
+        )
+        .order_by(PipelineRun.started_at.desc())
+        .limit(1)
+    ).scalars().first()
+
+
 def _resolve_inputs(session: DbSession, inputs: dict[str, str]) -> dict[str, str]:
     """Turn dataset names into the storage URI of their latest version.
 
@@ -185,18 +207,13 @@ def start_run(
 
     # Only now, after the idempotency check: a retry of a request that already started a run
     # must get that run back, not "the pipeline is busy" - the busy one *is* its own run.
-    active = session.execute(
-        select(PipelineRun).where(
-            PipelineRun.pipeline_name == payload.pipeline,
-            PipelineRun.state.notin_(tuple(FINISHED_STATES | {"ESCALATED", "FAILED"})),
-        ).order_by(PipelineRun.started_at.desc())
-    ).scalars().first()
-    if active is not None and active.state != "APPROVAL_REQUIRED":
+    active = _active_run(session, payload.pipeline)
+    if active is not None:
         raise problems.conflict(
             "A run of this pipeline is already active",
-            f"{active.run_key} is {active.state}. Runs of {payload.pipeline} share their "
-            "clean, feature and label folders, so they are run one at a time; cancel it "
-            "or wait.",
+            f"{active.run_key} is {active.state} with work still queued. Runs of "
+            f"{payload.pipeline} share their clean, feature and label folders, so they are "
+            "run one at a time; cancel it or wait.",
             problem_type="pipeline-busy",
         )
 

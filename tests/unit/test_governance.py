@@ -358,6 +358,11 @@ class TestAuditChainUnderConcurrency:
                 idempotency_key=f"audit-race-{uuid.uuid4()}",
             )
             run_id = run.id
+            # This run is committed on purpose and cannot be deleted afterwards, because its
+            # audit entries are append-only. It is left in a terminal state so it is not
+            # mistaken for pending work: leaving it in RECEIVED once made the API refuse every
+            # new run of this pipeline.
+            q.set_state(setup, run, "CANCELLED", actor="concurrency-test")
 
         first_ready, second_ready = threading.Event(), threading.Event()
         go = threading.Event()
