@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from triad_core import audit
+from triad_core.config import settings
 from triad_core.contracts import Contract, ContractResult
 from triad_core.ids import sha256_file, utcnow
 from triad_core.models import Dataset, DatasetVersion, Event
@@ -251,6 +252,24 @@ class DatasetRegistry:
                         continue
         return max(from_db, from_disk) + 1
 
+    def contract_for(self, dataset: Dataset) -> Contract | None:
+        """The dataset's ingest contract: its own stored YAML, or the repo's file for it.
+
+        `pipelines/contracts/<name>.yaml` is the versioned source of truth in this project, so
+        it is the fallback when a dataset row carries no contract of its own.
+        """
+        if dataset.contract_yaml:
+            import yaml
+
+            try:
+                return Contract.from_dict(yaml.safe_load(dataset.contract_yaml))
+            except Exception as exc:  # a malformed stored contract must not pass silently
+                raise IngestError(
+                    f"dataset '{dataset.name}' has an unusable stored contract: {exc}"
+                ) from exc
+        path = settings().repo_root / "pipelines" / "contracts" / f"{dataset.name}.yaml"
+        return Contract.from_yaml(path) if path.exists() else None
+
     def register_version(
         self,
         dataset_name: str,
@@ -260,13 +279,23 @@ class DatasetRegistry:
         contract: Contract | None = None,
         settle_check: bool = False,
     ) -> RegistrationResult:
-        """The UC-01 main flow. Returns without creating anything for a duplicate checksum."""
+        """The UC-01 main flow. Returns without creating anything for a duplicate checksum.
+
+        `contract` defaults to the dataset's own contract. It used to default to *nothing*,
+        and the consequence was that FR-007 - "a missing required column stops the run with a
+        reason code and never reaches profiling" - was implemented here and unreachable: the
+        API, the demo script and the experiments all called this without a contract, so the
+        only caller that ever passed one was `watch_folder`. EXP-4 found it by renaming
+        `customer_id` and watching the run profile and clean the data without complaint.
+        """
         dataset = self.get(dataset_name)
         if dataset is None:
             raise IngestError(
                 f"dataset '{dataset_name}' is not registered; a new source needs a confirmed "
                 "mapping from a Data Engineer (UC-01 alternative flow)"
             )
+        if contract is None:
+            contract = self.contract_for(dataset)
 
         obs = observe(file_path, settle_check=settle_check)
         if not obs.stable:

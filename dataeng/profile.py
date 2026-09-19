@@ -151,6 +151,7 @@ def profile_dataframe(
     dataset: str,
     version_no: int | None = None,
     key_columns: list[str] | None = None,
+    optional_columns: frozenset[str] | None = None,
     quantiles: tuple[float, ...] = (0.25, 0.5, 0.75, 0.95, 0.99),
     top_k: int = 5,
     sample_fraction: float = 1.0,
@@ -277,7 +278,10 @@ def profile_dataframe(
         distinct_keys = working.select(*[F.col(f"`{k}`") for k in key_columns]).distinct().count()
         key_duplicate_rows = profiled_rows - distinct_keys
 
-    issues = detect_issues(columns, row_count, duplicate_rows, key_duplicate_rows, key_columns)
+    issues = detect_issues(
+        columns, row_count, duplicate_rows, key_duplicate_rows, key_columns,
+        optional_columns=optional_columns or frozenset(),
+    )
     score, dims = quality_score(columns, row_count, duplicate_rows, key_duplicate_rows, issues)
 
     if sample_fraction < 1.0:
@@ -329,8 +333,19 @@ def detect_issues(
     duplicate_rows: int,
     key_duplicate_rows: int | None,
     key_columns: list[str],
+    optional_columns: frozenset[str] = frozenset(),
 ) -> list[Issue]:
-    """Severity comes from rules, never from judgement (PRD section 11.2)."""
+    """Severity comes from rules, never from judgement (PRD section 11.2).
+
+    `optional_columns` are the ones the ingest contract declares `required: false` and
+    `nullable: true`. A high null rate on one of those is the data behaving as documented -
+    85.7% of orders genuinely carry no promo code - and calling it *blocking* both cries wolf
+    and makes the blocking count useless as a signal: every healthy run reported one, so a run
+    with a real schema fault looked no different. It is still reported, as a warning.
+
+    The contract is the rule here, so this is not judgement creeping in: a column the contract
+    declares required, or non-nullable, is blocking on a high null rate exactly as before.
+    """
     issues: list[Issue] = []
 
     if row_count == 0:
@@ -348,13 +363,15 @@ def detect_issues(
                 )
             )
         elif col.null_rate >= NULL_BLOCK_RATE:
+            optional = col.name in optional_columns
             issues.append(
                 Issue(
                     f"HIGH_NULL_RATE.{col.name}",
-                    "blocking",
+                    "warning" if optional else "blocking",
                     col.name,
-                    f"{col.null_rate:.1%} of {col.name} is null",
-                    {"null_rate": round(col.null_rate, 4)},
+                    f"{col.null_rate:.1%} of {col.name} is null"
+                    + (" (the contract declares this column optional)" if optional else ""),
+                    {"null_rate": round(col.null_rate, 4), "contract_optional": optional},
                 )
             )
         elif col.null_rate >= NULL_WARN_RATE:

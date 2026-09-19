@@ -261,7 +261,10 @@ class ChurnPipeline:
         def execute(artifact):
             df = read_for_profiling(spark, artifact["uri"], artifact["fmt"])
             profile = profile_dataframe(
-                df, dataset=dataset, key_columns=self._key_columns(dataset)
+                df,
+                dataset=dataset,
+                key_columns=self._key_columns(dataset),
+                optional_columns=self._optional_columns(dataset),
             )
             path = self.storage.write_json(
                 self.storage.root / "profiles" / f"{self.run.run_key}_{dataset}.json",
@@ -292,13 +295,24 @@ class ChurnPipeline:
             self._record_metric("quality_score", outcome.outputs.get("quality_score"))
         return outcome.outputs if outcome.ok else {}
 
+    def _contract(self, dataset: str) -> Contract | None:
+        path = settings().repo_root / "pipelines" / "contracts" / f"{dataset}.yaml"
+        return Contract.from_yaml(path) if path.exists() else None
+
     def _key_columns(self, dataset: str) -> list[str]:
-        contract_path = (
-            settings().repo_root / "pipelines" / "contracts" / f"{dataset}.yaml"
-        )
-        if contract_path.exists():
-            return Contract.from_yaml(contract_path).grain
-        return []
+        contract = self._contract(dataset)
+        return contract.grain if contract else []
+
+    def _optional_columns(self, dataset: str) -> frozenset[str]:
+        """Columns the contract says may legitimately be absent or null.
+
+        Passed to profiling so a nullable-by-design column does not raise a *blocking* issue
+        just for being mostly null, which is what a promo code is.
+        """
+        contract = self._contract(dataset)
+        if contract is None:
+            return frozenset()
+        return frozenset(c.name for c in contract.columns if not c.required and c.nullable)
 
     def stage_scala_job(
         self,

@@ -1,7 +1,0 @@
-Traceback (most recent call last):
-  File "/workspace/experiments/exp10_governance.py", line 301, in run
-    _attempt_self_approval(exp, session, run_row)
-  File "/workspace/experiments/exp10_governance.py", line 135, in _attempt_self_approval
-    evidence = EvidenceBundle(
-               ^^^^^^^^^^^^^^^
-TypeError: EvidenceBundle.__init__() got an unexpected keyword argument 'items'

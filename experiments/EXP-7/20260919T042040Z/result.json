@@ -1,0 +1,474 @@
+{
+  "exp_id": "EXP-7",
+  "title": "Model degradation",
+  "hypothesis": "Drift flags fire; retraining starts; the challenger is compared with the champion; promotion waits for approval.",
+  "independent_variable": "drift type and size",
+  "dependent_measures": [
+    "max_psi",
+    "flagged_features",
+    "scoring_months_to_detection",
+    "label_months_to_detection",
+    "false_alarm_months",
+    "pr_auc"
+  ],
+  "started_at": "2026-09-19T04:20:40.901219+00:00",
+  "duration_s": 19.58,
+  "status": "partial",
+  "hypothesis_held": true,
+  "conclusion": "False alarms: 0 of 6 undrifted months flagged (highest PSI 0.02985 against a 0.25 threshold), so the detector is not simply flagging everything. feature_shift_recency_x1.8: flagged after 0 scoring month(s) with max PSI 0.32195, PR-AUC 0.8412 -> 0.7148, label-visible drop after 0 month(s) of matured labels, retraining triggers ['RT-1', 'RT-2', 'RT-3', 'RT-5', 'RT-6']. segment_shift_one_country: flagged after 0 scoring month(s) with max PSI 1.13428, PR-AUC 0.8412 -> 0.7534, label-visible drop after 0 month(s) of matured labels, retraining triggers ['RT-1', 'RT-2', 'RT-3', 'RT-5', 'RT-6']. The PRD's expected observation is confirmed in the gap between the two delays: feature drift is visible from the scoring data alone, with no labels at all, while the performance drop only becomes measurable once labels have matured - which in production is 90 days later. Status is partial because the approval half of the hypothesis is covered elsewhere, not here.",
+  "limitations": [
+    "The approval half of the hypothesis - that the challenger is compared with the champion and promotion waits for approval - is not re-tested here. It is the approval gate of the main pipeline, covered by AT-08/AT-13 and demonstrated by scripts/run_demo.py; repeating it inside a drift experiment would measure the gate twice and the drift detectors once.",
+    "Replay is over synthetic months, not Online Retail II. Only the generator can be told to shift one feature or change one segment's behaviour on demand, which is what the independent variable requires."
+  ],
+  "trials": [
+    {
+      "condition": "champion_trained_on_month_0",
+      "ok": true,
+      "detail": "",
+      "measurements": [
+        {
+          "name": "training_rows",
+          "value": 1500,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "pr_auc_at_deployment",
+          "value": 0.8412,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reference_rows",
+          "value": 1500,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {}
+    },
+    {
+      "condition": "stable_no_drift",
+      "ok": true,
+      "detail": "0/6 stable months flagged; highest PSI 0.02985 against a threshold of 0.25",
+      "measurements": [
+        {
+          "name": "months_replayed",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "false_alarm_months",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "false_alarm_rate",
+          "value": 0.0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_psi_over_stable_months",
+          "value": 0.02985,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "month_1": {
+          "max_psi": 0.02985,
+          "flagged": []
+        },
+        "month_2": {
+          "max_psi": 0.0154,
+          "flagged": []
+        },
+        "month_3": {
+          "max_psi": 0.01741,
+          "flagged": []
+        },
+        "month_4": {
+          "max_psi": 0.0217,
+          "flagged": []
+        },
+        "month_5": {
+          "max_psi": 0.01701,
+          "flagged": []
+        },
+        "month_6": {
+          "max_psi": 0.02362,
+          "flagged": []
+        }
+      }
+    },
+    {
+      "condition": "feature_shift_recency_x1.8",
+      "ok": true,
+      "detail": "scoring delay 0 month(s), label delay 0 month(s), max PSI 0.32195, retrain=True via ['RT-1', 'RT-2', 'RT-3', 'RT-5', 'RT-6']",
+      "measurements": [
+        {
+          "name": "max_psi",
+          "value": 0.32195,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "flagged_features",
+          "value": [
+            "recency_days"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "scoring_months_to_detection",
+          "value": 0,
+          "unit": "",
+          "note": "0 = flagged on the first scoring run after the shift"
+        },
+        {
+          "name": "label_months_to_detection",
+          "value": 0,
+          "unit": "",
+          "note": "months of *matured labels* before a 10% PR-AUC drop is visible"
+        },
+        {
+          "name": "pr_auc_before",
+          "value": 0.8412,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "pr_auc_after",
+          "value": 0.7148,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "pr_auc_change",
+          "value": -0.1265,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retraining_should_start",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "triggers_fired",
+          "value": [
+            "RT-1",
+            "RT-2",
+            "RT-3",
+            "RT-5",
+            "RT-6"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocked_by",
+          "value": "",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "months": [
+          {
+            "month": 7,
+            "max_psi": 0.32195,
+            "flagged": [
+              "recency_days"
+            ],
+            "score_psi": 0.27011,
+            "pr_auc": 0.68
+          },
+          {
+            "month": 8,
+            "max_psi": 0.26742,
+            "flagged": [
+              "recency_days"
+            ],
+            "score_psi": 0.22865,
+            "pr_auc": 0.6795
+          },
+          {
+            "month": 9,
+            "max_psi": 0.30581,
+            "flagged": [
+              "recency_days"
+            ],
+            "score_psi": 0.25376,
+            "pr_auc": 0.7012
+          },
+          {
+            "month": 10,
+            "max_psi": 0.32121,
+            "flagged": [
+              "recency_days"
+            ],
+            "score_psi": 0.27772,
+            "pr_auc": 0.7274
+          },
+          {
+            "month": 11,
+            "max_psi": 0.29884,
+            "flagged": [
+              "recency_days"
+            ],
+            "score_psi": 0.23335,
+            "pr_auc": 0.7054
+          },
+          {
+            "month": 12,
+            "max_psi": 0.30417,
+            "flagged": [
+              "recency_days"
+            ],
+            "score_psi": 0.24988,
+            "pr_auc": 0.7148
+          }
+        ],
+        "retraining_decision": {
+          "reason": "RT-1: PR-AUC 0.7148 is more than 0.05 below the value at deployment (0.8412); RT-2: PSI above 0.25 on recency_days; RT-3: score PSI 0.274 > 0.2; high-risk share moved from 0.155 to 0.312; RT-5: 9000 new labelled rows, 600.0% more than at training; RT-6: 120 days since the last training run",
+          "signals": [
+            {
+              "rule": "RT-1",
+              "fired": true,
+              "reason": "PR-AUC 0.7148 is more than 0.05 below the value at deployment (0.8412)"
+            },
+            {
+              "rule": "RT-2",
+              "fired": true,
+              "reason": "PSI above 0.25 on recency_days"
+            },
+            {
+              "rule": "RT-3",
+              "fired": true,
+              "reason": "score PSI 0.274 > 0.2; high-risk share moved from 0.155 to 0.312"
+            },
+            {
+              "rule": "RT-4",
+              "fired": false,
+              "reason": "no monotone decline"
+            },
+            {
+              "rule": "RT-5",
+              "fired": true,
+              "reason": "9000 new labelled rows, 600.0% more than at training"
+            },
+            {
+              "rule": "RT-6",
+              "fired": true,
+              "reason": "120 days since the last training run"
+            },
+            {
+              "rule": "RT-7",
+              "fired": false,
+              "reason": "not evaluated - feature catalogue version unknown"
+            },
+            {
+              "rule": "RT-8",
+              "fired": false,
+              "reason": "no breaking schema change"
+            },
+            {
+              "rule": "RT-9",
+              "fired": false,
+              "reason": "not evaluated - label definition hash unknown"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "condition": "segment_shift_one_country",
+      "ok": true,
+      "detail": "scoring delay 0 month(s), label delay 0 month(s), max PSI 1.13428, retrain=True via ['RT-1', 'RT-2', 'RT-3', 'RT-5', 'RT-6']",
+      "measurements": [
+        {
+          "name": "max_psi",
+          "value": 1.13428,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "flagged_features",
+          "value": [
+            "orders_365d"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "scoring_months_to_detection",
+          "value": 0,
+          "unit": "",
+          "note": "0 = flagged on the first scoring run after the shift"
+        },
+        {
+          "name": "label_months_to_detection",
+          "value": 0,
+          "unit": "",
+          "note": "months of *matured labels* before a 10% PR-AUC drop is visible"
+        },
+        {
+          "name": "pr_auc_before",
+          "value": 0.8412,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "pr_auc_after",
+          "value": 0.7534,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "pr_auc_change",
+          "value": -0.0879,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retraining_should_start",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "triggers_fired",
+          "value": [
+            "RT-1",
+            "RT-2",
+            "RT-3",
+            "RT-5",
+            "RT-6"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocked_by",
+          "value": "",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "months": [
+          {
+            "month": 7,
+            "max_psi": 1.13428,
+            "flagged": [
+              "orders_365d"
+            ],
+            "score_psi": 0.32866,
+            "pr_auc": 0.7028
+          },
+          {
+            "month": 8,
+            "max_psi": 1.00162,
+            "flagged": [
+              "orders_365d"
+            ],
+            "score_psi": 0.27159,
+            "pr_auc": 0.7417
+          },
+          {
+            "month": 9,
+            "max_psi": 0.98729,
+            "flagged": [
+              "orders_365d"
+            ],
+            "score_psi": 0.30569,
+            "pr_auc": 0.7313
+          },
+          {
+            "month": 10,
+            "max_psi": 1.04864,
+            "flagged": [
+              "orders_365d"
+            ],
+            "score_psi": 0.32268,
+            "pr_auc": 0.7427
+          },
+          {
+            "month": 11,
+            "max_psi": 1.05495,
+            "flagged": [
+              "orders_365d"
+            ],
+            "score_psi": 0.32238,
+            "pr_auc": 0.7409
+          },
+          {
+            "month": 12,
+            "max_psi": 1.03035,
+            "flagged": [
+              "orders_365d"
+            ],
+            "score_psi": 0.30856,
+            "pr_auc": 0.7534
+          }
+        ],
+        "retraining_decision": {
+          "reason": "RT-1: PR-AUC 0.7534 is more than 0.05 below the value at deployment (0.8412); RT-2: PSI above 0.25 on orders_365d; RT-3: score PSI 0.268 > 0.2; high-risk share moved from 0.155 to 0.309; RT-5: 9000 new labelled rows, 600.0% more than at training; RT-6: 120 days since the last training run",
+          "signals": [
+            {
+              "rule": "RT-1",
+              "fired": true,
+              "reason": "PR-AUC 0.7534 is more than 0.05 below the value at deployment (0.8412)"
+            },
+            {
+              "rule": "RT-2",
+              "fired": true,
+              "reason": "PSI above 0.25 on orders_365d"
+            },
+            {
+              "rule": "RT-3",
+              "fired": true,
+              "reason": "score PSI 0.268 > 0.2; high-risk share moved from 0.155 to 0.309"
+            },
+            {
+              "rule": "RT-4",
+              "fired": false,
+              "reason": "no monotone decline"
+            },
+            {
+              "rule": "RT-5",
+              "fired": true,
+              "reason": "9000 new labelled rows, 600.0% more than at training"
+            },
+            {
+              "rule": "RT-6",
+              "fired": true,
+              "reason": "120 days since the last training run"
+            },
+            {
+              "rule": "RT-7",
+              "fired": false,
+              "reason": "not evaluated - feature catalogue version unknown"
+            },
+            {
+              "rule": "RT-8",
+              "fired": false,
+              "reason": "no breaking schema change"
+            },
+            {
+              "rule": "RT-9",
+              "fired": false,
+              "reason": "not evaluated - label definition hash unknown"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

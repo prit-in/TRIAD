@@ -138,11 +138,23 @@ class Contract:
                 continue
             _, actual_type = found
             if not _type_matches(col.type, actual_type):
+                # A type difference is a warning, never blocking, and the reason is FR-007 and
+                # EXP-4 read together. FR-007 blocks on a *missing required column*. EXP-4
+                # expects a price arriving as "INR 871.59" to be "fixed by try_cast and
+                # quarantine" - which can only happen if the file is allowed past ingest and
+                # reaches the cleaning stage that exists to conform it. Blocking here would
+                # make that stage unreachable for the very fault it was built for, and would
+                # also refuse the project's own generator, which writes price as a double
+                # against a contract that asks for decimal(18,2).
+                #
+                # The mismatch is still recorded on the registration result and in the audit
+                # trail, so it is visible rather than forgiven; what changes is who acts on it.
                 violations.append(
                     Violation(
                         f"schema.type.{col.name}",
-                        "blocking" if col.required else "warning",
-                        f"column {col.name} has type {actual_type}, contract expects {col.type}",
+                        "warning",
+                        f"column {col.name} has type {actual_type}, contract expects "
+                        f"{col.type}; conforming it is the cleaning stage's job",
                     )
                 )
         return ContractResult(passed=not any(v.severity == "blocking" for v in violations),

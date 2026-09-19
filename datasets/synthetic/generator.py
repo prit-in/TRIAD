@@ -213,10 +213,12 @@ class SyntheticGenerator:
         if cfg.price_as_text:
             df["price"] = df["price"].map(lambda v: f"INR {v}" if pd.notna(v) else None)
 
-        if cfg.rename_column:
-            old, new = cfg.rename_column.split(":", 1)
-            df = df.rename(columns={old: new})
-
+        # `rename_column` is deliberately NOT applied here. It used to be, and it broke the
+        # generator outright: `returns` derives from the transactions frame and reads
+        # `customer_id`, so renaming the column before the derived tables were built raised
+        # KeyError and the fault option could never run at all. The fault the PRD describes is
+        # the *transactions table arriving* with a renamed column, not every downstream table
+        # losing the column too, so the rename happens last, in `generate`.
         return df
 
     def returns(self, transactions: pd.DataFrame) -> pd.DataFrame:
@@ -323,6 +325,19 @@ class SyntheticGenerator:
         }
         for name in self.cfg.drop_tables:
             tables.pop(name, None)
+
+        # Applied after the derived tables are built, so the fault is confined to the table
+        # that is supposed to carry it (see the note in `_apply_transaction_faults`).
+        if self.cfg.rename_column and "transactions" in tables:
+            old_name, new_name = self.cfg.rename_column.split(":", 1)
+            if old_name not in tables["transactions"].columns:
+                raise ValueError(
+                    f"rename_column asks for {old_name!r}, which the transactions table does "
+                    f"not have; columns are {sorted(tables['transactions'].columns)}"
+                )
+            tables["transactions"] = tables["transactions"].rename(
+                columns={old_name: new_name}
+            )
         return tables
 
     def write(self, out_dir: str | Path, fmt: str = "parquet") -> dict[str, Path]:

@@ -221,3 +221,65 @@ class TestRegistration:
             select(AuditLog).where(AuditLog.resource_id == str(result.version_id))
         ).scalars().all()
         assert entries, "no audit entry for the new version"
+
+
+@pytest.mark.postgres
+class TestContractIsEnforcedWithoutBeingAskedTo:
+    """FR-007 on the path callers actually use, not only when a contract is handed in.
+
+    `register_version` took an optional `contract` and enforced it when given one. Nothing on
+    the real path gave it one - not the API, not the demo, not the experiments - so a renamed
+    required column was registered, profiled and cleaned without a word. EXP-4 found it.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _db(self, postgres_available, db_session, storage):
+        if not postgres_available:
+            pytest.skip("postgres service is not reachable")
+        self.session = db_session
+        self.storage = storage
+        self.registry = DatasetRegistry(db_session, storage)
+
+    def test_a_renamed_required_column_is_refused_with_no_contract_argument(
+        self, tmp_path: Path
+    ) -> None:
+        # `transactions` is the name the repo ships a contract for, so the registry finds it.
+        self.registry.register_source(
+            "transactions", entity_type="transactions", source_type="parquet"
+        )
+        frame = _sample_frame(30).rename(columns={"customer_id": "cust_id"})
+        path = tmp_path / "renamed"
+        write_parquet(frame, path / "part-00000.parquet")
+
+        result = self.registry.register_version(
+            "transactions", path / "part-00000.parquet", actor="test"
+        )
+        assert result.created is False, "a missing required column must not be registered"
+        assert result.contract_result is not None
+        assert not result.contract_result.passed
+        names = " ".join(v.message for v in result.contract_result.blocking)
+        assert "customer_id" in names
+
+    def test_a_conforming_file_still_registers(self, tmp_path: Path) -> None:
+        """The counterpart: enforcement that refuses everything would pass the test above."""
+        self.registry.register_source(
+            "transactions", entity_type="transactions", source_type="parquet"
+        )
+        path = tmp_path / "ok"
+        write_parquet(_sample_frame(31), path / "part-00000.parquet")
+        result = self.registry.register_version(
+            "transactions", path / "part-00000.parquet", actor="test"
+        )
+        assert result.created is True, result.reason
+
+    def test_a_dataset_with_no_contract_is_unaffected(self, tmp_path: Path) -> None:
+        """Most datasets have no contract file; registration must not start demanding one."""
+        self.registry.register_source(
+            "tx_no_contract", entity_type="transactions", source_type="parquet"
+        )
+        path = tmp_path / "free"
+        write_parquet(_sample_frame(12).drop(columns=["customer_id"]), path / "part-00000.parquet")
+        result = self.registry.register_version(
+            "tx_no_contract", path / "part-00000.parquet", actor="test"
+        )
+        assert result.created is True, result.reason
