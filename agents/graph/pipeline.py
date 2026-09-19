@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from agents.codegen import gates as G
@@ -37,12 +38,20 @@ from triad_core import audit
 from triad_core.config import load_yaml, settings
 from triad_core.contracts import Contract
 from triad_core.governance import EvidenceBundle, GovernanceService
-from triad_core.ids import utcnow
+from triad_core.ids import content_hash, utcnow
 from triad_core.models import CodeArtifact, Metric, PipelineRun
 from triad_core.policy import PolicyEngine, Verdict
 from triad_core.storage import Storage, storage
 
 SCALA_ROOT = settings().repo_root / "scala_spark"
+
+
+class ReplayUnavailable(RuntimeError):
+    """A replay was asked for and the stored artifacts cannot support it.
+
+    Raised rather than falling back to fresh generation: a "replay" that quietly regenerated
+    would pass ATC-18 while proving nothing.
+    """
 
 
 @dataclass
@@ -82,7 +91,7 @@ class ChurnPipeline:
         store: Storage | None = None,
         policy: PolicyEngine | None = None,
         config_path: Path | None = None,
-        replay: bool = False,
+        replay_of: PipelineRun | None = None,
     ) -> None:
         self.session = session
         self.run = run
@@ -95,9 +104,14 @@ class ChurnPipeline:
         self.runner = StageRunner(session, run, self.budget)
         self.sandbox = get_runner()
         self.templates = load_templates(TEMPLATE_ROOT)
-        self.replay = replay
+        # Replay mode (ATC-18, NFR-REP-03): reuse the stored artifacts of a completed run
+        # rather than generating fresh ones, and make no LLM calls. `replay` used to be a
+        # boolean that was assigned and never read; a flag nothing consults is not a mode.
+        self.replay_of = replay_of
+        self.replay = replay_of is not None
         self._generated_objects: set[str] = set()
         self._specs_seen: dict[str, ToolSpec] = {}
+        self._replayed_from: dict[str, Any] = {}
         self.result = PipelineResult(run_key=run.run_key, state=run.state, ok=False)
 
     # -- helpers ---------------------------------------------------------------
@@ -190,10 +204,13 @@ class ChurnPipeline:
         """Template-first generation. With no LLM, the tested default slot body is used
         verbatim and parameters come from the plan (PRD 44 template-only mode)."""
         template = self.templates[template_id]
-        bodies = slot_bodies or {
-            slot_id: template.default_body(slot_id) for slot_id in template.slot_ids()
-        }
-        artifact = render(template, bodies)
+        if self.replay_of is not None:
+            artifact = self._replay_scala(template_id)
+        else:
+            bodies = slot_bodies or {
+                slot_id: template.default_body(slot_id) for slot_id in template.slot_ids()
+            }
+            artifact = render(template, bodies)
         write_artifact(artifact)
         # Generated sources compile as one module, so an artifact left behind by an earlier
         # run would fail this run's build. Only this run's artifacts stay on disk.
@@ -209,6 +226,7 @@ class ChurnPipeline:
             content_hash=artifact.content_hash,
             storage_uri=str(self.storage.code_dir(artifact.content_hash)),
             static_check_status="pending",
+            parent_artifact_id=self._replayed_from.get(template_id),
         )
         self.session.add(row)
         self.session.flush()
@@ -220,6 +238,57 @@ class ChurnPipeline:
         artifact_ref.path = artifact.path
         self._last_artifact_row = row
         return artifact
+
+    def _replay_scala(self, template_id: str) -> RenderedArtifact:
+        """The exact artifact the replayed run used, read back from storage.
+
+        Not re-rendered from the current template: the whole point of ATC-18 is that a replay
+        reproduces what ran, so if the template has changed since, the stored source is what
+        must be used. The recorded hash is re-checked against the bytes on disk, because an
+        artifact that has been altered underneath us would otherwise replay silently and the
+        "identical output hashes" check would be comparing the wrong thing.
+        """
+        assert self.replay_of is not None
+        stored = self.session.execute(
+            select(CodeArtifact)
+            .where(
+                CodeArtifact.run_id == self.replay_of.id,
+                CodeArtifact.template_id == template_id,
+            )
+            .order_by(CodeArtifact.created_at.desc())
+        ).scalars().first()
+        if stored is None:
+            raise ReplayUnavailable(
+                f"run {self.replay_of.run_key} recorded no {template_id} artifact, so there is "
+                "nothing to replay; replay cannot invent one"
+            )
+
+        folder = Path(stored.storage_uri)
+        sources = sorted(folder.glob("*.scala"))
+        if not sources:
+            raise ReplayUnavailable(
+                f"the stored source for {template_id} is missing from {folder}; replay cannot "
+                "reconstruct it"
+            )
+        source = sources[0].read_text(encoding="utf-8")
+        actual = content_hash(source)
+        if actual != stored.content_hash:
+            raise ReplayUnavailable(
+                f"the stored {template_id} source no longer matches its recorded hash "
+                f"({actual[:12]} vs {stored.content_hash[:12]}); refusing to replay altered code"
+            )
+
+        self._replayed_from[template_id] = stored.id
+        template = self.templates[template_id]
+        return RenderedArtifact(
+            template_id=template_id,
+            template_version=stored.template_version,
+            slot_id=stored.slot_id or (template.slot_ids()[0] if template.slot_ids() else ""),
+            object_name=sources[0].stem,
+            source=source,
+            content_hash=stored.content_hash,
+            language="scala",
+        )
 
     def _validate_scala(self, artifact: RenderedArtifact, template_id: str) -> G.GateReport:
         report = G.GateReport()

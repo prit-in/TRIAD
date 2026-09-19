@@ -5,8 +5,10 @@ whether a promotion is self-approval, which sandbox profiles exist - is decided 
 engine and the governance service that the pipeline already uses, so the API and the
 orchestrator can never hold different opinions about the same action.
 
-`/health` is public. `/metrics` is served for Prometheus and is reachable on the internal
-network only, which Compose enforces by not publishing that port.
+`/health` and `/metrics` are public on the internal network; Compose keeps them off the
+host by not publishing that port. `/metrics` reads its numbers from the database on each
+scrape rather than from in-process counters, because the work it describes is done by the
+orchestrator worker and not by this process - see backend/app/metrics.py.
 """
 
 from __future__ import annotations
@@ -14,16 +16,17 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.app import metrics as metrics_collector
 from backend.app import problems
 from backend.app.api.v1 import api_v1
 from backend.app.schemas import HealthStatus
 from backend.app.security import check_jwt_secret
 from triad_core.config import settings
-from triad_core.db import ping
+from triad_core.db import ping, session_scope
 from triad_core.policy import PolicyEngine
 
 API_VERSION = "1.0"
@@ -81,6 +84,28 @@ app.add_middleware(
 )
 
 app.include_router(api_v1)
+
+
+@app.get("/metrics", tags=["ops"], summary="Prometheus metrics", include_in_schema=False)
+def metrics() -> Response:
+    """Read from the database on scrape, not accumulated here (see backend/app/metrics.py).
+
+    Unauthenticated, like `/health`, and kept off the public surface by Compose not publishing
+    the port - the same arrangement the module docstring has always described. It is
+    `include_in_schema=False` because a Prometheus text payload is not a JSON API and putting
+    it in the OpenAPI document only misleads a client generator.
+    """
+    try:
+        with session_scope() as session:
+            payload = metrics_collector.collect(session)
+    except Exception as exc:   # a scrape must not take the service down
+        logging.getLogger("triad.api").warning(
+            "metrics scrape failed: %s: %s", type(exc).__name__, exc
+        )
+        # A 503 with an empty body is honest: Prometheus records the target as down rather
+        # than recording zeros, which would look like a healthy but idle platform.
+        return Response(status_code=503, content="", media_type=metrics_collector.CONTENT_TYPE)
+    return Response(content=payload, media_type=metrics_collector.CONTENT_TYPE)
 
 
 @app.get("/health", response_model=HealthStatus, tags=["ops"], summary="Liveness and readiness")

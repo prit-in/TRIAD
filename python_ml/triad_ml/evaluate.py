@@ -30,6 +30,12 @@ class Metrics:
     confusion: dict[str, int] = field(default_factory=dict)
     n_rows: int = 0
     prevalence: float = 0.0
+    # The point series a chart needs. Kept beside the scalars rather than recomputed later,
+    # because they can only be computed from `y_true` and `y_score` together and those arrays
+    # do not survive the run: the predictions table stores no label column. Without this, a
+    # PR or ROC or calibration chart could only be drawn from invented numbers, which the
+    # project forbids - so FR-065 was unmeetable by construction.
+    curves: dict[str, Any] = field(default_factory=dict)
 
     def get(self, name: str, default: float = float("nan")) -> float:
         return self.values.get(name, default)
@@ -43,6 +49,7 @@ class Metrics:
             "values": self.values,
             "intervals": {k: list(v) for k, v in self.intervals.items()},
             "confusion": self.confusion,
+            "curves": self.curves,
         }
 
 
@@ -114,9 +121,106 @@ def evaluate(
         prevalence=prevalence,
     )
 
+    if not single_class and n:
+        metrics.curves = curve_points(y_true, y_score)
+
     if bootstrap and not single_class:
         metrics.intervals = bootstrap_intervals(y_true, y_score, n_boot=bootstrap, seed=seed)
     return metrics
+
+
+def curve_points(
+    y_true: np.ndarray, y_score: np.ndarray, *, max_points: int = 200
+) -> dict[str, Any]:
+    """The ROC, precision-recall, calibration and lift-gain series, ready to plot.
+
+    Thinned to `max_points` each: a curve over 50 000 rows has 50 000 thresholds and nobody
+    needs them to draw a line 400 pixels wide. The endpoints are always kept, so the curve
+    still starts and ends where it should.
+    """
+    from sklearn.metrics import precision_recall_curve, roc_curve
+
+    def thin(*arrays: np.ndarray) -> list[list[float]]:
+        length = len(arrays[0])
+        if length <= max_points:
+            idx = np.arange(length)
+        else:
+            idx = np.unique(
+                np.concatenate([
+                    np.linspace(0, length - 1, max_points).astype(int), [0, length - 1]
+                ])
+            )
+        return [[round(float(v), 6) for v in a[idx]] for a in arrays]
+
+    fpr, tpr, _ = roc_curve(y_true, y_score)
+    precision, recall, _ = precision_recall_curve(y_true, y_score)
+    roc_x, roc_y = thin(fpr, tpr)
+    pr_x, pr_y = thin(recall, precision)
+
+    return {
+        "roc": {"fpr": roc_x, "tpr": roc_y},
+        # The diagonal a PR chart is read against is the churn rate, not 0.5.
+        "pr": {"recall": pr_x, "precision": pr_y, "baseline": round(float(y_true.mean()), 6)},
+        "calibration": calibration_bins(y_true, y_score),
+        "lift": lift_curve(y_true, y_score),
+    }
+
+
+def calibration_bins(
+    y_true: np.ndarray, y_score: np.ndarray, bins: int = 10
+) -> list[dict[str, float]]:
+    """The per-bin pairs a reliability diagram plots.
+
+    `expected_calibration_error` already computes exactly this and throws it away, keeping only
+    the weighted total. Returning the bins costs nothing and is the difference between a number
+    and a chart.
+    """
+    edges = np.linspace(0.0, 1.0, bins + 1)
+    idx = np.clip(np.digitize(y_score, edges[1:-1], right=False), 0, bins - 1)
+    out: list[dict[str, float]] = []
+    for b in range(bins):
+        mask = idx == b
+        count = int(mask.sum())
+        if not count:
+            # Recorded as empty rather than omitted, so a gap in the data reads as a gap.
+            out.append({"bin_low": round(float(edges[b]), 4),
+                        "bin_high": round(float(edges[b + 1]), 4),
+                        "n": 0, "mean_predicted": float("nan"), "observed_rate": float("nan")})
+            continue
+        out.append({
+            "bin_low": round(float(edges[b]), 4),
+            "bin_high": round(float(edges[b + 1]), 4),
+            "n": count,
+            "mean_predicted": round(float(y_score[mask].mean()), 6),
+            "observed_rate": round(float(y_true[mask].mean()), 6),
+        })
+    return out
+
+
+def lift_curve(
+    y_true: np.ndarray, y_score: np.ndarray, steps: int = 20
+) -> list[dict[str, float]]:
+    """Lift and cumulative gain at each decile-ish slice of the ranked population.
+
+    `lift_at_k` already takes any k and only two values of it were ever stored, which is two
+    points and not a curve.
+    """
+    n = len(y_true)
+    base = float(y_true.mean())
+    order = np.argsort(-np.asarray(y_score, dtype=float), kind="stable")
+    ranked = np.asarray(y_true)[order]
+    positives = float(ranked.sum())
+    out: list[dict[str, float]] = []
+    for step in range(1, steps + 1):
+        k = step / steps
+        top = max(1, round(n * k))
+        caught = float(ranked[:top].sum())
+        out.append({
+            "k": round(k, 4),
+            "lift": round(float((caught / top) / base), 6) if base > 0 else float("nan"),
+            "cumulative_gain": round(caught / positives, 6) if positives > 0 else float("nan"),
+        })
+    return out
 
 
 def fbeta(y_true: np.ndarray, y_pred: np.ndarray, beta: float = 2.0) -> float:

@@ -9,6 +9,7 @@ nowhere else.
 
 from __future__ import annotations
 
+import json
 import uuid
 
 from fastapi import APIRouter, Depends
@@ -36,8 +37,9 @@ from triad_core.governance import (
     PolicyDenied,
     SelfApprovalRefused,
 )
-from triad_core.models import Approval, Metric, Model, ModelVersion
+from triad_core.models import Approval, Metric, Model, ModelVersion, PipelineRun
 from triad_core.policy import PolicyEngine
+from triad_core.storage import storage
 
 router = APIRouter(tags=["models"])
 
@@ -119,6 +121,50 @@ def get_model(model_ref: str, session: DbSession, user: CurrentUser) -> ModelDet
         versions=[_version_view(session, v) for v in versions],
         model_card_uri=card,
     )
+
+
+@router.get(
+    "/models/{model_ref}/versions/{version_id}/evaluation",
+    summary="Curves, intervals, segment metrics and feature importance for one version",
+)
+def get_evaluation(
+    model_ref: str, version_id: uuid.UUID, session: DbSession, user: CurrentUser
+) -> dict:
+    """The evidence behind the charts (FR-065, FR-066, FR-067).
+
+    Served from the document the run wrote, not recomputed: a ROC or reliability curve needs
+    the labels and the scores together, and neither survives the run - the predictions table
+    has no label column. Recomputing here would mean either inventing the points or shipping
+    customer-level labels to a browser, and the first is forbidden and the second is worse.
+
+    The path is derived from the run key rather than read from a column, so a version trained
+    before this document existed returns 404 rather than a null pointer to nothing.
+    """
+    model = _find_model(session, model_ref)
+    version = session.get(ModelVersion, version_id)
+    if version is None or version.model_id != model.id:
+        raise problems.not_found(f"Version of {model.name}", str(version_id))
+    if version.run_id is None:
+        raise problems.not_found("Run behind model version", str(version_id))
+    run = session.get(PipelineRun, version.run_id)
+    if run is None:
+        raise problems.not_found("Run", str(version.run_id))
+
+    store = storage()
+    path = store.reports_dir(run.run_key) / "evaluation.json"
+    if not path.exists():
+        raise problems.Problem(
+            status=404,
+            title="No evaluation document for this version",
+            detail=(
+                f"Run {run.run_key} wrote no evaluation document. A version trained before "
+                "these documents existed does not have one, and nothing here reconstructs it: "
+                "the curves need the labels and the scores together and neither survives the "
+                "run."
+            ),
+            problem_type="evaluation-absent",
+        )
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 # --- decisions -----------------------------------------------------------------

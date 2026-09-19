@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
 from backend.app import problems
-from backend.app.deps import CurrentUser, DbSession
+from backend.app.deps import CurrentUser, DbSession, require_roles
 from backend.app.schemas import AlertView, ApprovalView, DecisionRequest
+from backend.app.security import APPROVER_ROLES, BUSINESS_ANALYST
 from backend.app.services import enqueue_publish
 from triad_core.config import settings
 from triad_core.governance import (
@@ -34,7 +35,20 @@ router = APIRouter(tags=["approvals"])
 VALID_STATUSES = ("pending", "approved", "rejected", "expired")
 
 
-@router.get("/approvals", response_model=list[ApprovalView], summary="Approval requests by status")
+# PRD 25.2 limits the approval queue to approver roles and admin. These two reads carried no
+# role dependency, so any authenticated account - a viewer included - could list every pending
+# promotion with its target and evidence URI. The decision route below is deliberately ungated
+# and stays that way: which roles may decide depends on the action type, and the policy engine
+# is the only thing that should answer it.
+APPROVAL_READERS = require_roles(*APPROVER_ROLES, BUSINESS_ANALYST)
+
+
+@router.get(
+    "/approvals",
+    response_model=list[ApprovalView],
+    summary="Approval requests by status",
+    dependencies=[Depends(APPROVAL_READERS)],
+)
 def list_approvals(
     session: DbSession,
     user: CurrentUser,
@@ -59,7 +73,12 @@ def list_approvals(
     return [ApprovalView.model_validate(r) for r in rows]
 
 
-@router.get("/approvals/{approval_id}", response_model=ApprovalView, summary="One request")
+@router.get(
+    "/approvals/{approval_id}",
+    response_model=ApprovalView,
+    summary="One request",
+    dependencies=[Depends(APPROVAL_READERS)],
+)
 def get_approval(approval_id: uuid.UUID, session: DbSession, user: CurrentUser) -> ApprovalView:
     approval = session.get(Approval, approval_id)
     if approval is None:

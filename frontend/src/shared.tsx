@@ -111,7 +111,11 @@ export function num(value: number | null | undefined, digits = 4): string {
   return value === null || value === undefined ? "not measured" : value.toFixed(digits);
 }
 
-/** A bar chart in plain SVG. A chart library for five bars is a dependency nobody needs. */
+/**
+ * A bar chart built from div widths. A chart library for five bars is a dependency nobody
+ * needs — but this is not SVG, whatever this comment used to claim, and the difference
+ * matters to anyone looking for the `<svg>` that was never here.
+ */
 export function Bars({ data }: { data: { label: string; value: number }[] }) {
   const highest = Math.max(...data.map((d) => d.value), 1);
   return (

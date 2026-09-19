@@ -33,7 +33,7 @@ which part is missing.
 | FR-004 | Relational (JDBC) ingestion | **not met** (Should) | Nothing reads a database source. `Dataset.source_type` accepts `jdbc`, which makes the gap look smaller than it is |
 | FR-005 | Storage watching | met | `DatasetRegistry.watch_folder`; `tests/unit/test_ingest.py` |
 | FR-006 | Immutable dataset versioning | met | `copy_immutable` refuses an existing target; duplicate checksums create no new version |
-| FR-007 | Ingest contract validation | met | `triad_core/contracts.py`; gating tested |
+| FR-007 | Ingest contract validation | met | `triad_core/contracts.py`. EXP-4 found it unreachable: `register_version` enforced a contract only when handed one and no caller on the real path ever did. It now resolves the dataset's own contract, and three tests hold the refused / still-registers / no-contract cases |
 | FR-008 | Streaming-ready connector interface | **not met** (Could) | No connector abstraction exists |
 | FR-009..012 | Schema, semantic types, nulls, cardinality, distributions | met | `dataeng/profile.py`; `tests/unit/test_profile.py` |
 | FR-013 | Outlier detection | met | IQR and z-score in `profile.py` |
@@ -95,7 +95,7 @@ which part is missing.
 | ID | Requirement | State | Evidence |
 | --- | --- | --- | --- |
 | FR-052 | Run planning | met | `agents/routing.py`, LR-01..LR-10, every decision recorded |
-| FR-053 | Permissioned tool calls | **partly met** (Must) | The registry enforces the allowlist, the schemas and the audit sink, and is tested. It is **empty at runtime**: the pipeline calls its services directly rather than through it. The control exists; nothing is yet routed through it |
+| FR-053 | Permissioned tool calls | met (Must) | `agents/tools/pipeline_tools.py` registers the real tools and every Spark submission and catalogue commit goes through `REGISTRY.call`: agent allowlist, argument schema, the `sandbox.run` policy action, and the run's hash chain. Verified on a full run - 6 mediated submissions and 6 mediated commits in `audit_logs`. `tests/unit/test_tool_mediation.py` proves a refusal at each gate stops the work |
 | FR-054 | Code generation | met | template-first, slots only |
 | FR-055 | Validation gates | met | nine gates; `tests/unit/test_codegen.py` |
 | FR-056 | Mediated execution | met | `sandbox/runner.py` with resource profiles and refusals |
@@ -112,9 +112,9 @@ which part is missing.
 | ID | Requirement | State | Evidence |
 | --- | --- | --- | --- |
 | FR-064 | Metrics reporting | met | `metrics` table, `/models/{id}`, the dashboard |
-| FR-065 | Standard charts | **partly met** (Must) | Risk-band distribution is charted. PR, ROC, calibration and lift curves are computed but not drawn |
-| FR-066 | Model comparison | **partly met** (Must) | The candidate table with each family's validation PR-AUC is in the report and the decision record; the dashboard lists versions but does not compare two side by side |
-| FR-067 | Feature importance | met | in the report and on the predictions page, labelled as association |
+| FR-065 | Standard charts | **partly met** (Must) | The *data* now exists: `reports/<run_key>/evaluation.json` carries ROC, precision-recall, calibration bins and a lift/gain sweep, served at `GET /models/{ref}/versions/{id}/evaluation`. Before this the points were computed and discarded, so the charts could only have been drawn from invented numbers. The frontend does not yet draw them and has no charting code beyond a div-width bar |
+| FR-066 | Model comparison | **partly met** (Must) | Bootstrap intervals now reach the database - `metrics.ci_low`/`ci_high` were columns nothing filled, so "comparison with confidence intervals" had no intervals. The evaluation document carries every screened family and the champion delta. No side-by-side UI yet |
+| FR-067 | Feature importance | met | in the report and on the predictions page, labelled as association. Now also persisted with its method in the evaluation document, instead of being recomputed each publish and dropped |
 | FR-068 | Data quality report | met | the profile document and `/datasets/{id}/versions/{n}/profile` |
 | FR-069 | Execution timeline | met | `/pipelines/{id}/logs`, redacted; the run page |
 | FR-070 | Agent decision log | met | `/pipelines/{id}/decisions`; the run page |
@@ -129,10 +129,10 @@ which part is missing.
 | FR-074 | Triggers and scheduling | **partly met** (Must) | Manual triggers work end to end, and a retraining trigger now queues a run. **Schedule ticks and data-arrival triggers are not wired**: `watch_folder` exists but nothing runs it on a timer |
 | FR-075 | Approval workflow | met | separation of duties, mandatory comment, expiry; `tests/unit/test_api.py`, `test_governance.py` |
 | FR-076 | Registry aliases and rollback | met | aliases never stages (CR-14); rollback restores a recorded version only |
-| FR-077 | Experiment tracking | **partly met** (Must) | Runs, parameters, metrics and artifacts go to MLflow. The `experiments` table in PostgreSQL is created and never written |
+| FR-077 | Experiment tracking | met (Must) | Runs, parameters, metrics and artifacts go to MLflow, and the `experiments` row - split spec, objective, MLflow experiment id - is written per run, whether or not MLflow was reachable |
 | FR-078 | Tamper-evident audit log | met | one hash chain per run under an advisory lock; tampering and concurrency both tested |
 | FR-079 | Authentication and RBAC | met | argon2, HS256, roles decided by the policy; 55 API tests, most of them refusals |
-| FR-080 | Monitoring and alerting | met | `alerts` with severity, acknowledgement and audit |
+| FR-080 | Monitoring and alerting | met | `alerts` with severity, acknowledgement and audit, and `GET /metrics` now serves 22 Prometheus series read from the database on each scrape. It was documented in `main.py` and served nowhere, with `prometheus-client` an unused dependency |
 | FR-081 | Drift detection | met | PSI with KS and chi-square; `tests/unit/test_drift.py` |
 | FR-082 | Cancel and resume | met | both endpoints, with ownership and state checks |
 | FR-083 | Memoisation and incremental reruns | met | `StageRunner._memo_key` over stage, inputs and config hash |
@@ -161,14 +161,20 @@ which part is missing.
 | ATC-02 | An agent cannot promote a model | met — only `ModelRegistry.promote` moves the alias, and it refuses without an approval id |
 | ATC-03, ATC-04 | Slots only; forbidden APIs refused | met — out-of-slot changes and the API scan are both checked properties |
 | ATC-12 | Smoke-test failure rolls back | met — implemented and reachable with `--fail-smoke` |
-| ATC-13 | Prompt injection in data | met — `tests/unit/test_injection.py`, four defences tested separately |
+| ATC-13 | Prompt injection in data | met — `tests/unit/test_injection.py`, four defences tested separately. EXP-10 found a fifth class the scanner read past: chat-template control tokens, now flagged and broken up before fencing |
 | ATC-17 | Self-approval refused | met — asserted through the service *and* through the API |
-| ATC-18 | Replay with no LLM calls | **not met** — there is no replay mode and `scripts/replay_run.py` does not exist, although the `mode` column accepts `replay` |
+| ATC-18 | Replay with no LLM calls | **partly met** — `scripts/replay_run.py` exists, `ChurnPipeline._replay_scala` reads the stored artifact back and refuses code whose hash no longer matches, and `pipeline_runs.input_versions` is written so a replay reads the same bytes. The "output hashes identical" half **cannot pass yet**: EXP-6 found that `sha256_dir` hashes file *paths*, and Spark embeds a per-job UUID in every part-file name, so a data folder's hash is not reproducible by construction |
 | ATC-06..11, 14..16 | (various) | **partly covered** by the tests above; not individually mapped |
 
 ## Experiments
 
-EXP-1 to EXP-10 are **not run**. EXP-2, EXP-3 and EXP-7 need data volumes or a cluster this
+EXP-4, EXP-6, EXP-7, EXP-9 and EXP-10 have been **run**, with results in `experiments/` and a
+reading of each in `docs/implementation/EXPERIMENTS.md`. Four hypotheses held; EXP-6's did not,
+and its four findings - a Spark output hash that cannot be reproducible, an unclassified
+out-of-memory failure, `docker` absent from the dev container's PATH so jobs run through
+`LocalRunner`, and a dependency-download failure classified as a compile error - are open and
+recorded there. EXP-1, EXP-2, EXP-3, EXP-5 and EXP-8 are implemented and not yet run.
+EXP-2 and EXP-3 need data volumes or a cluster this
 environment cannot provide (ADR-0002); the others need configuration files that have not been
 written. Nothing is reported as a result of an experiment that did not run.
 
@@ -187,14 +193,34 @@ The governed loop is real and the governance is enforced where it matters: a pro
 second person, an agent cannot move an alias, a report cannot contain a number nobody measured,
 and the audit trail detects both tampering and its own concurrency bug.
 
-The gaps are concentrated in two places, and neither is a governance gap:
+The gaps are concentrated in one place, and it is not a governance gap:
 
-1. **Presentation.** Charts, PDF export and side-by-side model comparison are computed but not
-   drawn (FR-065, FR-066, FR-072).
+1. **Presentation.** The chart *data* now exists and is served - ROC, precision-recall,
+   calibration bins, a lift sweep, bootstrap intervals, per-segment metrics and feature
+   importance, none of which was persisted before - and the frontend does not draw any of it.
+   It also has no modal, no confirmation before the destructive Cancel-run POST, no toast, no
+   tabs, no pagination control although the API pages, no date input, no search, no progress
+   indicator, and no aria attributes at all. FR-065, FR-066, FR-070, FR-072, FR-084 and the
+   WCAG target in PRD 26.2 are open here.
 2. **Autonomy at the edges.** Schedule and data-arrival triggers, the Spark optimisation loop,
    caching decisions and the streaming connector are not built (FR-035, FR-037, FR-074 in part,
    FR-008).
 
-The one that would most repay attention is **FR-053**: the tool registry is a real control with
-real tests, and nothing is routed through it yet. Until the pipeline's service calls go through
-the registry, the permission model it implements is not actually in the path.
+**FR-053 is now closed.** The tool registry was a real control with real tests that nothing was
+routed through; every Spark submission and catalogue commit now goes through it, and a full run
+shows twelve mediated calls in the audit trail.
+
+The item that would most repay attention next is the reproducibility defect EXP-6 found: a
+Spark output folder's content hash includes Spark's per-job UUID in the part-file names, so it
+cannot be stable across runs. NFR-REP-02 and the second half of ATC-18 depend on it, and the
+replay script - which is otherwise complete - will report a mismatch until the hash is made
+name-independent for data folders.
+
+A closing note on method, because it changes how this document should be read. Nine of the
+defects recorded here were found by *running* the system, not by reading it: the audit chain
+fork, the pipeline-busy deadlock, the skops trusted-types omission, FR-007's unreachable
+enforcement, the generator's broken `rename_column`, the profiler's spurious blocking issue,
+three playbook remedies that were computed and discarded, three database columns nothing ever
+filled, an injection class the scanner read past, and a content hash that cannot be
+reproducible. Every one of them had passing tests around it. A requirement marked *met* here
+means an execution produced the evidence, not that a test asserted the intention.

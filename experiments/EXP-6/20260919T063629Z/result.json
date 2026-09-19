@@ -1,0 +1,460 @@
+{
+  "exp_id": "EXP-6",
+  "title": "Spark failures and recovery",
+  "hypothesis": "Spark's task retries absorb an executor loss; the playbook fixes out-of-memory within 2 retries; adaptive execution handles skew.",
+  "independent_variable": "fault type",
+  "dependent_measures": [
+    "recovered",
+    "attempts",
+    "retries",
+    "wall_clock_s",
+    "content_hash",
+    "remedies_applied",
+    "identical_to_clean_run"
+  ],
+  "started_at": "2026-09-19T06:36:29.980726+00:00",
+  "duration_s": 1449.76,
+  "status": "partial",
+  "hypothesis_held": false,
+  "conclusion": "Reference clean run: 8078 rows, content hash 1d1ca664a2174556. low_driver_memory: recovered=False in 2 attempt(s) (1 retries, 276.2s), remedies [], output identical to the clean run: False. sandbox_container_killed: recovered=True in 1 attempt(s) (0 retries, 170.4s), remedies [], output identical to the clean run: False. skewed_one_customer_20pct: recovered=True in 1 attempt(s) (0 retries, 87.4s), remedies [], output identical to the clean run: None. 2 of 3 injected faults recovered. The executor kill landed on a real container: False. The out-of-memory arm is the one that matters most here: it is the test that RAISE_EXECUTOR_MEMORY reaches the submitted job at all, which it did not until this experiment was written - the retry used to be given exactly the memory that had just failed.",
+  "limitations": [
+    "Spark runs in local mode inside the sandbox, so the driver is the executor. Killing the sandbox container is therefore losing the executor, which is the closest this environment reaches to the PRD's distributed executor loss - not a measurement of a multi-executor cluster shedding one worker (ADR-0002).",
+    "The container kill did not land: no sandbox container was seen while the job ran, so that arm measures an ordinary run and not a recovery. FileNotFoundError: [Errno 2] No such file or directory: 'docker'"
+  ],
+  "trials": [
+    {
+      "condition": "clean_baseline",
+      "ok": true,
+      "detail": "recovered=True after 2 attempt(s); remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 893.4,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_applied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [
+            "regenerate_code"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": "1d1ca664a2174556e436a1c409e0e448e08363b42a70ff73f982b894c0ebc633",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "diagnoses": [
+          {
+            "error_class": "SCALA_COMPILE_ERROR",
+            "fingerprint": "ea01f5c79a14215a1d1d768bd90c1818",
+            "message": "ache.CacheUrl$.redirect(CacheUrl.scala:193)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.CacheUrl$.urlConnectionMaybePartial(CacheUrl.scala:349)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.ConnectionBuilder.connectionMaybePartial(ConnectionBuilder.scala:50)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$Blocking$.doDownload(Downloader.scala:232)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$Blocking$.$anonfun$remote$2(Downloader.scala:423)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.CacheLocks$.loop$1(CacheLocks.scala:94)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.CacheLocks$.withLockOr(CacheLocks.scala:117)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$Blocking$.$anonfun$remote$1(Downloader.scala:426)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$.$anonfun$downloading$2(Downloader.scala:776)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.CacheLocks$.withUrlLock(CacheLocks.scala:136)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$.$anonfun$downloading$1(Downloader.scala:776)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Retry.loop$1(Retry.scala:23)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Retry.retryOpt(Retry.scala:39)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$.coursier$cache$internal$Downloader$$downloading(Downloader.scala:812)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$Blocking$.remote(Downloader.scala:428)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader.$anonfun$remote$6(Downloader.scala:546)\n[error] \tat scala.concurrent.Future$.$anonfun$apply$1(Future.scala:659)\n[error] \tat scala.util.Success.$anonfun$map$1(Try.scala:255)\n[error] \tat scala.util.Success.map(Try.scala:213)\n[error] \tat scala.concurrent.Future.$anonfun$map$1(Future.scala:292)\n[error] \tat sca",
+            "remedy": "regenerate_code",
+            "recoverable": true,
+            "retry_limit": 3,
+            "needs_approval": false,
+            "matched_by": "taxonomy",
+            "details": {}
+          }
+        ],
+        "applied_fixes": [
+          {
+            "remedy": "regenerate_code",
+            "error_class": "SCALA_COMPILE_ERROR",
+            "applied": false,
+            "note": "regenerate_code needs the generated code rewritten, which requires an LLM provider; no input the stage reads was changed, so the next attempt is identical"
+          }
+        ]
+      }
+    },
+    {
+      "condition": "low_driver_memory",
+      "ok": false,
+      "detail": "recovered=False after 2 attempt(s); remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 276.2,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_applied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [
+            "none"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": null,
+          "unit": "",
+          "note": "the stage did not produce an output"
+        },
+        {
+          "name": "identical_to_clean_run",
+          "value": false,
+          "unit": "",
+          "note": "the committed output's content hash against the clean run's"
+        }
+      ],
+      "observations": {
+        "config_overrides": {
+          "spark.driver_memory": "256m"
+        },
+        "diagnoses": [
+          {
+            "error_class": "UNKNOWN",
+            "fingerprint": "1691edcce4e5cfdd50e8a431b3665bb3",
+            "message": "3)\n\tat triad.jobs.generated.CleanJob_c610a2c0.main(CleanJob_c610a2c0.scala)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)\n\tat java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:569)\n\tat org.apache.spark.deploy.JavaMainApplication.start(SparkApplication.scala:52)\n\tat org.apache.spark.deploy.SparkSubmit.org$apache$spark$deploy$SparkSubmit$$runMain(SparkSubmit.scala:1030)\n\tat org.apache.spark.deploy.SparkSubmit.doRunMain$1(SparkSubmit.scala:203)\n\tat org.apache.spark.deploy.SparkSubmit.submit(SparkSubmit.scala:226)\n\tat org.apache.spark.deploy.SparkSubmit.doSubmit(SparkSubmit.scala:95)\n\tat org.apache.spark.deploy.SparkSubmit$$anon$2.doSubmit(SparkSubmit.scala:1168)\n\tat org.apache.spark.deploy.SparkSubmit$.main(SparkSubmit.scala:1177)\n\tat org.apache.spark.deploy.SparkSubmit.main(SparkSubmit.scala)\n26/09/19 06:54:01 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!\n26/09/19 06:54:01 INFO BlockManager: BlockManager stopped\n26/09/19 06:54:01 INFO BlockManagerMaster: BlockManagerMaster stopped\n26/09/19 06:54:01 WARN MetricsSystem: Stopping a MetricsSystem that is not running\n26/09/19 06:54:01 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!\n26/09/19 06:54:01 INFO SparkContext: Successfully stopped SparkContext (Uptime: 9408 ms)\nException in thread \"main\" org.apache.spark.SparkIllegalArgumentException: [INVALID_DRIVER_MEMORY] System memory 268435456 must be at least 471859200.\nPlease increase heap size using the --driver-memory option or \"spark.driver.memory\" in Spark configuration. SQLSTATE: F0000\n\tat org.apache.spark.memory.UnifiedMemoryManager$.getMaxMemory(UnifiedMemoryManager.scala:473)\n\tat org.apache.spark.memory.UnifiedMemoryManager$.apply(UnifiedMemory",
+            "remedy": "none",
+            "recoverable": true,
+            "retry_limit": 1,
+            "needs_approval": false,
+            "matched_by": "unmatched",
+            "details": {}
+          },
+          {
+            "error_class": "UNKNOWN",
+            "fingerprint": "1691edcce4e5cfdd50e8a431b3665bb3",
+            "message": "3)\n\tat triad.jobs.generated.CleanJob_c610a2c0.main(CleanJob_c610a2c0.scala)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)\n\tat java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:569)\n\tat org.apache.spark.deploy.JavaMainApplication.start(SparkApplication.scala:52)\n\tat org.apache.spark.deploy.SparkSubmit.org$apache$spark$deploy$SparkSubmit$$runMain(SparkSubmit.scala:1030)\n\tat org.apache.spark.deploy.SparkSubmit.doRunMain$1(SparkSubmit.scala:203)\n\tat org.apache.spark.deploy.SparkSubmit.submit(SparkSubmit.scala:226)\n\tat org.apache.spark.deploy.SparkSubmit.doSubmit(SparkSubmit.scala:95)\n\tat org.apache.spark.deploy.SparkSubmit$$anon$2.doSubmit(SparkSubmit.scala:1168)\n\tat org.apache.spark.deploy.SparkSubmit$.main(SparkSubmit.scala:1177)\n\tat org.apache.spark.deploy.SparkSubmit.main(SparkSubmit.scala)\n26/09/19 06:56:20 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!\n26/09/19 06:56:20 INFO BlockManager: BlockManager stopped\n26/09/19 06:56:20 INFO BlockManagerMaster: BlockManagerMaster stopped\n26/09/19 06:56:20 WARN MetricsSystem: Stopping a MetricsSystem that is not running\n26/09/19 06:56:20 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!\n26/09/19 06:56:21 INFO SparkContext: Successfully stopped SparkContext (Uptime: 7154 ms)\nException in thread \"main\" org.apache.spark.SparkIllegalArgumentException: [INVALID_DRIVER_MEMORY] System memory 268435456 must be at least 471859200.\nPlease increase heap size using the --driver-memory option or \"spark.driver.memory\" in Spark configuration. SQLSTATE: F0000\n\tat org.apache.spark.memory.UnifiedMemoryManager$.getMaxMemory(UnifiedMemoryManager.scala:473)\n\tat org.apache.spark.memory.UnifiedMemoryManager$.apply(UnifiedMemory",
+            "remedy": "none",
+            "recoverable": true,
+            "retry_limit": 1,
+            "needs_approval": false,
+            "matched_by": "unmatched",
+            "details": {}
+          }
+        ],
+        "applied_fixes": [
+          {
+            "remedy": "none",
+            "error_class": "UNKNOWN",
+            "applied": false,
+            "note": "none needs the generated code rewritten, which requires an LLM provider; no input the stage reads was changed, so the next attempt is identical"
+          }
+        ],
+        "escalation": {
+          "stage": "clean",
+          "reason": "circuit breaker: error fingerprint 1691edcce4e5 repeated",
+          "diagnoses": [
+            {
+              "error_class": "UNKNOWN",
+              "fingerprint": "1691edcce4e5cfdd50e8a431b3665bb3",
+              "message": "3)\n\tat triad.jobs.generated.CleanJob_c610a2c0.main(CleanJob_c610a2c0.scala)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)\n\tat java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:569)\n\tat org.apache.spark.deploy.JavaMainApplication.start(SparkApplication.scala:52)\n\tat org.apache.spark.deploy.SparkSubmit.org$apache$spark$deploy$SparkSubmit$$runMain(SparkSubmit.scala:1030)\n\tat org.apache.spark.deploy.SparkSubmit.doRunMain$1(SparkSubmit.scala:203)\n\tat org.apache.spark.deploy.SparkSubmit.submit(SparkSubmit.scala:226)\n\tat org.apache.spark.deploy.SparkSubmit.doSubmit(SparkSubmit.scala:95)\n\tat org.apache.spark.deploy.SparkSubmit$$anon$2.doSubmit(SparkSubmit.scala:1168)\n\tat org.apache.spark.deploy.SparkSubmit$.main(SparkSubmit.scala:1177)\n\tat org.apache.spark.deploy.SparkSubmit.main(SparkSubmit.scala)\n26/09/19 06:54:01 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!\n26/09/19 06:54:01 INFO BlockManager: BlockManager stopped\n26/09/19 06:54:01 INFO BlockManagerMaster: BlockManagerMaster stopped\n26/09/19 06:54:01 WARN MetricsSystem: Stopping a MetricsSystem that is not running\n26/09/19 06:54:01 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!\n26/09/19 06:54:01 INFO SparkContext: Successfully stopped SparkContext (Uptime: 9408 ms)\nException in thread \"main\" org.apache.spark.SparkIllegalArgumentException: [INVALID_DRIVER_MEMORY] System memory 268435456 must be at least 471859200.\nPlease increase heap size using the --driver-memory option or \"spark.driver.memory\" in Spark configuration. SQLSTATE: F0000\n\tat org.apache.spark.memory.UnifiedMemoryManager$.getMaxMemory(UnifiedMemoryManager.scala:473)\n\tat org.apache.spark.memory.UnifiedMemoryManager$.apply(UnifiedMemory",
+              "remedy": "none",
+              "recoverable": true,
+              "retry_limit": 1,
+              "needs_approval": false,
+              "matched_by": "unmatched",
+              "details": {}
+            },
+            {
+              "error_class": "UNKNOWN",
+              "fingerprint": "1691edcce4e5cfdd50e8a431b3665bb3",
+              "message": "3)\n\tat triad.jobs.generated.CleanJob_c610a2c0.main(CleanJob_c610a2c0.scala)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)\n\tat java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:569)\n\tat org.apache.spark.deploy.JavaMainApplication.start(SparkApplication.scala:52)\n\tat org.apache.spark.deploy.SparkSubmit.org$apache$spark$deploy$SparkSubmit$$runMain(SparkSubmit.scala:1030)\n\tat org.apache.spark.deploy.SparkSubmit.doRunMain$1(SparkSubmit.scala:203)\n\tat org.apache.spark.deploy.SparkSubmit.submit(SparkSubmit.scala:226)\n\tat org.apache.spark.deploy.SparkSubmit.doSubmit(SparkSubmit.scala:95)\n\tat org.apache.spark.deploy.SparkSubmit$$anon$2.doSubmit(SparkSubmit.scala:1168)\n\tat org.apache.spark.deploy.SparkSubmit$.main(SparkSubmit.scala:1177)\n\tat org.apache.spark.deploy.SparkSubmit.main(SparkSubmit.scala)\n26/09/19 06:56:20 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!\n26/09/19 06:56:20 INFO BlockManager: BlockManager stopped\n26/09/19 06:56:20 INFO BlockManagerMaster: BlockManagerMaster stopped\n26/09/19 06:56:20 WARN MetricsSystem: Stopping a MetricsSystem that is not running\n26/09/19 06:56:20 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!\n26/09/19 06:56:21 INFO SparkContext: Successfully stopped SparkContext (Uptime: 7154 ms)\nException in thread \"main\" org.apache.spark.SparkIllegalArgumentException: [INVALID_DRIVER_MEMORY] System memory 268435456 must be at least 471859200.\nPlease increase heap size using the --driver-memory option or \"spark.driver.memory\" in Spark configuration. SQLSTATE: F0000\n\tat org.apache.spark.memory.UnifiedMemoryManager$.getMaxMemory(UnifiedMemoryManager.scala:473)\n\tat org.apache.spark.memory.UnifiedMemoryManager$.apply(UnifiedMemory",
+              "remedy": "none",
+              "recoverable": true,
+              "retry_limit": 1,
+              "needs_approval": false,
+              "matched_by": "unmatched",
+              "details": {}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "condition": "sandbox_container_killed",
+      "ok": true,
+      "detail": "recovered=True after 1 attempt(s); remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 170.4,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "container_killed",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "killed_container",
+          "value": "",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "killer_error",
+          "value": "FileNotFoundError: [Errno 2] No such file or directory: 'docker'",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_applied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": "7e6779e7a35fe3b6eafdeede0185c031a53d5b8e54108fbe309534f7594b3b0b",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "identical_to_clean_run",
+          "value": false,
+          "unit": "",
+          "note": "the committed output's content hash against the clean run's"
+        }
+      ],
+      "observations": {
+        "diagnoses": [],
+        "applied_fixes": []
+      }
+    },
+    {
+      "condition": "skewed_one_customer_20pct",
+      "ok": true,
+      "detail": "recovered=True after 1 attempt(s); remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 8687,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 87.4,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_applied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "clean_rows",
+          "value": 8687,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": "ddbeb069498f3da41ead61c017ae1b09bd9f5b6e935036955bc9c28b3fbec15f",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "identical_to_clean_run",
+          "value": null,
+          "unit": "",
+          "note": "not compared: the skewed arm reads different source data by construction"
+        }
+      ],
+      "observations": {
+        "diagnoses": [],
+        "applied_fixes": []
+      }
+    }
+  ]
+}

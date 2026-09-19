@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from agents.graph.pipeline import ChurnPipeline
 from agents.monitoring import MonitoringService
 from triad_core.config import settings
+from triad_core.ids import utcnow
 from triad_core.models import Experiment, ModelVersion, PipelineRun
 from triad_core.storage import Storage, storage
 
@@ -186,8 +187,14 @@ def prepare(
     cutoffs: dict[str, str] | None = None,
     log: Logger | None = None,
     requested_by: str | None = None,
+    replay_of: PipelineRun | None = None,
 ) -> PhaseResult:
-    """Everything up to and including the approval request. Leaves the run paused."""
+    """Everything up to and including the approval request. Leaves the run paused.
+
+    `replay_of` puts the run in replay mode (ATC-18): the generated Scala of that completed run
+    is read back from storage and used verbatim rather than generated afresh, so the replay
+    reproduces what ran even if a template has changed since.
+    """
     from python_ml.triad_ml.candidates import shortlist, split_feature_types
     from python_ml.triad_ml.splits import apply_split, plan_split
     from python_ml.triad_ml.train import select_model, train_all
@@ -196,7 +203,7 @@ def prepare(
 
     say = log or _noop
     store = store or storage()
-    pipeline = ChurnPipeline(session, run, store=store)
+    pipeline = ChurnPipeline(session, run, store=store, replay_of=replay_of)
 
     # Two runs of the same pipeline write the same clean/feature/label folders, and
     # `storage.commit` supersedes what is there. Run them at once and the second silently
@@ -208,6 +215,13 @@ def prepare(
     if "transactions" not in inputs:
         return PhaseResult(False, "REJECTED_INPUT",
                            "the churn pipeline needs a registered `transactions` input")
+
+    # NFR-REP-01: record the exact input versions this run read. The column existed and nothing
+    # wrote to it, which meant a replay had no way to find the bytes the original run used - it
+    # would have had to guess at "the current version", and a replay that reads different data
+    # proves nothing about determinism.
+    run.input_versions = dict(inputs)
+    session.flush()
 
     # -- profile ----------------------------------------------------------------
     profile_out = pipeline.stage_profile(spark, "transactions", inputs["transactions"])
@@ -350,13 +364,46 @@ def prepare(
                            {"selection": selection.to_dict()})
 
     pipeline._advance("SELECTED", stage="select")
+    # `intervals` carries the bootstrap 95% bounds. They used to stop here: `_record_metric`
+    # has taken a `ci=` argument since it was written and no caller ever passed one, so
+    # `metrics.ci_low` and `metrics.ci_high` were columns nothing filled - and FR-066's
+    # "comparison with confidence intervals" had no intervals to show.
     for name, value in (selection.test_metrics.values or {}).items():
-        pipeline._record_metric(name, value, split="test")
+        pipeline._record_metric(
+            name, value, split="test", ci=selection.test_metrics.intervals.get(name)
+        )
     for name, value in (selection.selected.valid_metrics.values or {}).items():
-        pipeline._record_metric(name, value, split="valid")
+        pipeline._record_metric(
+            name, value, split="valid",
+            ci=selection.selected.valid_metrics.intervals.get(name),
+        )
+
+    threshold = selection.selected.valid_metrics.get("threshold", 0.5)
+
+    # Per-segment metrics: the `segment` column existed and nothing wrote to it, so AP-6 was
+    # enforced on a number nobody could see afterwards.
+    segment_metrics_out: list[dict[str, Any]] = []
+    try:
+        from python_ml.triad_ml.evaluate import segment_metrics as _segment_metrics
+        from python_ml.triad_ml.train import LABEL as _LABEL
+
+        test_scores = selection.selected.pipeline.predict_proba(
+            split.test[num_cols + cat_cols]
+        )[:, 1]
+        available = [c for c in ("country", "loyalty_tier", "acquisition_channel")
+                     if c in split.test.columns]
+        for metrics in _segment_metrics(
+            split.test, split.test[_LABEL].to_numpy(), test_scores,
+            segment_cols=available, threshold=threshold,
+        ):
+            segment_metrics_out.append(metrics.to_dict())
+            for name, value in (metrics.values or {}).items():
+                pipeline._record_metric(name, value, split="test", segment=metrics.segment)
+    except Exception as exc:   # a missing segment column must not fail the run
+        say("segments", f"per-segment metrics not recorded: {type(exc).__name__}: {exc}", False)
 
     # -- register the challenger ------------------------------------------------
-    threshold = selection.selected.valid_metrics.get("threshold", 0.5)
+    say("segments", f"{len(segment_metrics_out)} segment metric set(s) recorded", True)
     mlflow_version: str | None = None
     mlflow_experiment_id: str | None = None
     registry_error = ""
@@ -383,6 +430,64 @@ def prepare(
     except Exception as exc:
         registry_error = str(exc)
         say("registry", f"could not register the challenger: {exc}", False)
+
+    # FR-065/FR-066/FR-067: the evaluation document the charts are drawn from.
+    #
+    # Everything in here can only be computed while `y_true` and `y_score` are both in hand,
+    # and neither survives the run: the predictions table has no label column, so nothing
+    # downstream can reconstruct a ROC or a reliability diagram. Curves, intervals, per-segment
+    # metrics and feature importance were all computed and then dropped on the floor, which
+    # left "render charts from stored data only" impossible to satisfy honestly.
+    #
+    # The path is derived from the run key rather than stored in a column, so no migration is
+    # needed and an older model version simply has no document rather than a null pointer.
+    evaluation = {
+        "run_key": run.run_key,
+        "model_name": MODEL_NAME,
+        "selected_family": selection.selected.family,
+        "threshold": threshold,
+        "generated_at": utcnow().isoformat(),
+        "test": selection.test_metrics.to_dict(),
+        "valid": selection.selected.valid_metrics.to_dict(),
+        "segments": segment_metrics_out,
+        "champion_delta": selection.champion_delta,
+        # Every family that was screened, so the selection can be read rather than trusted.
+        "candidates": [
+            {
+                "family": m.family,
+                "valid_pr_auc": m.valid_metrics.get("pr_auc"),
+                "valid_roc_auc": m.valid_metrics.get("roc_auc"),
+                "selected": m.family == selection.selected.family,
+            }
+            for m in models
+        ],
+        "rejected": selection.rejected,
+        "acceptance": {k: v.to_dict() for k, v in (selection.verdicts or {}).items()},
+        "rules_applied": selection.rules_applied,
+        "feature_importance": None,   # filled below when it can be computed
+    }
+    try:
+        from python_ml.triad_ml.predict import explain
+
+        explanations = explain(
+            selection.selected.pipeline, split.valid, num_cols + cat_cols, seed=seed
+        )
+        evaluation["feature_importance"] = {
+            "method": explanations.method,
+            "note": explanations.note,
+            "global": explanations.global_importance,
+        }
+    except Exception as exc:   # importance is evidence, not a gate: record why it is absent
+        evaluation["feature_importance"] = {
+            "method": "not computed",
+            "note": f"{type(exc).__name__}: {exc}",
+            "global": [],
+        }
+    evaluation_path = store.write_json(
+        store.reports_dir(run.run_key) / "evaluation.json", evaluation
+    )
+    say("evaluation", f"curves, intervals, {len(segment_metrics_out)} segment set(s) and "
+                      f"importance written to {evaluation_path.name}", True)
 
     # FR-077: the modelling experiment this run's candidates belong to, recorded in the
     # database and not only on the tracking server. Written whether or not MLflow was

@@ -128,17 +128,49 @@ requirements that are **not** met rather than quietly omitting them.
 
 ## Not started
 
-- **Optuna tuning (`tune.py`).** The `tuning:` block in `pipelines/churn_v1.yaml` is read by
-  nothing; `train_all` fits each family with fixed parameters. PRD 18 specifies it.
-- **Acting on a fired trigger.** `evaluate_retraining` records and alerts, but nothing starts
-  a retraining run (FR-074's trigger loop). The pieces are all present.
-- Replay mode (ATC-18) and the recorded-cassette agent tests.
-- The prompt-injection test (ATC-13) as an executable test — the generator seeds the strings
-  and `agents/llm/redaction.py` fences and flags them, but no test asserts it.
-- Experiments EXP-1..EXP-10, the traceability matrix, user and deployment guides, model cards.
-- `Makefile` target `replay` references `scripts/replay_run.py`, which does not exist.
 - The dataset, report and settings pages (PRD 26.1 marks them lower priority than the five
-  that exist).
+  that exist), and the API they would need: nothing exposes users, the active policy, budgets,
+  a dataset schema diff, an artifact's source text, an escalation ticket, or the approval
+  evidence bundle, although `Approval.evidence_uri` points at a file that is written.
+- The frontend interaction layer PRD section 26 assumes: no modal or dialog, no confirmation
+  before the destructive Cancel-run POST, no toast or in-app notification (FR-084), no tabs, no
+  tooltip component beyond one raw `title=` attribute, no pagination control although
+  `Page.next_cursor` is typed and the API pages, no date input, no search although FR-070 wants
+  searchable decision records, no progress indicator or budget meter, and no expandable
+  technical trace. Accessibility is untouched: no aria attributes, no focus-visible rules.
+- The event-stream client. `GET /pipelines/{id}/events` is served and nothing subscribes to it,
+  so "stage changes appear within 5 seconds" is not met.
+- FR-004 JDBC, FR-008 streaming connector, FR-022 anomaly detection, FR-024 feature
+  suggestions, FR-035 caching decisions, FR-037 the Spark optimisation loop, FR-040 typed
+  Datasets, FR-072 PDF export (HTML only).
+- EXP-1, EXP-2, EXP-3, EXP-5, EXP-8 are implemented and not yet run. EXP-4, EXP-6, EXP-7,
+  EXP-9 and EXP-10 have results in `experiments/`.
+
+## Done since the last revision of this document
+
+- **Optuna tuning** runs: `tune.py`, the `tuning:` block, finalists only.
+- **A fired trigger starts a run** (`start_retraining`).
+- **Replay mode (ATC-18)**: `scripts/replay_run.py` exists, `ChurnPipeline._replay_scala` reads
+  the stored artifact back and refuses code whose hash no longer matches, and
+  `pipeline_runs.input_versions` is now written so a replay can read the same bytes.
+- **The prompt-injection test (ATC-13)** is executable, and found a class the scanner missed:
+  chat-template control tokens are now flagged and broken up before fencing.
+- **The tool registry is on the runtime path (FR-053)**: every Spark submission and catalogue
+  commit goes through `REGISTRY.call`, which checks the agent, the argument schema and - for
+  `sandbox.run` - the governance policy, and appends the call to the run's hash chain.
+- **`/metrics` exists.** It was documented in `main.py` and served nowhere;
+  `prometheus-client` was an unused dependency. It now reads its numbers from the database on
+  each scrape, because the work it describes is done by the worker and not by the API.
+- **Curve data is persisted** (`reports/<run_key>/evaluation.json`, served at
+  `GET /models/{ref}/versions/{id}/evaluation`): ROC, precision-recall, calibration bins and a
+  lift/gain sweep, plus bootstrap intervals, per-segment metrics and feature importance. All of
+  it was computed and discarded before, which made FR-065 unmeetable without inventing numbers.
+- **`metrics.ci_low`/`ci_high` and `metrics.segment` are written.** All three were columns that
+  nothing filled.
+- **The `experiments` table is written** (FR-077).
+- **The approval queue is role-gated.** `GET /approvals` and `GET /approvals/{id}` had no role
+  dependency, so any authenticated account including a viewer could read every pending
+  promotion.
 
 ## Known limits, stated rather than hidden
 
@@ -176,19 +208,25 @@ F-18) and `docs/implementation/DECISIONS.md` (DEC-01 to DEC-19).
 
 ```
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m pytest tests/unit -q
-  -> 319 passed
-docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m pytest tests/smoke -q
-  -> 9 passed, 1 skipped
-docker compose -f docker/compose.yaml --profile tools run --rm -T dev \
-    bash -c "cd scala_spark && /opt/sbt/bin/sbt -batch core/test"
-  -> 21 passed
+  -> 415 passed
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m ruff check .
   -> All checks passed
-docker run --rm -v "$PWD/frontend:/app" -w /app node:24-alpine npm run build
-  -> built in 4.85s
-docker compose -f docker/compose.yaml --profile tools run --rm -T dev python scripts/api_smoke.py
-  -> every check passed
-docker compose -f docker/compose.yaml --profile tools run --rm -T dev \
-    python scripts/run_demo.py --customers 800 --months 30
-  -> exit 0, run-2026-09-18-020
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev     python scripts/run_demo.py --customers 400 --months 24
+  -> exit 0, run-2026-09-19-006; 412 audit entries across 34 chains, verified
+curl -s http://localhost:8010/metrics
+  -> 200, 22 series read from the database
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m experiments.exp04_schema_errors
+  -> partial, hypothesis held: rename caught at ingest, price-as-text caught at clean
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m experiments.exp06_spark_failures
+  -> partial, hypothesis NOT held; see the EXP-6 result for the four findings it produced
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m experiments.exp07_drift
+  -> partial, hypothesis held: 0/6 false alarms; PSI blind to concept drift, RT-1 catches it
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m experiments.exp09_leakage
+  -> completed, hypothesis held: control 0.4530 PR-AUC unblocked, both leaks blocked
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m experiments.exp10_governance
+  -> completed, hypothesis held: 4 of 4 bypass attempts blocked, chain verified
 ```
+
+Not yet re-run since the changes above: the Scala test suite, the smoke suite, the frontend
+build and `scripts/api_smoke.py`. They are listed here as *not re-verified* rather than carried
+over from an older revision.
