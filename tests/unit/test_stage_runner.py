@@ -265,3 +265,67 @@ class TestStageRunner:
         assert remembered, "a fix should have been remembered"
         fingerprint = remembered[0].error_fingerprint
         assert runner.lookup_fix(fingerprint) is not None
+
+
+@pytest.mark.postgres
+class TestARemedyThatCannotBeAppliedSaysSo(TestStageRunner):
+    """A prescribed fix that changes nothing must not look like a fix that was applied.
+
+    `_apply_fix` writes a playbook remedy into the stage inputs, and only some of those inputs
+    are read by anything. `use_try_cast`, `quarantine_bad_rows` and
+    `disable_missing_feature_groups` are set and then read by no `generate`, so the next attempt
+    submits byte-identical work and fails identically - which is correct behaviour for a fix
+    that needs the code rewritten, but the escalation ticket used to say only "attempt budget
+    exhausted" and gave a reader no way to tell the difference between "the fix did not work"
+    and "the fix was never applied to anything". EXP-4 hit exactly this on a price column
+    arriving as text.
+    """
+
+    def test_an_infrastructure_remedy_is_recorded_as_applied(self) -> None:
+        attempts: list[dict] = []
+
+        def execute(artifact):
+            attempts.append(artifact)
+            if len(attempts) == 1:
+                return {"ok": False, "error": "org.apache.spark.shuffle.FetchFailedException"}
+            return {"ok": True, "outputs": {"uri": "file:///features"}}
+
+        outcome = self._runner().run_stage(self._request(execute=execute))
+        assert outcome.ok
+        assert outcome.applied_fixes, "a retry must record which remedy it applied"
+        assert all(f["applied"] for f in outcome.applied_fixes)
+        assert all(not f["note"] for f in outcome.applied_fixes)
+
+    def test_a_remedy_needing_code_regeneration_is_recorded_as_unapplied(self) -> None:
+        """An ANSI cast failure prescribes try_cast, which no stage input can deliver."""
+        ansi = (
+            '{"error_class": "INVALID_CAST_ANSI", "message": "[CAST_INVALID_INPUT] The value '
+            "'INR 871.59' of the type \\\"STRING\\\" cannot be cast to \\\"DECIMAL(18,2)\\\"\"}"
+        )
+        outcome = self._runner().run_stage(
+            self._request(execute=lambda artifact: {"ok": False, "error": ansi})
+        )
+        assert not outcome.ok
+        assert outcome.escalated
+        unapplied = [f for f in outcome.applied_fixes if not f["applied"]]
+        assert unapplied, "try_cast_with_quarantine changes no input any stage reads"
+        assert "requires an LLM provider" in unapplied[0]["note"]
+
+    def test_the_escalation_ticket_names_the_remedies_it_could_not_apply(self) -> None:
+        """So an operator reading the ticket learns why the retries were identical."""
+        from sqlalchemy import select
+
+        from triad_core.models import DecisionRecord
+
+        ansi = '{"error_class": "INVALID_CAST_ANSI", "message": "[CAST_INVALID_INPUT] nope"}'
+        self._runner().run_stage(
+            self._request(execute=lambda artifact: {"ok": False, "error": ansi})
+        )
+        tickets = [
+            d for d in self.session.execute(
+                select(DecisionRecord).where(DecisionRecord.run_id == self.run.id)
+            ).scalars().all()
+            if d.decision_type == "escalation"
+        ]
+        assert tickets, "an escalation must leave a decision record"
+        assert "try_cast_with_quarantine" in tickets[-1].evidence_refs["unapplied_remedies"]

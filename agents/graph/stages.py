@@ -40,6 +40,7 @@ class StageOutcome:
     reason: str = ""
     diagnoses: list[dict[str, Any]] = field(default_factory=list)
     gate_reports: list[dict[str, Any]] = field(default_factory=list)
+    applied_fixes: list[dict[str, Any]] = field(default_factory=list)
     reused: bool = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -52,6 +53,7 @@ class StageOutcome:
             "reason": self.reason,
             "diagnoses": self.diagnoses,
             "gate_reports": self.gate_reports,
+            "applied_fixes": self.applied_fixes,
             "reused": self.reused,
         }
 
@@ -206,6 +208,7 @@ class StageRunner:
                 if should_stop:
                     return outcome
                 inputs = self._apply_fix(inputs, diagnosis)
+                outcome.applied_fixes = list(inputs.get("_applied_fixes") or [])
                 continue
 
             execution = self._execute(request, artifact)
@@ -233,6 +236,7 @@ class StageRunner:
             if should_stop:
                 return outcome
             inputs = self._apply_fix(inputs, diagnosis)
+            outcome.applied_fixes = list(inputs.get("_applied_fixes") or [])
 
         return self._escalate(
             request, outcome, f"attempt budget of {request.max_attempts} exhausted"
@@ -332,6 +336,20 @@ class StageRunner:
         self.remember_fix(diagnosis, {"remedy": diagnosis.remedy.value})
         return False
 
+    # Remedies whose effect actually reaches a stage. A remedy outside this set changes an
+    # input that no `generate` reads, so the next attempt submits identical work and fails
+    # identically. That used to happen silently: the escalation ticket said "attempt budget
+    # exhausted" and gave no hint that the prescribed fix had never been applied to anything.
+    # Naming them here lets the ticket say so - and makes the set easy to check against
+    # `ChurnPipeline.stage_scala_job`, which is what has to honour them.
+    APPLIED_REMEDIES = frozenset({
+        Remedy.RAISE_SHUFFLE_PARTITIONS,
+        Remedy.RAISE_EXECUTOR_MEMORY,
+        Remedy.ENABLE_SKEW_HANDLING,
+        Remedy.OPTIMISED_RETRY,
+        Remedy.RESUBMIT,
+    })
+
     def _apply_fix(self, inputs: dict[str, Any], diagnosis: Diagnosis) -> dict[str, Any]:
         """Playbook action first; code regeneration is driven by `history` in `generate`."""
         out = dict(inputs)
@@ -354,7 +372,19 @@ class StageRunner:
         elif remedy is Remedy.OPTIMISED_RETRY:
             out["shuffle_partitions"] = int(out.get("shuffle_partitions", 200)) * 2
 
-        fixes.append({"remedy": remedy.value, "error_class": diagnosis.error_class.value})
+        applied = remedy in self.APPLIED_REMEDIES
+        fixes.append({
+            "remedy": remedy.value,
+            "error_class": diagnosis.error_class.value,
+            "applied": applied,
+            # Said plainly, because an escalation that hides this is the reason a reader
+            # concludes the repair loop is broken when the truth is narrower.
+            "note": "" if applied else (
+                f"{remedy.value} needs the generated code rewritten, which requires an LLM "
+                "provider; no input the stage reads was changed, so the next attempt is "
+                "identical"
+            ),
+        })
         return out
 
     def _escalate(
@@ -380,6 +410,9 @@ class StageRunner:
             "gate_reports": outcome.gate_reports[-3:],
             "budget": self.budget.to_dict(),
             "suggested_actions": _suggested_actions(outcome.diagnoses, reason),
+            "unapplied_remedies": sorted({
+                f["remedy"] for f in (outcome.applied_fixes or []) if not f.get("applied", True)
+            }),
             "raised_at": utcnow().isoformat(),
             **(extra or {}),
         }

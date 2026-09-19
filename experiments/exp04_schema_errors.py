@@ -85,15 +85,32 @@ def _spark():
     return session
 
 
-def _register(
-    session: Any, store: Any, tables: dict[str, Path]
-) -> tuple[dict[str, str], list[dict[str, Any]]]:
-    """Register every generated table and report what was refused, and why.
+def _contract_yaml(table: str) -> str | None:
+    """The repo's ingest contract for a table, as text, or None if it has none."""
+    path = Path("pipelines") / "contracts" / f"{table}.yaml"
+    return path.read_text(encoding="utf-8") if path.exists() else None
 
-    Refusals are returned rather than skipped. A file the ingest contract rejects is the
-    platform detecting a schema fault at the earliest possible point, which is the best
-    outcome this experiment can observe - treating it as "nothing registered" would have
-    scored the strongest detection as a miss.
+
+def _register(
+    session: Any, store: Any, tables: dict[str, Path], tag: str
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
+    """Register every generated table under a per-condition name, and report what was refused.
+
+    Two things here are deliberate.
+
+    **Refusals are returned, not skipped.** A file the ingest contract rejects is the platform
+    detecting a schema fault at the earliest possible point, which is the best outcome this
+    experiment can observe; treating it as "nothing registered" scored the strongest detection
+    as a miss on the first run of this experiment.
+
+    **Each condition registers under its own dataset name, and carries the contract itself.**
+    `register_version` short-circuits on an identical checksum before it validates anything,
+    which is correct - re-registering the same bytes must create nothing - but it meant this
+    experiment measured registry state rather than the contract: the renamed file had already
+    been registered by an earlier run of EXP-4, from before the contract was being applied, so
+    the fault arrived as a duplicate and was never checked. Fresh names make each condition
+    independent of every previous run, and `contract_yaml` on the dataset row carries the
+    contract that the shared name would otherwise have supplied.
     """
     from dataeng.ingest import DatasetRegistry
 
@@ -101,11 +118,15 @@ def _register(
     registered: dict[str, str] = {}
     refusals: list[dict[str, Any]] = []
     for name, path in tables.items():
-        registry.register_source(name, entity_type=name, source_type="parquet")
+        dataset_name = f"{name}__{tag}"
+        registry.register_source(
+            dataset_name, entity_type=name, source_type="parquet",
+            contract_yaml=_contract_yaml(name),
+        )
         files = sorted(Path(path).glob("*.parquet"))
         if not files:
             continue
-        result = registry.register_version(name, files[0], actor="exp04")
+        result = registry.register_version(dataset_name, files[0], actor="exp04")
         if result.version_id:
             registered[name] = result.storage_uri or ""
             continue
@@ -169,13 +190,14 @@ def _run_one(exp: Experiment, fault: str, overrides: dict[str, Any]) -> None:
         # Each condition gets its own pipeline name: runs of one pipeline share their clean
         # and feature folders, so four conditions under one name would overwrite each other's
         # outputs and the row accounting would be meaningless.
-        pipeline_name = f"exp04_{fault}_{uuid.uuid4().hex[:6]}"
+        tag = f"exp04_{fault}_{uuid.uuid4().hex[:6]}"
+        pipeline_name = tag
         run = q.create_run(
             session, pipeline_name=pipeline_name, trigger_type="manual",
             triggered_by="exp04", config={"experiment": "EXP-4", "fault": fault},
         )
         session.flush()
-        registered, refusals = _register(session, store, tables)
+        registered, refusals = _register(session, store, tables, tag)
         trial.record("datasets_registered", len(registered))
         trial.record("registrations_refused", len(refusals))
         trial.observations["refusals"] = refusals
@@ -373,16 +395,39 @@ def run() -> Experiment:
         ]
         faults = scored
         detected = [t for t in faults if t.get("detected")]
-        auto_applied = sum(int(t.get("auto_applied_without_a_person")) for t in exp.trials)
+        # A condition refused at ingest never reaches the approval stage, so it records nothing
+        # here. Absent is not zero, and counting it as zero would be inventing a measurement -
+        # but it is also not a mapping applied without a person, so it is simply not counted.
+        auto_applied = sum(
+            int(m.value)
+            for t in exp.trials for m in t.measurements
+            if m.name == "auto_applied_without_a_person" and m.value is not None
+        )
         # Row loss is only silent if cleaning claimed success while the accounting did not
         # balance. An escalation is loud, and is not silent loss.
         silent_loss = [
             t for t in exp.trials
-            if t.get("cleaning_succeeded") and t.get("row_accounting_balanced") is False
+            if trial_has(t, "cleaning_succeeded")
+            and any(m.name == "row_accounting_balanced" and m.value is False
+                    for m in t.measurements)
         ]
 
+        exp.limitation(
+            "`register_version` returns early on an identical checksum, before it validates "
+            "anything. That is correct idempotence, but it means a file whose bytes were "
+            "registered before a contract existed for its dataset is never re-validated. This "
+            "experiment sidesteps it by registering each condition under a fresh dataset name; "
+            "a deployment would need a re-validation pass when a contract is introduced or "
+            "changed. Not a defect, but not covered either."
+        )
+        exp.limitation(
+            "Only profile and clean are run, so what the feature stage does with a missing "
+            "optional table - the 'disables its features' half of the hypothesis - is not "
+            "measured here."
+        )
+
         exp.conclude(
-            status="completed",
+            status="partial",
             hypothesis_held=(
                 len(detected) == len(faults)
                 and auto_applied == 0

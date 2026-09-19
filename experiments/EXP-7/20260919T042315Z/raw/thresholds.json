@@ -1,9 +1,0 @@
-{
-  "psi_feature_threshold": 0.25,
-  "psi_feature_count_threshold": {
-    "psi": 0.1,
-    "features": 3
-  },
-  "psi_score_threshold": 0.2,
-  "high_risk_share_change": 0.5
-}

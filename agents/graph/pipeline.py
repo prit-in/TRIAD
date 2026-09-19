@@ -363,11 +363,23 @@ class ChurnPipeline:
                 job_args.append(f"--partition-by={','.join(partition_by)}")
             if stage_inputs.get("skew_handling"):
                 job_args.append("--conf=spark.sql.adaptive.skewJoin.enabled=true")
+            # The out-of-memory remedy has to arrive here to mean anything. `_apply_fix` sets
+            # `executor_memory` when it diagnoses an OOM, and for a long while nothing read it:
+            # the retry was submitted with exactly the memory that had just failed, so the
+            # remedy was computed and thrown away and an OOM could only ever exhaust the
+            # attempt budget. In local mode the driver *is* the executor, hence one value.
+            memory = stage_inputs.get("executor_memory") or self.config.get(
+                "spark", {}
+            ).get("driver_memory", "1g")
             return {
                 "artifact": artifact,
                 "job_args": job_args,
                 "command": " ".join(job_args),
-                "resources": {"profile": "small", "master": routing.get("deploy_mode", "local[2]")},
+                "resources": {
+                    "profile": stage_inputs.get("resource_profile", "small"),
+                    "master": routing.get("deploy_mode", "local[2]"),
+                    "driver_memory": memory,
+                },
             }
 
         def validate(artifact):
@@ -398,6 +410,7 @@ class ChurnPipeline:
                     "job_args": artifact["job_args"],
                     "master": self.config.get("spark_master", "local[2]"),
                     "profile": artifact["resources"]["profile"],
+                    "driver_memory": artifact["resources"]["driver_memory"],
                 },
                 sandbox=self.sandbox,
                 # Only the profile varies here. The `internal_only` network limit is

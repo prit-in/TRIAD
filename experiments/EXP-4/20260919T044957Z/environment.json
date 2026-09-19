@@ -1,6 +1,6 @@
 {
-  "git_commit": "5646069c96c36032bf46df3f82c1498e1492fc93",
-  "hostname": "397a60ded822",
+  "git_commit": "9c12e5e573ae478f48ed8f851593ff4f8f46f91c",
+  "hostname": "a07391b0e81e",
   "cpu_count": 8,
   "container_memory_bytes": 3145728000,
   "in_container": true,

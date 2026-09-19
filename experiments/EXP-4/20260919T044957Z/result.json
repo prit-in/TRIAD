@@ -1,0 +1,751 @@
+{
+  "exp_id": "EXP-4",
+  "title": "Schema errors",
+  "hypothesis": "A renamed required column is detected and a mapping proposed but not applied without approval; prices are fixed by try_cast and quarantine; the missing optional table disables its features.",
+  "independent_variable": "fault type",
+  "dependent_measures": [
+    "detected",
+    "cleaning_succeeded",
+    "quarantined_rows",
+    "row_accounting_balanced",
+    "approval_requests",
+    "auto_applied_without_a_person",
+    "wall_clock_s"
+  ],
+  "started_at": "2026-09-19T04:49:57.266698+00:00",
+  "duration_s": 467.91,
+  "status": "partial",
+  "hypothesis_held": true,
+  "conclusion": "Detected at: renamed_required_column -> ingest, price_as_text_with_symbols -> clean, dropped_optional_table -> not detected. 2 of 2 scored faults detected; the clean baseline passed: True. 0 mappings were applied without a person. 0 conditions lost rows silently (cleaning reported success while the row accounting did not balance). Detection rate is reported against the baseline on purpose: a detector that flagged everything would otherwise score perfectly.",
+  "limitations": [
+    "`register_version` returns early on an identical checksum, before it validates anything. That is correct idempotence, but it means a file whose bytes were registered before a contract existed for its dataset is never re-validated. This experiment sidesteps it by registering each condition under a fresh dataset name; a deployment would need a re-validation pass when a contract is introduced or changed. Not a defect, but not covered either.",
+    "Only profile and clean are run, so what the feature stage does with a missing optional table - the 'disables its features' half of the hypothesis - is not measured here."
+  ],
+  "trials": [
+    {
+      "condition": "baseline_clean",
+      "ok": true,
+      "detail": "detected at not detected; clean_ok=True approvals=0 auto_applied=0",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "optional_table_absent",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": 0.9336,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocking_issues",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiled_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_profile",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "new_issues_vs_baseline",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quarantined_rows",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "removed_duplicates",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": "input = output + quarantined + duplicates"
+        },
+        {
+          "name": "detected_at_clean",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_cleaning",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "decision_records",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "auto_applied_without_a_person",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 284.1,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "not detected",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "support_tickets",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [],
+        "profile_uri": "file:///data/triad/profiles/run-2026-09-19-023_transactions.json",
+        "issues": [
+          "info:OUTLIERS.discount",
+          "info:OUTLIERS.price",
+          "info:OUTLIERS.quantity",
+          "warning:CONSTANT_COLUMN.currency",
+          "warning:CONSTANT_COLUMN.order_status",
+          "warning:HIGH_NULL_RATE.promo_code"
+        ],
+        "job_metrics": {
+          "grain_unique": "true",
+          "input_rows": "8078",
+          "output_columns": "15",
+          "output_rows": "8078",
+          "quarantined_rows": "0",
+          "removed_duplicates": "0",
+          "row_accounting_balanced": "true",
+          "rule_non_positive_price": "0",
+          "rule_null_customer": "0",
+          "rule_null_order_date": "0",
+          "rule_zero_quantity": "0"
+        },
+        "decisions": [
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "profile -> spark/python"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "clean -> spark/scala"
+          },
+          {
+            "agent": "governance",
+            "type": "policy",
+            "decision": "cleaning.execute -> allow"
+          }
+        ],
+        "approvals": []
+      }
+    },
+    {
+      "condition": "renamed_required_column",
+      "ok": true,
+      "detail": "refused at ingest: required column customer_id missing",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "optional_table_absent",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "ingest_refusal",
+          "value": "required column customer_id missing",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "ingest",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": false,
+          "unit": "",
+          "note": "not reached"
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": false,
+          "unit": "",
+          "note": "not reached"
+        },
+        {
+          "name": "reached_cleaning",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 3.6,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "support_tickets",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [
+          {
+            "table": "transactions",
+            "reason": "blocking contract violation",
+            "blocking": [
+              {
+                "check_id": "schema.required.customer_id",
+                "severity": "blocking",
+                "message": "required column customer_id missing",
+                "count": null,
+                "pct": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "condition": "price_as_text_with_symbols",
+      "ok": true,
+      "detail": "detected at clean; clean_ok=False approvals=0 auto_applied=0",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "optional_table_absent",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": 0.9336,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocking_issues",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiled_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_profile",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "new_issues_vs_baseline",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation_reason",
+          "value": "circuit breaker: error fingerprint 167364d308e7 repeated",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_clean",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_cleaning",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "decision_records",
+          "value": 5,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "auto_applied_without_a_person",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 104.8,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "clean",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "support_tickets",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [],
+        "profile_uri": "file:///data/triad/profiles/run-2026-09-19-025_transactions.json",
+        "issues": [
+          "info:OUTLIERS.discount",
+          "info:OUTLIERS.quantity",
+          "warning:CONSTANT_COLUMN.currency",
+          "warning:CONSTANT_COLUMN.order_status",
+          "warning:HIGH_NULL_RATE.promo_code"
+        ],
+        "escalation": {
+          "stage": "clean",
+          "reason": "circuit breaker: error fingerprint 167364d308e7 repeated",
+          "diagnoses": [
+            {
+              "error_class": "INVALID_CAST_ANSI",
+              "fingerprint": "167364d308e744c89251dc1dc6e2d672",
+              "message": "{\"error_class\": \"INVALID_CAST_ANSI\", \"exception_type\": \"org.apache.spark.SparkNumberFormatException\", \"message\": \"[CAST_INVALID_INPUT] The value 'INR 871.59' of the type \\\"STRING\\\" cannot be cast to \\\"BIGINT\\\" because it is malformed. Correct the value as per the syntax, or change its target type. Use `try_cast` to tolerate malformed input and return NULL instead. SQLSTATE: 22018 == DataFrame == \\\"greater\\\" was called from triad.core.CleaningRules$.standardTransactionRules(CleaningRules.scala:153) \", \"stack_head\": \"org.apache.spark.sql.errors.QueryExecutionErrors$.invalidInputInCastToNumberError(QueryExecutionErrors.scala:147) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.withException(UTF8StringUtils.scala:51) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.toLongExact(UTF8StringUtils.scala:31)\"}",
+              "remedy": "try_cast_with_quarantine",
+              "recoverable": true,
+              "retry_limit": 1,
+              "needs_approval": false,
+              "matched_by": "taxonomy",
+              "details": {}
+            },
+            {
+              "error_class": "INVALID_CAST_ANSI",
+              "fingerprint": "167364d308e744c89251dc1dc6e2d672",
+              "message": "{\"error_class\": \"INVALID_CAST_ANSI\", \"exception_type\": \"org.apache.spark.SparkNumberFormatException\", \"message\": \"[CAST_INVALID_INPUT] The value 'INR 871.59' of the type \\\"STRING\\\" cannot be cast to \\\"BIGINT\\\" because it is malformed. Correct the value as per the syntax, or change its target type. Use `try_cast` to tolerate malformed input and return NULL instead. SQLSTATE: 22018 == DataFrame == \\\"greater\\\" was called from triad.core.CleaningRules$.standardTransactionRules(CleaningRules.scala:153) \", \"stack_head\": \"org.apache.spark.sql.errors.QueryExecutionErrors$.invalidInputInCastToNumberError(QueryExecutionErrors.scala:147) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.withException(UTF8StringUtils.scala:51) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.toLongExact(UTF8StringUtils.scala:31)\"}",
+              "remedy": "try_cast_with_quarantine",
+              "recoverable": true,
+              "retry_limit": 1,
+              "needs_approval": false,
+              "matched_by": "taxonomy",
+              "details": {}
+            }
+          ]
+        },
+        "decisions": [
+          {
+            "agent": "code_generation",
+            "type": "diagnosis",
+            "decision": "INVALID_CAST_ANSI: remedy try_cast_with_quarantine"
+          },
+          {
+            "agent": "code_generation",
+            "type": "escalation",
+            "decision": "escalate clean"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "profile -> spark/python"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "clean -> spark/scala"
+          },
+          {
+            "agent": "code_generation",
+            "type": "diagnosis",
+            "decision": "INVALID_CAST_ANSI: remedy try_cast_with_quarantine"
+          }
+        ],
+        "approvals": []
+      }
+    },
+    {
+      "condition": "dropped_optional_table",
+      "ok": true,
+      "detail": "detected at not detected; clean_ok=True approvals=0 auto_applied=0",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "optional_table_absent",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": 0.9336,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocking_issues",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiled_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_profile",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "new_issues_vs_baseline",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quarantined_rows",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "removed_duplicates",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": "input = output + quarantined + duplicates"
+        },
+        {
+          "name": "detected_at_clean",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_cleaning",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "decision_records",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "auto_applied_without_a_person",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 71.8,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "not detected",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [],
+        "profile_uri": "file:///data/triad/profiles/run-2026-09-19-026_transactions.json",
+        "issues": [
+          "info:OUTLIERS.discount",
+          "info:OUTLIERS.price",
+          "info:OUTLIERS.quantity",
+          "warning:CONSTANT_COLUMN.currency",
+          "warning:CONSTANT_COLUMN.order_status",
+          "warning:HIGH_NULL_RATE.promo_code"
+        ],
+        "job_metrics": {
+          "grain_unique": "true",
+          "input_rows": "8078",
+          "output_columns": "15",
+          "output_rows": "8078",
+          "quarantined_rows": "0",
+          "removed_duplicates": "0",
+          "row_accounting_balanced": "true",
+          "rule_non_positive_price": "0",
+          "rule_null_customer": "0",
+          "rule_null_order_date": "0",
+          "rule_zero_quantity": "0"
+        },
+        "decisions": [
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "profile -> spark/python"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "clean -> spark/scala"
+          },
+          {
+            "agent": "governance",
+            "type": "policy",
+            "decision": "cleaning.execute -> allow"
+          }
+        ],
+        "approvals": []
+      }
+    }
+  ]
+}

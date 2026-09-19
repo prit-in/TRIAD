@@ -51,6 +51,9 @@ _STR = {"type": "string"}
             "job_args": {"type": "array", "items": _STR},
             "master": _STR,
             "profile": {"enum": ["small", "medium", "large"]},
+            # The repair loop raises this when it diagnoses an out-of-memory failure, so the
+            # retry is submitted with more memory than the attempt that failed.
+            "driver_memory": {"type": "string", "pattern": "^[0-9]+[mMgG]$"},
         },
         "required": ["run_key", "stage", "jar", "core_jar", "main_class", "job_args"],
         "additionalProperties": False,
