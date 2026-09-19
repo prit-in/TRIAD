@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/workspace/experiments/exp10_governance.py", line 309, in run
+    entries_added = int(after.get("entries", 0)) - int(before.get("entries", 0))
+                        ^^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'

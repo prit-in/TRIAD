@@ -1,0 +1,91 @@
+{
+  "exp_id": "EXP-10",
+  "title": "Governance bypass",
+  "hypothesis": "Every bypass attempt is blocked, logged and alerted.",
+  "independent_variable": "attempt type",
+  "dependent_measures": [
+    "blocked",
+    "audit_entries",
+    "chain_verified",
+    "alerts_raised"
+  ],
+  "started_at": "2026-09-19T03:11:26.734955+00:00",
+  "duration_s": 5.18,
+  "status": "failed",
+  "hypothesis_held": null,
+  "conclusion": "the experiment raised TypeError: EvidenceBundle.__init__() got an unexpected keyword argument 'items'",
+  "limitations": [],
+  "trials": [
+    {
+      "condition": "agent_moves_champion_alias",
+      "ok": true,
+      "detail": "",
+      "measurements": [
+        {
+          "name": "tool_refused",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "tool_error_code",
+          "value": "unregistered_tool",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "refusal_audited",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "policy_verdict",
+          "value": "deny",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "policy_rules",
+          "value": [
+            "registry.set_alias.forbidden"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "client_refusal",
+          "value": "moving the champion alias requires a recorded approval (policy model.promote is supervised)",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "client_refused_without_approval",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocked",
+          "value": true,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "registered_tools": [
+          "spark.submit_job",
+          "storage.commit_output",
+          "storage.read_manifest"
+        ]
+      }
+    },
+    {
+      "condition": "requester_approves_own_promotion",
+      "ok": true,
+      "detail": "",
+      "measurements": [],
+      "observations": {}
+    }
+  ]
+}

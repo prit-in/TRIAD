@@ -38,6 +38,18 @@ _PII_PATTERNS = [
     (re.compile(r"(?<!\d)(?:\+\d{1,3}[ -]?)?(?:\d[ -]?){9,13}\d(?!\d)"), "<PHONE>"),
 ]
 
+# Chat-template control tokens. These are a different class of injection from the phrases
+# below: a tokenizer may treat `<|im_start|>` as a *role delimiter* rather than as text, so a
+# product description carrying one can escape the data fence entirely - the fence is ordinary
+# text and loses to a token the model reads structurally. Flagged here and, more importantly,
+# broken up in `fence` so they cannot tokenize as delimiters at all. EXP-10 found this gap:
+# the phrase list caught two of three seeded injections and read straight past the third.
+_CONTROL_TOKENS = re.compile(
+    r"(?i)(<\|[a-z0-9_]{1,32}\|>|<\|?(?:im_start|im_end|endoftext|system|user|assistant)\|?>|"
+    r"\[/?INST\]|\[/?SYS\]|<</?SYS>>|^\s*###\s*(?:instruction|system)\s*:)",
+    re.MULTILINE,
+)
+
 # Instruction-like text inside data is neutralised visually and flagged for the audit trail.
 _INJECTION_MARKERS = re.compile(
     r"(?i)\b(ignore (all |the )?(previous|above|prior) instructions?|disregard .{0,20}instructions?|"
@@ -76,8 +88,44 @@ def mask(text: str) -> tuple[str, RedactionReport]:
 
 
 def scan_injection(text: str) -> list[str]:
-    """Return instruction-like phrases found in untrusted content (never acted upon)."""
-    return sorted({m.group(0).strip().lower() for m in _INJECTION_MARKERS.finditer(text or "")})
+    """Return instruction-like content found in untrusted text (never acted upon).
+
+    Two kinds, because they fail differently: instruction *phrases*, which a model might
+    follow, and chat-template *control tokens*, which a tokenizer might obey structurally.
+    """
+    body = text or ""
+    return sorted(
+        {m.group(0).strip().lower() for m in _INJECTION_MARKERS.finditer(body)}
+        | {m.group(0).strip().lower() for m in _CONTROL_TOKENS.finditer(body)}
+    )
+
+
+def _break_delimiter(match: re.Match[str]) -> str:
+    """Put a space just inside a delimiter's outer characters.
+
+    `<|im_start|>` becomes `< |im_start| >`, `[INST]` becomes `[ INST ]`, `### Instruction:`
+    becomes `# ## Instruction :`. Any of these reads the same to a person and none of them is
+    a single control token to a tokenizer any more.
+
+    Replacing only `<` and `>` was not enough: `[INST]`, `[/INST]` and the `###` heading form
+    contain neither, so they passed through a defence that had just flagged them. Breaking the
+    outer characters whatever they are covers every family the scanner matches.
+    """
+    token = match.group(0)
+    lead = token[: len(token) - len(token.lstrip())]
+    body = token[len(lead):]
+    if len(body) < 3:
+        return token
+    return f"{lead}{body[0]} {body[1:-1]} {body[-1]}"
+
+
+def defang_control_tokens(text: str) -> str:
+    """Break chat-template delimiters so they cannot tokenize as one.
+
+    The text is kept rather than stripped, because an approver reading the audit trail needs
+    to see what the data actually contained.
+    """
+    return _CONTROL_TOKENS.sub(_break_delimiter, text)
 
 
 def fence(content: str, *, label: str = "dataset_values") -> tuple[str, RedactionReport]:
@@ -85,7 +133,8 @@ def fence(content: str, *, label: str = "dataset_values") -> tuple[str, Redactio
     masked, report = mask(content)
     report.injection_hits = scan_injection(masked)
     fence_id = sha256_text(label + masked)[:8]
-    body = masked.replace(">>>", ">>")  # a value can never close the fence
+    body = defang_control_tokens(masked)
+    body = body.replace(">>>", ">>")  # a value can never close the fence
     fenced = "\n".join(
         [FENCE_OPEN.format(id=fence_id), body, FENCE_CLOSE.format(id=fence_id)]
     )
