@@ -1,0 +1,29 @@
+{
+  "exp_id": "EXP-6",
+  "title": "Spark failures and recovery",
+  "hypothesis": "Spark's task retries absorb an executor loss; the playbook fixes out-of-memory within 2 retries; adaptive execution handles skew.",
+  "independent_variable": "fault type",
+  "dependent_measures": [
+    "recovered",
+    "attempts",
+    "retries",
+    "wall_clock_s",
+    "content_hash",
+    "remedies_applied",
+    "identical_to_clean_run"
+  ],
+  "started_at": "2026-09-19T06:36:29.980726+00:00",
+  "config": {
+    "customers": 400,
+    "months": 24,
+    "seed": 42,
+    "kill_after_seconds": 25.0,
+    "arms": {
+      "clean_baseline": "no fault; the reference output checksum",
+      "low_driver_memory": "first attempt given 256m, so it must be raised to finish",
+      "sandbox_container_killed": "the sandbox container is killed mid-job",
+      "skewed_one_customer_20pct": "one account holds 20% of all order lines"
+    },
+    "shared_source_note": "the first three arms read byte-identical source data, which is what makes the checksum comparison meaningful; the skew arm necessarily differs"
+  }
+}
