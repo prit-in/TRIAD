@@ -460,3 +460,54 @@ def test_a_tuned_model_still_has_to_pass_the_hard_constraints() -> None:
     if result.evidence.get("tuning") and any(r["improved"] for r in result.evidence["tuning"]):
         assert tuned_rejections, "a tuned model that improved must still face AP-7"
         assert all("MODEL_TOO_LARGE" in r["reason"] for r in tuned_rejections)
+
+
+def test_the_trusted_type_list_covers_every_registered_family() -> None:
+    """TRUSTED_MODEL_TYPES must be computed, not maintained by hand.
+
+    skops refuses to serialise a type it has not been told to trust, and that refusal
+    happens at registration - the very last step of a run, after training and tuning have
+    already been paid for. A missing entry therefore costs a whole run to discover, which is
+    exactly what happened twice: the sigmoid calibration fallback and the `mlp` family were
+    both absent from a list whose comment claimed to be complete.
+
+    This enumerates the real set the same way the fix did, over every registered family and
+    both calibration methods, and fails if the tuple falls short of it.
+    """
+    from sklearn.calibration import CalibratedClassifierCV
+    from sklearn.frozen import FrozenEstimator
+    from skops.io import dumps, get_untrusted_types
+
+    from python_ml.triad_ml.candidates import REGISTERED_FAMILIES
+    from python_ml.triad_ml.registry import TRUSTED_MODEL_TYPES
+
+    rng = np.random.default_rng(0)
+    n = 400
+    features = pd.DataFrame(
+        {
+            "num_a": rng.normal(size=n),
+            "num_b": rng.normal(size=n),
+            "cat_a": rng.choice(["x", "y", "z"], size=n),
+        }
+    )
+    y = (rng.random(n) < 0.3).astype(int)
+
+    needed: set[str] = set()
+    for family in REGISTERED_FAMILIES:
+        pipeline = build_pipeline(
+            Candidate(family=family, role="candidate", params={}), ["num_a", "num_b"], ["cat_a"]
+        )
+        pipeline.fit(features, y)
+        needed |= set(get_untrusted_types(data=dumps(pipeline)))
+        # Both methods: `calibrate` falls back to sigmoid below 500 calibration rows, so a
+        # small run reaches types a large one never does.
+        for method in ("isotonic", "sigmoid"):
+            calibrated = CalibratedClassifierCV(FrozenEstimator(pipeline), method=method)
+            calibrated.fit(features, y)
+            needed |= set(get_untrusted_types(data=dumps(calibrated)))
+
+    missing = sorted(needed - set(TRUSTED_MODEL_TYPES))
+    assert not missing, (
+        "TRUSTED_MODEL_TYPES is short of what the registered families actually produce; "
+        f"add: {missing}"
+    )

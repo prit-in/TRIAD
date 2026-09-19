@@ -30,7 +30,9 @@ from agents.graph import queue as q
 from agents.graph.stages import StageRequest, StageRunner
 from agents.llm.budget import RunBudget
 from agents.routing import RoutingEngine
-from sandbox.runner import get_runner, spark_submit_request
+from agents.tools import pipeline_tools as _tools  # noqa: F401  registers the tools
+from agents.tools.registry import REGISTRY, ToolCall, ToolResult, ToolSpec
+from sandbox.runner import get_runner
 from triad_core import audit
 from triad_core.config import load_yaml, settings
 from triad_core.contracts import Contract
@@ -38,7 +40,7 @@ from triad_core.governance import EvidenceBundle, GovernanceService
 from triad_core.ids import utcnow
 from triad_core.models import CodeArtifact, Metric, PipelineRun
 from triad_core.policy import PolicyEngine, Verdict
-from triad_core.storage import Manifest, Storage, storage
+from triad_core.storage import Storage, storage
 
 SCALA_ROOT = settings().repo_root / "scala_spark"
 
@@ -95,9 +97,50 @@ class ChurnPipeline:
         self.templates = load_templates(TEMPLATE_ROOT)
         self.replay = replay
         self._generated_objects: set[str] = set()
+        self._specs_seen: dict[str, ToolSpec] = {}
         self.result = PipelineResult(run_key=run.run_key, state=run.state, ok=False)
 
     # -- helpers ---------------------------------------------------------------
+    def _audit_tool_call(self, call: ToolCall, result: ToolResult) -> None:
+        """Append one mediated tool call to this run's hash-chained audit trail.
+
+        The arguments are recorded, the returned value is not: a value can be a whole
+        schema or a page of Spark output, and the audit trail is for what was asked and
+        whether it was allowed. `error_code` carries which gate refused.
+        """
+        spec = self._specs_seen.get(call.tool)
+        audit.record(
+            self.session,
+            actor_type="agent",
+            actor_id=call.agent,
+            action=f"tool.{call.tool}",
+            resource_type="tool",
+            resource_id=call.tool,
+            outcome="ok" if result.ok else "refused",
+            run_id=self.run.id,
+            details={
+                "arguments": call.arguments,
+                "side_effect": spec.side_effect.value if spec else None,
+                "policy_action": spec.policy_action if spec else None,
+                "duration_ms": result.duration_ms,
+                "error_code": result.error_code,
+                "error": result.error[:500] if result.error else "",
+            },
+        )
+
+    def _call_tool(self, tool: str, agent: str, arguments: dict[str, Any], **services: Any):
+        """Make a mediated tool call, recording the spec so the audit sink can describe it."""
+        self._specs_seen[tool] = REGISTRY.spec(tool)
+        # This run's policy engine and audit session travel with the call, so the shared
+        # registry holds no per-run state. Absent a policy engine a governed tool is
+        # refused, not allowed, so this cannot fail open.
+        return REGISTRY.call(
+            ToolCall(tool=tool, agent=agent, arguments=arguments, run_id=str(self.run.id)),
+            policy=self.policy,
+            audit_sink=self._audit_tool_call,
+            **services,
+        )
+
     def _advance(self, state: str, *, stage: str | None = None, reason: str | None = None) -> None:
         q.set_state(self.session, self.run, state, stage=stage, error_summary=reason)
         self.result.state = state
@@ -325,22 +368,43 @@ class ChurnPipeline:
             # The class to submit is the object this attempt actually generated, so a
             # repaired artifact is the one that runs.
             generated_class = f"triad.jobs.generated.{artifact['artifact'].object_name}"
-            request = spark_submit_request(
-                run_key=self.run.run_key,
-                stage=stage,
-                jar=str(jar),
-                core_jar=str(core_jar),
-                main_class=main_class or generated_class,
-                job_args=artifact["job_args"],
-                master=self.config.get("spark_master", "local[2]"),
+            # Through the registry, not straight to the sandbox: the call is checked against
+            # this agent's permitted tools and against the `sandbox.run` policy action, and
+            # is audited either way. The sandbox itself is handed over as context, so no
+            # generated argument can substitute a different runner.
+            call = self._call_tool(
+                "spark.submit_job",
+                "code_generation",
+                {
+                    "run_key": self.run.run_key,
+                    "stage": stage,
+                    "jar": str(jar),
+                    "core_jar": str(core_jar),
+                    "main_class": main_class or generated_class,
+                    "job_args": artifact["job_args"],
+                    "master": self.config.get("spark_master", "local[2]"),
+                    "profile": artifact["resources"]["profile"],
+                },
+                sandbox=self.sandbox,
+                # Only the profile varies here. The `internal_only` network limit is
+                # enforced by SandboxRequest.validate, which every submission passes
+                # through, so there is nothing for the policy to compare.
+                policy_context={"profile": artifact["resources"]["profile"]},
             )
-            result = self.sandbox.run(request)
+            if not call.ok:
+                # A refused tool call is a stage failure, not a silent skip.
+                return {"ok": False, "error": f"{call.error_code}: {call.error}", "outputs": {}}
+            result = call.value
             payload: dict[str, Any] = {
-                "ok": result.ok,
-                "exit_code": result.exit_code,
-                "duration_ms": result.duration_ms,
-                "image_digest": result.image_digest,
-                "error": _structured_error(result.stdout + result.stderr) if not result.ok else "",
+                "ok": result["ok"],
+                "exit_code": result["exit_code"],
+                "duration_ms": result["duration_ms"],
+                "image_digest": result["image_digest"],
+                "error": (
+                    _structured_error(result["stdout"] + result["stderr"])
+                    if not result["ok"]
+                    else ""
+                ),
                 "outputs": {},
             }
             if report_path.exists():
@@ -400,17 +464,32 @@ class ChurnPipeline:
                 return {}
 
         if outcome.ok:
-            manifest = Manifest(
-                kind=stage,
-                name=stage,
-                version=self.run.run_key,
-                created_at=utcnow().isoformat(),
-                run_id=self.run.run_key,
-                row_count=outcome.outputs.get("row_count"),
-                schema=outcome.outputs.get("schema", {}),
+            commit = self._call_tool(
+                "storage.commit_output",
+                "code_generation",
+                {
+                    "staging": str(staging),
+                    "target": str(output_dir),
+                    "manifest": {
+                        "kind": stage,
+                        "name": stage,
+                        "version": self.run.run_key,
+                        "created_at": utcnow().isoformat(),
+                        "run_id": self.run.run_key,
+                        "row_count": outcome.outputs.get("row_count"),
+                        "schema": outcome.outputs.get("schema", {}),
+                    },
+                },
+                store=self.storage,
             )
-            committed = self.storage.commit(staging, output_dir, manifest)
-            outcome.outputs["uri"] = self.storage.uri(committed)
+            if not commit.ok:
+                self.result.escalation = {
+                    "stage": stage,
+                    "reason": f"publishing the output was refused: {commit.error}",
+                    "diagnoses": [],
+                }
+                return {}
+            outcome.outputs["uri"] = commit.value["uri"]
             self._persist_budget()
             return outcome.outputs
 

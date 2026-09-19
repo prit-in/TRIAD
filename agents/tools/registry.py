@@ -48,6 +48,12 @@ class InvalidResultError(ToolError):
     code = "invalid_result"
 
 
+class PolicyRefusedError(ToolError):
+    """The governance policy refused this action, or requires a person to approve it."""
+
+    code = "policy_refused"
+
+
 @dataclass(frozen=True)
 class ToolSpec:
     name: str
@@ -97,6 +103,7 @@ class ToolRegistry:
     """Holds tool specs and their implementations, and mediates every call."""
 
     def __init__(self) -> None:
+        self._policy: Any = None
         self._specs: dict[str, ToolSpec] = {}
         self._impls: dict[str, Callable[..., Any]] = {}
         self._audit_sink: Callable[[ToolCall, ToolResult], None] | None = None
@@ -168,10 +175,51 @@ class ToolRegistry:
             if agent in s.permitted_agents
         ]
 
+    def set_policy(self, policy: Any) -> None:
+        """Give the registry the policy engine to consult for tools that name an action.
+
+        Without one, a tool that declares `policy_action` is **refused**, not allowed. A
+        governance check that silently turns itself off when unconfigured is not a check.
+        """
+        self._policy = policy
+
+    def _policy_verdict(
+        self, spec: ToolSpec, call: ToolCall, context: dict[str, Any]
+    ) -> str | None:
+        """Returns None when the action may proceed, otherwise why it may not."""
+        policy = context.get("policy") or self._policy
+        if policy is None:
+            return (
+                f"{call.tool} declares the governed action {spec.policy_action} and no policy "
+                "engine is configured; refusing rather than proceeding ungoverned"
+            )
+        from triad_core.policy import Verdict
+
+        decision = policy.check(
+            spec.policy_action,
+            context=dict(context.get("policy_context") or {}),
+            actor_role="agent",
+        )
+        if decision.verdict is Verdict.ALLOW:
+            return None
+        return (
+            f"{spec.policy_action} -> {decision.verdict.value}: {decision.reason} "
+            f"(rules {', '.join(decision.rule_ids)})"
+        )
+
     # -- invocation ------------------------------------------------------------
     def call(self, call: ToolCall, **context: Any) -> ToolResult:
-        """Validate, authorise and run one tool call. Never raises for refusals."""
+        """Validate, authorise and run one tool call. Never raises for refusals.
+
+        `context` carries the process services the implementation needs, and three keys the
+        registry reads itself rather than passing on: `policy_context` (the measured facts
+        the policy compares against), `policy` and `audit_sink`. Passing the last two per
+        call, rather than relying on the ones set on this object, matters because the
+        registry is a module singleton: two concurrent pipelines would otherwise overwrite
+        each other and one run's tool calls would be audited into the other one's session.
+        """
         started = time.perf_counter()
+        sink = context.get("audit_sink") or self._audit_sink
 
         def finish(
             ok: bool, value: Any = None, error_code: str | None = None, error: str | None = None
@@ -186,8 +234,8 @@ class ToolRegistry:
                 duration_ms=int((time.perf_counter() - started) * 1000),
             )
             spec = self._specs.get(call.tool)
-            if self._audit_sink and (spec is None or spec.audit_required or not ok):
-                self._audit_sink(call, result)
+            if sink and (spec is None or spec.audit_required or not ok):
+                sink(call, result)
             return result
 
         spec = self._specs.get(call.tool)
@@ -217,8 +265,19 @@ class ToolRegistry:
                 error=f"invalid arguments for {call.tool}: {exc.message}",
             )
 
+        # A tool that names a governance action is held against it here, before the
+        # implementation runs. Without this the field was a promise nothing kept: a tool could
+        # declare `policy_action` and still run whatever the policy said.
+        if spec.policy_action is not None:
+            verdict = self._policy_verdict(spec, call, context)
+            if verdict is not None:
+                return finish(False, error_code=PolicyRefusedError.code, error=verdict)
+
         try:
-            value = self._impls[call.tool](**call.arguments, **context)
+            # The registry's own context keys are not arguments to the implementation.
+            reserved = {"policy_context", "policy", "audit_sink"}
+            passthrough = {k: v for k, v in context.items() if k not in reserved}
+            value = self._impls[call.tool](**call.arguments, **passthrough)
         except ToolError as exc:
             return finish(False, error_code=exc.code, error=str(exc))
         except Exception as exc:  # implementation faults surface as structured failures

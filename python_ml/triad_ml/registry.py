@@ -25,15 +25,24 @@ CHALLENGER = "challenger"
 # not been told to trust. That default is worth keeping: a model artifact is code, and the
 # alternative (cloudpickle) executes whatever it is handed.
 #
-# The list below is not copied from a tutorial. It is exactly the set produced by TRIAD's own
-# closed candidate registry, enumerated with `skops.io.get_untrusted_types` over every
-# registered family and its calibrated wrapper. Because `candidates.validate_shortlist`
-# already refuses an unregistered family, this set is knowable; adding a family without
-# extending this list makes `log_candidate` fail loudly, which is the correct failure.
+# This is the set produced by TRIAD's own closed candidate registry: every family in
+# `candidates.REGISTERED_FAMILIES`, raw and under both calibration methods. Because
+# `validate_shortlist` refuses an unregistered family, the set is knowable; adding a family
+# without extending this list makes `log_candidate` fail loudly, which is the right failure.
+#
+# It is enumerated by test_ml.py::test_the_trusted_type_list_covers_every_registered_family,
+# which computes it with `skops.io.get_untrusted_types` and fails if this tuple falls short.
+# An earlier version of this list was written by hand and claimed the same coverage while
+# missing two entries: `_SigmoidCalibration`, reached whenever the calibration slice is under
+# 500 rows and `calibrate` falls back from isotonic (train.py), and `AdamOptimizer`, reached
+# by the `mlp` family. Both failed only at registration time, at the end of a full run. Hence
+# the test: a list asserted to be complete has to be computed, not maintained.
 TRUSTED_MODEL_TYPES = (
     "numpy.dtype",
     "sklearn.calibration._CalibratedClassifier",
+    "sklearn.calibration._SigmoidCalibration",
     "sklearn.ensemble._hist_gradient_boosting.predictor.TreePredictor",
+    "sklearn.neural_network._stochastic_optimizers.AdamOptimizer",
     "sklearn.tree._tree.Tree",
     "xgboost.core.Booster",
     "xgboost.sklearn.XGBClassifier",
@@ -78,7 +87,10 @@ class ModelRegistry:
         if tracking_uri:
             mlflow.set_tracking_uri(tracking_uri)
         self.tracking_uri = mlflow.get_tracking_uri()
-        mlflow.set_experiment(experiment)
+        # Kept so the caller can record which MLflow experiment a run's candidates went to;
+        # without it the `experiments` row cannot be tied back to the tracking server.
+        self.experiment = mlflow.set_experiment(experiment)
+        self.experiment_id = str(self.experiment.experiment_id)
         from mlflow.tracking import MlflowClient
 
         self.client = MlflowClient()

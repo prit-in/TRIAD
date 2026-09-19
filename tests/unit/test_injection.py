@@ -165,12 +165,15 @@ def test_no_destructive_tool_is_registered_at_all(tool: str) -> None:
 def test_nothing_destructive_is_registered_however_the_registry_is_populated() -> None:
     """A property that must hold whatever is in the registry, now or later.
 
-    `REGISTRY` is currently empty: the pipeline calls its services directly rather than
-    through the tool registry, so at runtime there is nothing for a model to call at all.
-    That is recorded as a gap in IMPLEMENTATION_STATUS rather than dressed up as a defence -
-    so this test asserts the rule that will still matter once tools are registered.
+    The registry is now populated and on the runtime path (FR-053), so this is no longer a
+    rule waiting for tools to exist: importing the pipeline registers them, and the names
+    below are held against the real set. It stays a property rather than a fixed list so a
+    tool added later cannot slip past it.
     """
+    import agents.tools.pipeline_tools  # noqa: F401  registers the real tools
     from agents.tools.registry import REGISTRY
+
+    assert REGISTRY.names(), "the registry is populated; an empty one would pass vacuously"
 
     forbidden_words = ("delete", "drop", "truncate", "shell", "exec", "promote", "approve")
     offenders = [n for n in REGISTRY.names()

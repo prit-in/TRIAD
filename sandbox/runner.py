@@ -44,6 +44,10 @@ SECRET_ENV_PREFIXES = (
 )
 
 
+SANDBOX_NETWORK_SUFFIX = "triad-sandbox-net"
+"""The compose network declared `internal: true`; the project prefix varies, the name does not."""
+
+
 class SandboxError(Exception):
     pass
 
@@ -58,12 +62,20 @@ class SandboxRequest:
     mounts_ro: dict[str, str] = field(default_factory=dict)   # host path -> container path
     mounts_rw: dict[str, str] = field(default_factory=dict)   # run-scoped staging only
     env: dict[str, str] = field(default_factory=dict)
-    network: str = "triad_triad-sandbox-net"
+    network: str = "triad_" + SANDBOX_NETWORK_SUFFIX
     workdir: str = "/workspace"
 
     def validate(self) -> None:
         if self.profile not in RESOURCE_PROFILES:
             raise SandboxError(f"unknown resource profile: {self.profile}")
+        # `internal_only` in the policy file is a real constraint, so it is checked where
+        # every path has to pass: a job that names any other network could reach off the
+        # host. The one permitted name is the compose network declared `internal: true`.
+        if not self.network.endswith(SANDBOX_NETWORK_SUFFIX):
+            raise SandboxError(
+                f"sandbox network {self.network!r} is not the internal sandbox network "
+                f"(must end with {SANDBOX_NETWORK_SUFFIX!r}); jobs never reach off the host"
+            )
         if not self.command:
             raise SandboxError("no command given")
         for key in self.env:

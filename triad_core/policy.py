@@ -227,6 +227,10 @@ class PolicyEngine:
         if profiles is not None and context.get("profile") and context["profile"] not in profiles:
             breaches.append(f"sandbox profile {context['profile']} is not permitted")
 
+        network = limits.get("network")
+        if network == "internal_only" and context.get("network") not in (None, "internal_only"):
+            breaches.append(f"network {context['network']} is not the internal sandbox network")
+
         condition = spec.get("condition")
         if condition and not context.get(condition):
             breaches.append(f"condition {condition} is not satisfied")

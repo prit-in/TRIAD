@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from agents.graph.pipeline import ChurnPipeline
 from agents.monitoring import MonitoringService
 from triad_core.config import settings
-from triad_core.models import ModelVersion, PipelineRun
+from triad_core.models import Experiment, ModelVersion, PipelineRun
 from triad_core.storage import Storage, storage
 
 Logger = Callable[[str, str, bool | None], None]
@@ -358,11 +358,13 @@ def prepare(
     # -- register the challenger ------------------------------------------------
     threshold = selection.selected.valid_metrics.get("threshold", 0.5)
     mlflow_version: str | None = None
+    mlflow_experiment_id: str | None = None
     registry_error = ""
     try:
         from python_ml.triad_ml.registry import ModelRegistry
 
         registry = ModelRegistry(settings().mlflow_tracking_uri)
+        mlflow_experiment_id = registry.experiment_id
         registered = registry.log_candidate(
             model=selection.selected.pipeline,
             name=f"{run.run_key}-{selection.selected.family}",
@@ -381,6 +383,22 @@ def prepare(
     except Exception as exc:
         registry_error = str(exc)
         say("registry", f"could not register the challenger: {exc}", False)
+
+    # FR-077: the modelling experiment this run's candidates belong to, recorded in the
+    # database and not only on the tracking server. Written whether or not MLflow was
+    # reachable - the split spec and objective are what make a comparison reproducible, and
+    # they are known here regardless. `mlflow_experiment_id` is null when it was not.
+    session.add(
+        Experiment(
+            run_id=run.id,
+            mlflow_experiment_id=mlflow_experiment_id,
+            name=f"{run.run_key}-churn-selection",
+            objective_metric="pr_auc",
+            split_spec_json=spec.to_dict(),
+            feature_set_version="fsv=1",
+        )
+    )
+    session.flush()
 
     monitor = MonitoringService(session, store=store, config=pipeline.config,
                                 governance=pipeline.governance)
@@ -596,10 +614,14 @@ def publish(
             else None
         )
     if model is None:
-        pipeline.finish("ESCALATED", ok=False,
-                        reason="no model artifact is available to score with")
-        return PhaseResult(False, "ESCALATED",
-                           "no model artifact is available to score with")
+        # Say *why* there is no artifact. The cause is almost always the registration
+        # failure recorded five stages earlier, and an operator reading only "no model
+        # artifact" has to go and find it.
+        reason = "no model artifact is available to score with"
+        if state.get("registry_error"):
+            reason += f"; the challenger was never registered: {state['registry_error']}"
+        pipeline.finish("ESCALATED", ok=False, reason=reason)
+        return PhaseResult(False, "ESCALATED", reason)
 
     set_type = OFFICIAL if promoted else SHADOW
     explanations = explain(model, split.test, feature_cols)
