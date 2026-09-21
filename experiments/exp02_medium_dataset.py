@@ -78,10 +78,14 @@ def split_groups(cutoffs: list[pd.Timestamp]) -> dict[str, list[pd.Timestamp]]:
     from python_ml.triad_ml.splits import plan_split
 
     spec = plan_split([c.date() for c in cutoffs], horizon_days=90)
+    # `valid_cutoff` and `test_cutoff` are single dates, not lists - the split holds out one
+    # cutoff each. The calibration cutoffs are carved out of the *training* ones, so they
+    # belong with training here: these baselines have no separate calibration step, and
+    # dropping those months would train them on less data than the pipeline gets.
     return {
-        "train": [pd.Timestamp(c) for c in spec.train_cutoffs],
-        "valid": [pd.Timestamp(c) for c in spec.valid_cutoffs],
-        "test": [pd.Timestamp(c) for c in spec.test_cutoffs],
+        "train": [pd.Timestamp(c) for c in [*spec.train_cutoffs, *spec.calibration_cutoffs]],
+        "valid": [pd.Timestamp(spec.valid_cutoff)],
+        "test": [pd.Timestamp(spec.test_cutoff)],
     }
 
 

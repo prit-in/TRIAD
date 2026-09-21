@@ -198,7 +198,14 @@ def run() -> Experiment:
             mutated = mutation.apply(baseline_slot)
             trial.record("mutation_applied", mutated != baseline_slot)
 
-            art = render(template, {SLOT_ID: mutated}, suffix=f"exp08{mutation.fault_id.lower()}")
+            # The suffix becomes a Scala object name, so it has to be a valid identifier. It
+            # was `exp08{fault_id}` and `fault_id` is like "WC-1", which produced
+            # `object CleanJob_exp08wc-1` and a parse error on the hyphen. Every mutated
+            # artifact then failed to compile for that reason, and the experiment recorded
+            # "20 of 20 detected" when 15 of those were its own broken identifier. The
+            # forbidden-API five were genuine, because gate 2 refuses them before any compile.
+            suffix = "exp08" + "".join(c for c in mutation.fault_id.lower() if c.isalnum())
+            art = render(template, {SLOT_ID: mutated}, suffix=suffix)
             write_artifact(art)
             # The compiler is only spent on faults the static gates let through, which is also
             # what the production validator does.
