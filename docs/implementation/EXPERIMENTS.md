@@ -164,6 +164,10 @@ Four findings, none of which a passing test would have surfaced:
    and 5 files holding the same rows. `sha256_dir` keeps its name-sensitive behaviour for code
    trees. The cost is a read-back on commit, O(rows); the cheaper alternative is a
    deterministic sort before write in the Scala job, and that trade is recorded in the code.
+
+   Confirmed end to end afterwards: a replay of run-2026-09-21-007 reused 3/3 stored artifacts,
+   made 0 LLM calls, and reproduced all three outputs identically — clean `061e97b5…`, features
+   `2a97e511…`, labels `ce277092…`. ATC-18 passes.
 2. **A 256m Spark driver's out-of-memory failure is classified `UNKNOWN`,** so the playbook
    prescribed `none` and `RAISE_EXECUTOR_MEMORY` never fired. The classifier does not recognise
    the signature this failure actually produces. **Open.**

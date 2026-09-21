@@ -113,7 +113,7 @@ which part is missing.
 | --- | --- | --- | --- |
 | FR-064 | Metrics reporting | met | `metrics` table, `/models/{id}`, the dashboard |
 | FR-065 | Standard charts | **partly met** (Must) | The *data* now exists: `reports/<run_key>/evaluation.json` carries ROC, precision-recall, calibration bins and a lift/gain sweep, served at `GET /models/{ref}/versions/{id}/evaluation`. Before this the points were computed and discarded, so the charts could only have been drawn from invented numbers. The frontend does not yet draw them and has no charting code beyond a div-width bar |
-| AP-6 | Segment recall gap | **now enforced** — it never compared anything: `churn.prepare` passed `segment_cols=["country"] if "country" in dataset.columns else None`, and the feature job emits only numeric aggregates, so every run evaluated an empty list. Customer attributes are joined at the hand-off for evaluation and kept out of the model's features. Two tests pin that the gate bites and does not over-fire |
+| AP-6 | Segment recall gap | **now enforced**, verified: run-2026-09-21-007 recorded **14 segment metric sets** where every previous run recorded none. It never compared anything: `churn.prepare` passed `segment_cols=["country"] if "country" in dataset.columns else None`, and the feature job emits only numeric aggregates, so every run evaluated an empty list. Customer attributes are joined at the hand-off for evaluation and kept out of the model's features. Two tests pin that the gate bites and does not over-fire |
 | FR-066 | Model comparison | **partly met** (Must) | Bootstrap intervals now reach the database - `metrics.ci_low`/`ci_high` were columns nothing filled, so "comparison with confidence intervals" had no intervals. The evaluation document carries every screened family and the champion delta. No side-by-side UI yet |
 | FR-067 | Feature importance | met | in the report and on the predictions page, labelled as association. Now also persisted with its method in the evaluation document, instead of being recomputed each publish and dropped |
 | FR-068 | Data quality report | met | the profile document and `/datasets/{id}/versions/{n}/profile` |
@@ -164,7 +164,7 @@ which part is missing.
 | ATC-12 | Smoke-test failure rolls back | met — implemented and reachable with `--fail-smoke` |
 | ATC-13 | Prompt injection in data | met — `tests/unit/test_injection.py`, four defences tested separately. EXP-10 found a fifth class the scanner read past: chat-template control tokens, now flagged and broken up before fencing |
 | ATC-17 | Self-approval refused | met — asserted through the service *and* through the API |
-| ATC-18 | Replay with no LLM calls | **partly met** — `scripts/replay_run.py` exists; a replay reuses all three stored artifacts with identical content hashes, makes 0 LLM calls, and reproduces identical rows and identical per-family PR-AUCs. The output-hash half needed two fixes: Spark's per-job UUID in every part-file name, and row-to-file assignment that varies with task scheduling. A table's content is now the multiset of its rows. Pending one end-to-end confirmation run |
+| ATC-18 | Replay with no LLM calls | **met** — verified end to end on run-2026-09-21-007: 3/3 stored artifacts reused with identical content hashes, 0 LLM invocations, and all three outputs identical (clean `061e97b5…`, features `2a97e511…`, labels `ce277092…`). Getting there needed two fixes, because there were two causes: Spark's per-job UUID in every part-file name, and row-to-file assignment that varies with task scheduling. A table's content is now the multiset of its rows |
 | ATC-06..11, 14..16 | (various) | **partly covered** by the tests above; not individually mapped |
 
 ## Experiments
@@ -211,11 +211,17 @@ The gaps are concentrated in one place, and it is not a governance gap:
 routed through; every Spark submission and catalogue commit now goes through it, and a full run
 shows twelve mediated calls in the audit trail.
 
-The item that would most repay attention next is the reproducibility defect EXP-6 found: a
-Spark output folder's content hash includes Spark's per-job UUID in the part-file names, so it
-cannot be stable across runs. NFR-REP-02 and the second half of ATC-18 depend on it, and the
-replay script - which is otherwise complete - will report a mismatch until the hash is made
-name-independent for data folders.
+The reproducibility defect EXP-6 found is closed: ATC-18 passes end to end, and NFR-REP-02 has
+a definition of "identical content" that a Spark output can actually satisfy.
+
+The item that would most repay attention next is one EXP-6 did not find, because nothing was
+looking: **a pipeline run in progress blocks every login.** `churn.prepare` held one
+transaction for the length of a run, and the ingest writes inside it take the *system* audit
+chain's advisory lock, which `auth.login` also needs. Measured: one transaction idle for 9m56s
+with three logins queued behind it, all released the instant the run finished. `run_demo.py`
+now commits its ingest first, which removes the observed blockage; the general shape - a long
+transaction touching a shared chain - is recorded in the known-limits table because it is
+still possible elsewhere.
 
 A closing note on method, because it changes how this document should be read. Nine of the
 defects recorded here were found by *running* the system, not by reading it: the audit chain
