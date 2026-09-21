@@ -139,7 +139,14 @@ export interface Evaluation {
   rejected: { family: string; reason: string }[];
   acceptance: Record<string, { passed: boolean; reason_codes: string[] }>;
   rules_applied: string[];
-  feature_importance: { method: string; note: string; global: { feature: string; importance: number }[] } | null;
+  // `value` is what `predict.explain` writes, not `importance`. Typing it wrong cost a
+  // silently empty chart: the mapped values came back undefined, the bar chart dropped them as
+  // not-finite, and the panel said "nothing measured" over five perfectly good measurements.
+  feature_importance: {
+    method: string;
+    note: string;
+    global: { feature: string; value: number }[];
+  } | null;
 }
 
 export interface AuditEntry {

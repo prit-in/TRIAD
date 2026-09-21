@@ -41,7 +41,11 @@ export function Models() {
             <Aliased label="Challenger" version={model.challenger} />
           </div>
           {open === model.name && <Versions name={model.name} />}
-          {model.champion && <ModelEvaluation modelRef={model.name} version={model.champion} />}
+          {/* Both aliases, not just the champion. The challenger is the one whose curves
+              someone needs while deciding a promotion (FR-066), and in practice it is also
+              the version that has an evaluation document at all: a champion promoted before
+              these documents existed has none, which is why this page showed no charts. */}
+          <AliasEvaluations model={model} />
         </Panel>
       ))}
     </>
@@ -107,6 +111,24 @@ function Versions({ name }: { name: string }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+function AliasEvaluations({ model }: { model: ModelSummary }) {
+  const aliases: { label: string; version: ModelVersion }[] = [];
+  if (model.champion) aliases.push({ label: "Champion", version: model.champion });
+  if (model.challenger) aliases.push({ label: "Challenger", version: model.challenger });
+
+  if (aliases.length === 0) return null;
+  return (
+    <Tabs
+      label={`${model.name} evaluation`}
+      tabs={aliases.map(({ label, version }) => ({
+        id: `${model.name}-${version.id}`,
+        label: `${label} v${version.mlflow_version ?? "?"}`,
+        content: <ModelEvaluation modelRef={model.name} version={version} />,
+      }))}
+    />
   );
 }
 
@@ -322,7 +344,7 @@ function ModelEvaluation({ modelRef, version }: { modelRef: string; version: Mod
                 width={620}
                 bars={evaluated.feature_importance.global.slice(0, 10).map((f) => ({
                   label: f.feature,
-                  value: f.importance,
+                  value: f.value,
                 }))}
               />
               <p className="footnote">{evaluated.feature_importance.note}</p>
