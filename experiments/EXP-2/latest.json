@@ -1,0 +1,574 @@
+{
+  "exp_id": "EXP-2",
+  "title": "Medium dataset: where a single node gives out",
+  "hypothesis": "The single-node pandas configuration (B2) is the first to fail as the data grows, while the Spark configuration (B3) keeps going.",
+  "independent_variable": "dataset size (customers), configuration",
+  "dependent_measures": [
+    "completed",
+    "wall_clock_s",
+    "peak_rss_mb",
+    "bytes_on_disk",
+    "rows_trained",
+    "test_pr_auc"
+  ],
+  "started_at": "2026-09-21T20:40:46.148722+00:00",
+  "duration_s": 444.46,
+  "status": "partial",
+  "hypothesis_held": false,
+  "conclusion": "Ladder: 400 customers, 0.4 MB on disk: B2 ok in 9s, B3 ok in 46s; 1500 customers, 1.4 MB on disk: B2 ok in 7s, B3 ok in 29s; 6000 customers, 5.1 MB on disk: B2 ok in 9s, B3 ok in 33s; 20000 customers, 14.9 MB on disk: B2 ok in 20s, B3 ok in 55s. No crossover was observed within the sizes this machine can hold, so the hypothesis is neither supported nor refuted here. At the largest rung both completed (customers_20000), B2 took 19.8s and B3 54.8s, with peak RSS 1064.9 MB and 1064.9 MB. The PRD's 10 GB tier is not reported: see the limitations. Configuration P is not on this ladder either - it is measured against B3 in EXP-1, where the comparison is at a size all three can complete.",
+  "limitations": [
+    "The PRD's 10 GB tier was not run and is not estimated. Docker has a 5.27 GB VM here and the sandbox clamps any container to 3 GB (ADR-0002), so a 10 GB dataset would fail for every configuration including the ones the hypothesis expects to finish - three failures and no information. What is measured instead is the crossover the hypothesis asserts: the rung at which B2 stops and B3 does not.",
+    "REES46 monthly files were not used. The project has no network access for dataset downloads in this environment and large datasets must not be committed to git."
+  ],
+  "trials": [
+    {
+      "condition": "customers_400",
+      "ok": true,
+      "detail": "400 customers, 0.4 MB on disk: B2 ok in 9s, B3 ok in 46s",
+      "measurements": [
+        {
+          "name": "generate_s",
+          "value": 3.5,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "customers",
+          "value": 400,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "bytes_on_disk",
+          "value": 422366,
+          "unit": "bytes",
+          "note": ""
+        },
+        {
+          "name": "b2_completed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b2_wall_clock_s",
+          "value": 8.9,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "b2_peak_rss_mb",
+          "value": 246.0,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "b2_rows_trained",
+          "value": 769,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b2_test_pr_auc",
+          "value": 0.7929,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_completed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_wall_clock_s",
+          "value": 46.1,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "b3_peak_rss_mb",
+          "value": 257.6,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "b3_rows_trained",
+          "value": 769,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_test_pr_auc",
+          "value": 0.7923,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "b2": {
+          "baseline": "B2",
+          "ok": true,
+          "wall_clock_s": 8.86,
+          "rows_trained": 769,
+          "rows_tested": 291,
+          "test_pr_auc": 0.7929,
+          "test_roc_auc": 0.8073,
+          "test_brier": 0.2008,
+          "selected_family": "logreg",
+          "families_tried": [
+            "logreg",
+            "random_forest",
+            "hist_gb",
+            "dummy"
+          ],
+          "human_actions": 0,
+          "llm_calls": 0,
+          "peak_rss_mb": 246.0,
+          "detail": "selected logreg on validation PR-AUC 0.7591",
+          "per_stage_s": {
+            "features": 0.64,
+            "train_and_select": 8.22
+          }
+        },
+        "b3": {
+          "baseline": "B3",
+          "ok": true,
+          "wall_clock_s": 46.14,
+          "rows_trained": 769,
+          "rows_tested": 291,
+          "test_pr_auc": 0.7923,
+          "test_roc_auc": 0.8069,
+          "test_brier": 0.2011,
+          "selected_family": "logreg",
+          "families_tried": [
+            "logreg",
+            "random_forest",
+            "hist_gb",
+            "dummy"
+          ],
+          "human_actions": 0,
+          "llm_calls": 0,
+          "peak_rss_mb": 257.6,
+          "detail": "selected logreg on validation PR-AUC 0.7589",
+          "per_stage_s": {
+            "features_spark": 41.65,
+            "train_and_select": 4.45
+          }
+        }
+      }
+    },
+    {
+      "condition": "customers_1500",
+      "ok": true,
+      "detail": "1500 customers, 1.4 MB on disk: B2 ok in 7s, B3 ok in 29s",
+      "measurements": [
+        {
+          "name": "generate_s",
+          "value": 11.2,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "customers",
+          "value": 1500,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "bytes_on_disk",
+          "value": 1421496,
+          "unit": "bytes",
+          "note": ""
+        },
+        {
+          "name": "b2_completed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b2_wall_clock_s",
+          "value": 6.7,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "b2_peak_rss_mb",
+          "value": 311.8,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "b2_rows_trained",
+          "value": 2688,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b2_test_pr_auc",
+          "value": 0.7761,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_completed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_wall_clock_s",
+          "value": 29.1,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "b3_peak_rss_mb",
+          "value": 311.8,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "b3_rows_trained",
+          "value": 2688,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_test_pr_auc",
+          "value": 0.7742,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "b2": {
+          "baseline": "B2",
+          "ok": true,
+          "wall_clock_s": 6.74,
+          "rows_trained": 2688,
+          "rows_tested": 1050,
+          "test_pr_auc": 0.7761,
+          "test_roc_auc": 0.85,
+          "test_brier": 0.1474,
+          "selected_family": "random_forest",
+          "families_tried": [
+            "random_forest",
+            "logreg",
+            "hist_gb",
+            "dummy"
+          ],
+          "human_actions": 0,
+          "llm_calls": 0,
+          "peak_rss_mb": 311.8,
+          "detail": "selected random_forest on validation PR-AUC 0.731",
+          "per_stage_s": {
+            "features": 0.72,
+            "train_and_select": 6.02
+          }
+        },
+        "b3": {
+          "baseline": "B3",
+          "ok": true,
+          "wall_clock_s": 29.08,
+          "rows_trained": 2688,
+          "rows_tested": 1050,
+          "test_pr_auc": 0.7742,
+          "test_roc_auc": 0.8488,
+          "test_brier": 0.1479,
+          "selected_family": "random_forest",
+          "families_tried": [
+            "random_forest",
+            "logreg",
+            "hist_gb",
+            "dummy"
+          ],
+          "human_actions": 0,
+          "llm_calls": 0,
+          "peak_rss_mb": 311.8,
+          "detail": "selected random_forest on validation PR-AUC 0.7288",
+          "per_stage_s": {
+            "features_spark": 24.68,
+            "train_and_select": 4.38
+          }
+        }
+      }
+    },
+    {
+      "condition": "customers_6000",
+      "ok": true,
+      "detail": "6000 customers, 5.1 MB on disk: B2 ok in 9s, B3 ok in 33s",
+      "measurements": [
+        {
+          "name": "generate_s",
+          "value": 46.6,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "customers",
+          "value": 6000,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "bytes_on_disk",
+          "value": 5116019,
+          "unit": "bytes",
+          "note": ""
+        },
+        {
+          "name": "b2_completed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b2_wall_clock_s",
+          "value": 9.2,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "b2_peak_rss_mb",
+          "value": 524.7,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "b2_rows_trained",
+          "value": 11331,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b2_test_pr_auc",
+          "value": 0.7662,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_completed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_wall_clock_s",
+          "value": 32.8,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "b3_peak_rss_mb",
+          "value": 524.7,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "b3_rows_trained",
+          "value": 11331,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_test_pr_auc",
+          "value": 0.7637,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "b2": {
+          "baseline": "B2",
+          "ok": true,
+          "wall_clock_s": 9.17,
+          "rows_trained": 11331,
+          "rows_tested": 4267,
+          "test_pr_auc": 0.7662,
+          "test_roc_auc": 0.8417,
+          "test_brier": 0.1459,
+          "selected_family": "random_forest",
+          "families_tried": [
+            "random_forest",
+            "hist_gb",
+            "logreg",
+            "dummy"
+          ],
+          "human_actions": 0,
+          "llm_calls": 0,
+          "peak_rss_mb": 524.7,
+          "detail": "selected random_forest on validation PR-AUC 0.7332",
+          "per_stage_s": {
+            "features": 2.13,
+            "train_and_select": 7.03
+          }
+        },
+        "b3": {
+          "baseline": "B3",
+          "ok": true,
+          "wall_clock_s": 32.81,
+          "rows_trained": 11331,
+          "rows_tested": 4267,
+          "test_pr_auc": 0.7637,
+          "test_roc_auc": 0.8396,
+          "test_brier": 0.1467,
+          "selected_family": "random_forest",
+          "families_tried": [
+            "random_forest",
+            "hist_gb",
+            "logreg",
+            "dummy"
+          ],
+          "human_actions": 0,
+          "llm_calls": 0,
+          "peak_rss_mb": 524.7,
+          "detail": "selected random_forest on validation PR-AUC 0.7334",
+          "per_stage_s": {
+            "features_spark": 27.52,
+            "train_and_select": 5.25
+          }
+        }
+      }
+    },
+    {
+      "condition": "customers_20000",
+      "ok": true,
+      "detail": "20000 customers, 14.9 MB on disk: B2 ok in 20s, B3 ok in 55s",
+      "measurements": [
+        {
+          "name": "generate_s",
+          "value": 151.5,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "customers",
+          "value": 20000,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "bytes_on_disk",
+          "value": 14898113,
+          "unit": "bytes",
+          "note": ""
+        },
+        {
+          "name": "b2_completed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b2_wall_clock_s",
+          "value": 19.8,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "b2_peak_rss_mb",
+          "value": 1064.9,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "b2_rows_trained",
+          "value": 37265,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b2_test_pr_auc",
+          "value": 0.7848,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_completed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_wall_clock_s",
+          "value": 54.8,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "b3_peak_rss_mb",
+          "value": 1064.9,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "b3_rows_trained",
+          "value": 37265,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "b3_test_pr_auc",
+          "value": 0.7836,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "b2": {
+          "baseline": "B2",
+          "ok": true,
+          "wall_clock_s": 19.83,
+          "rows_trained": 37265,
+          "rows_tested": 14198,
+          "test_pr_auc": 0.7848,
+          "test_roc_auc": 0.8565,
+          "test_brier": 0.1376,
+          "selected_family": "hist_gb",
+          "families_tried": [
+            "hist_gb",
+            "random_forest",
+            "logreg",
+            "dummy"
+          ],
+          "human_actions": 0,
+          "llm_calls": 0,
+          "peak_rss_mb": 1064.9,
+          "detail": "selected hist_gb on validation PR-AUC 0.7268",
+          "per_stage_s": {
+            "features": 7.72,
+            "train_and_select": 12.07
+          }
+        },
+        "b3": {
+          "baseline": "B3",
+          "ok": true,
+          "wall_clock_s": 54.75,
+          "rows_trained": 37265,
+          "rows_tested": 14198,
+          "test_pr_auc": 0.7836,
+          "test_roc_auc": 0.8554,
+          "test_brier": 0.1384,
+          "selected_family": "hist_gb",
+          "families_tried": [
+            "hist_gb",
+            "random_forest",
+            "logreg",
+            "dummy"
+          ],
+          "human_actions": 0,
+          "llm_calls": 0,
+          "peak_rss_mb": 1064.9,
+          "detail": "selected hist_gb on validation PR-AUC 0.7284",
+          "per_stage_s": {
+            "features_spark": 43.94,
+            "train_and_select": 10.77
+          }
+        }
+      }
+    }
+  ],
+  "run_dir": "20260921T204046Z"
+}

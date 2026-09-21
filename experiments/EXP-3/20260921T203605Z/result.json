@@ -1,0 +1,222 @@
+{
+  "exp_id": "EXP-3",
+  "title": "Scaling with parallelism",
+  "hypothesis": "Doubling the cores available to Spark gives at least 1.6 times speed-up.",
+  "independent_variable": "Spark parallelism (local[N])",
+  "dependent_measures": [
+    "wall_clock_s",
+    "fixed_cost_s",
+    "work_s",
+    "speed_up_vs_1_core",
+    "rows_built"
+  ],
+  "started_at": "2026-09-21T20:36:05.971443+00:00",
+  "duration_s": 267.15,
+  "status": "partial",
+  "hypothesis_held": false,
+  "conclusion": "local[1]: 31.8s wall clock, 23.2s of work after removing 8.6s of fixed cost; local[2]: 18.3s wall clock, 17.8s of work after removing 0.5s of fixed cost; local[4]: 22.8s wall clock, 22.6s of work after removing 0.2s of fixed cost. Speed-up on the work component against one core: local[1] 1.0x, local[2] 1.301x, local[4] 1.026x. Doubling from 2 to 4 cores gave 0.789x, against the hypothesis's 1.6x threshold: not met. Sub-linear scaling is the expected observation and is what the numbers show; the window aggregations shuffle, and shuffling does not halve when the cores double. This is intra-node scaling inside one JVM, not distributed workers, and the 100 GB tier was not run - see the limitations, which also record that shuffle bytes and spill are absent rather than approximated.",
+  "limitations": [
+    "The 100 GB tier was not run and is not estimated: Docker has a 5.27 GB VM here (ADR-0002).",
+    "Distributed workers were not used. Compose can start a Spark master and one worker, but with 8 host cores and ~3 GB usable for containers two workers would contend for the same cores and the result would measure scheduling overhead, not scaling. `local[N]` varies the same knob - cores available to the work - inside one JVM, so there is no network shuffle and no cross-machine spill. The numbers below describe intra-node scaling only.",
+    "Shuffle bytes and spill are not reported. They come from Spark event logs, which are disabled in this environment; enabling them per run and parsing them was out of scope for this experiment and the measurement is simply absent rather than approximated."
+  ],
+  "trials": [
+    {
+      "condition": "dataset",
+      "ok": true,
+      "detail": "",
+      "measurements": [
+        {
+          "name": "generate_s",
+          "value": 43.7,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "customers",
+          "value": 6000,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "bytes_on_disk",
+          "value": 5116019,
+          "unit": "bytes",
+          "note": ""
+        },
+        {
+          "name": "cutoffs",
+          "value": 10,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {}
+    },
+    {
+      "condition": "local_1_cores",
+      "ok": true,
+      "detail": "local[1]: 31.8s wall clock, 23.2s of work after removing 8.6s of fixed cost",
+      "measurements": [
+        {
+          "name": "fixed_cost_s",
+          "value": 8.57,
+          "unit": "s",
+          "note": "a trivial job at this parallelism: JVM start-up plus planning"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 31.76,
+          "unit": "s",
+          "note": "best of the repeats"
+        },
+        {
+          "name": "all_runs_s",
+          "value": [
+            65.07,
+            31.76
+          ],
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "work_s",
+          "value": 23.19,
+          "unit": "s",
+          "note": "wall clock minus the measured fixed cost"
+        },
+        {
+          "name": "rows_built",
+          "value": 19332,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "speed_up_vs_1_core",
+          "value": 1.0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "raw_speed_up_vs_1_core",
+          "value": 1.0,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {}
+    },
+    {
+      "condition": "local_2_cores",
+      "ok": true,
+      "detail": "local[2]: 18.3s wall clock, 17.8s of work after removing 0.5s of fixed cost",
+      "measurements": [
+        {
+          "name": "fixed_cost_s",
+          "value": 0.46,
+          "unit": "s",
+          "note": "a trivial job at this parallelism: JVM start-up plus planning"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 18.29,
+          "unit": "s",
+          "note": "best of the repeats"
+        },
+        {
+          "name": "all_runs_s",
+          "value": [
+            24.72,
+            18.29
+          ],
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "work_s",
+          "value": 17.83,
+          "unit": "s",
+          "note": "wall clock minus the measured fixed cost"
+        },
+        {
+          "name": "rows_built",
+          "value": 19332,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "speed_up_vs_1_core",
+          "value": 1.301,
+          "unit": "",
+          "note": "on the work component, with the measured fixed cost removed"
+        },
+        {
+          "name": "raw_speed_up_vs_1_core",
+          "value": 1.736,
+          "unit": "",
+          "note": "on raw wall clock, fixed cost included"
+        }
+      ],
+      "observations": {}
+    },
+    {
+      "condition": "local_4_cores",
+      "ok": true,
+      "detail": "local[4]: 22.8s wall clock, 22.6s of work after removing 0.2s of fixed cost",
+      "measurements": [
+        {
+          "name": "fixed_cost_s",
+          "value": 0.24,
+          "unit": "s",
+          "note": "a trivial job at this parallelism: JVM start-up plus planning"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 22.83,
+          "unit": "s",
+          "note": "best of the repeats"
+        },
+        {
+          "name": "all_runs_s",
+          "value": [
+            22.83,
+            24.52
+          ],
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "work_s",
+          "value": 22.59,
+          "unit": "s",
+          "note": "wall clock minus the measured fixed cost"
+        },
+        {
+          "name": "rows_built",
+          "value": 19332,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "speed_up_vs_1_core",
+          "value": 1.026,
+          "unit": "",
+          "note": "on the work component, with the measured fixed cost removed"
+        },
+        {
+          "name": "raw_speed_up_vs_1_core",
+          "value": 1.391,
+          "unit": "",
+          "note": "on raw wall clock, fixed cost included"
+        },
+        {
+          "name": "speed_up_2_to_4_cores",
+          "value": 0.789,
+          "unit": "",
+          "note": "the ratio the hypothesis is about"
+        }
+      ],
+      "observations": {}
+    }
+  ]
+}
