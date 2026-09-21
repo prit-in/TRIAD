@@ -325,16 +325,16 @@ build: 332 kB, 102 kB gzipped.
 
 | Suite | Command | Result |
 | --- | --- | --- |
-| Python unit | `pytest tests/unit -q` | *filled below* |
+| Python unit | `pytest tests/unit -q` | **470 passed** in 9m55s (with the security suite: 520 passed) |
 | Python security | `pytest tests/security -q` | **50 passed** |
 | Smoke | `pytest tests/smoke -q` | **9 passed, 1 skipped** (the skip is by design: the docker CLI is absent inside the container) |
-| Scala | `sbt test` | *filled below* |
+| Scala | `sbt core/test` | **21 succeeded**, 0 failed, 2 suites, in 6m10s |
 | Frontend type-check | `tsc -b --noEmit` | **clean**, TypeScript 5.9 strict |
-| Frontend build | `npm run build` | **built in 9.71s**, 332 kB / 102 kB gzipped |
+| Frontend build | `npm run build` | **built in 5.88s**, 332.80 kB / 102.62 kB gzipped |
 | Lint | `ruff check .` | **All checks passed** |
 | Integration | — | There is no separate suite. The API tests run against a real PostgreSQL with a real Alembic schema, and the demo exercises Spark→Parquet→Python and MLflow end to end. Recorded as *covered elsewhere*, not as a suite that exists |
 | End-to-end | `scripts/run_demo.py` | Four consecutive clean runs |
-| Browser | Playwright, manual walkthrough | All eleven pages verified against live data |
+| Browser | Playwright, driven walkthrough | All eleven pages verified against live data |
 
 ### End-to-end runs
 
@@ -343,6 +343,7 @@ build: 332 kB, 102 kB gzipped.
 | `run-2026-09-21-020` | PUBLISHED in 818s | KEEP_CHAMPION, 14 segment metric sets, 1 252 audit entries across 80 chains verified, logins served throughout |
 | `run-2026-09-21-022` | PUBLISHED | Model card written for version 15 |
 | `run-2026-09-21-023` | PUBLISHED in 930s | 1 317 audit entries across 83 chains verified; gates 1, 2, 3, 4 and 8 recorded per artifact |
+| `run-2026-09-21-024` | PUBLISHED in 678s | 1 347 audit entries across 84 chains verified; **all seven gates — 1, 2, 3, 4, 7, 8, 9 — recorded on all three artifacts** |
 
 ### Browser verification
 

@@ -109,7 +109,7 @@ docker compose -f docker/compose.yaml exec -T frontend npm run build   # -> fron
 ```
 
 Serve `frontend/dist` from any static host, with `/api` proxied to the API service. The build is
-about 332 kB, 102 kB gzipped, with three runtime dependencies and no chart or UI library.
+332.80 kB, 102.62 kB gzipped, with three runtime dependencies and no chart or UI library.
 
 ## Backups
 

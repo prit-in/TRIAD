@@ -6,8 +6,8 @@ reading the code and the tests rather than by reading the earlier status documen
 **The point of this document is the "not met" column.** A traceability matrix that maps every
 requirement to a tick is a matrix nobody checked.
 
-Verified on 22-09-2026 against commit `2d0b1fd`, with 458 Python tests, 21 Scala tests and
-9 smoke checks passing, and with all ten experiments run.
+Verified on 22-09-2026 against commit `2591623`, with 470 unit tests, 50 security tests,
+21 Scala tests and 9 smoke checks passing, and with all ten experiments run.
 
 ## Summary
 

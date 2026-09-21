@@ -71,7 +71,7 @@ acceptance policy working.
 | `frontend/` | React 19 + Vite, no UI or chart library |
 | `experiments/` | The ten PRD experiments and every result they have written |
 | `docs/` | Everything below |
-| `tests/` | 467 Python tests, plus smoke, integration, security and e2e suites |
+| `tests/` | 470 unit tests, 50 security tests and a 10-check smoke suite |
 | `scripts/` | `run_demo.py`, `replay_run.py`, `seed_demo.py`, `run_experiment.py` and other entry points |
 
 ## Documentation
@@ -91,6 +91,7 @@ acceptance policy working.
 | [Limitations and ethics](docs/limitations-and-ethics.md) | What this does not do, and what it must not be used for |
 | [Experiments](docs/implementation/EXPERIMENTS.md) | All ten, with what each measured and what it did not |
 | [Requirements traceability](docs/implementation/REQUIREMENTS_TRACEABILITY.md) | Every PRD requirement against the evidence, including the ones not met |
+| [Completion report](docs/implementation/FINAL_REPORT.md) | What was built, what was found, what is measured, what is left |
 | [Implementation status](docs/implementation/IMPLEMENTATION_STATUS.md) | Where the work stands; read this first when resuming |
 | [Decision records](docs/adr/) | Architecture decisions, in context-decision-alternatives-consequences form |
 
@@ -118,7 +119,7 @@ enforcement is removed:
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m pytest tests/unit -q
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m ruff check .
 docker compose -f docker/compose.yaml exec -T frontend npm run build
-cd scala_spark && sbt test      # 21 ScalaTest cases
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev \n    sh -c "cd scala_spark && /opt/sbt/bin/sbt -batch core/test"   # 21 ScalaTest cases
 ```
 
 ## A note on the numbers in these documents

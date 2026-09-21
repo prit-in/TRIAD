@@ -104,12 +104,16 @@ python scripts/replay_run.py --latest      # ATC-18: replay with no LLM calls, i
 ## Tests
 
 ```bash
-# 470 Python tests. About nine minutes; several start a real SparkSession.
+# 470 unit tests. About ten minutes; several start a real SparkSession.
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m pytest tests/unit -q
+
+# 50 security tests: every endpoint's role gate, and a secret scan of the tracked source.
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m pytest tests/security -q
 
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m ruff check .
 docker compose -f docker/compose.yaml exec -T frontend npm run build   # tsc -b && vite build
-cd scala_spark && sbt test                                             # 21 ScalaTest cases
+# 21 ScalaTest cases, about six minutes including the sbt launcher
+docker compose -f docker/compose.yaml --profile tools run --rm -T dev \n    sh -c "cd scala_spark && /opt/sbt/bin/sbt -batch core/test"
 ```
 
 Tests that need PostgreSQL skip themselves cleanly when it is not reachable rather than failing

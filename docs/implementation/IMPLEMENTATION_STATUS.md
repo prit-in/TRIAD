@@ -22,8 +22,8 @@ number.
 | 8. Testing and optimisation | success criteria audited | **PASSED** — `REQUIREMENTS_TRACEABILITY.md`, and all ten experiments run |
 | 9. Documentation and demo | three stable rehearsals | **PASSED** — `run-2026-09-19-006`, `run-2026-09-21-007` and `run-2026-09-21-020` |
 
-Test totals: **458 Python tests**, **21 Scala tests**, **9 smoke checks** (1 skipped by
-design), **ruff clean**, and the frontend builds under TypeScript strict mode.
+Test totals: **470 unit tests**, **50 security tests**, **21 Scala tests**, **9 smoke checks**
+(1 skipped by design), **ruff clean**, and the frontend builds under TypeScript strict mode.
 
 All eight pages the PRD's section 26.1 names now exist. Dataset, Report and Settings were the
 three that did not, and building the first of them found that the profile endpoint behind it had
@@ -230,7 +230,7 @@ F-18) and `docs/implementation/DECISIONS.md` (DEC-01 to DEC-19).
 
 ```
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m pytest tests/unit -q
-  -> 458 passed
+  -> 470 passed (520 with tests/security)
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m ruff check .
   -> All checks passed
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev     python scripts/run_demo.py --customers 400 --months 24
