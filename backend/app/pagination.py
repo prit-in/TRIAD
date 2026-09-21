@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import datetime as dt
 from typing import Any
 
 from backend.app import problems
@@ -21,12 +22,30 @@ def encode_cursor(value: Any) -> str:
     return base64.urlsafe_b64encode(str(value).encode("utf-8")).decode("ascii")
 
 
-def decode_cursor(cursor: str | None) -> str | None:
+def decode_cursor(cursor: str | None) -> dt.datetime | None:
+    """The timestamp the cursor encodes, as a datetime.
+
+    It used to return the decoded **string**, which the caller then compared against a
+    `timestamp with time zone` column. Postgres has no `timestamp < varchar` operator, so
+    every request carrying a cursor returned 500 - on the one paginated endpoint the API has.
+    Nothing had ever asked for a second page, so nothing found out.
+
+    `fromisoformat` accepts what `encode_cursor` produces, because the value encoded is the
+    `str()` of a timezone-aware datetime.
+    """
     if not cursor:
         return None
     try:
-        return base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        raw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
     except (binascii.Error, UnicodeDecodeError, ValueError) as exc:
+        raise problems.bad_request(
+            "The cursor is not one this API issued. Omit it to start from the beginning."
+        ) from exc
+    try:
+        return dt.datetime.fromisoformat(raw)
+    except ValueError as exc:
+        # Decodable base64 that is not one of our cursors: still the client's problem to fix
+        # by dropping it, and still not a 500.
         raise problems.bad_request(
             "The cursor is not one this API issued. Omit it to start from the beginning."
         ) from exc

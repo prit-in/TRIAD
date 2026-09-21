@@ -745,3 +745,45 @@ def test_a_run_with_live_work_still_blocks_the_pipeline(client, users, db_sessio
                           json={"pipeline": name})
     assert blocked.status_code == 409
     assert "still queued" in blocked.json()["detail"]
+
+
+def test_a_cursor_decodes_to_a_datetime_not_a_string() -> None:
+    """The only paginated endpoint returned 500 on every second page.
+
+    `decode_cursor` handed back the decoded string, which the query then compared against a
+    `timestamp with time zone` column. Postgres has no `timestamp < varchar` operator. Nothing
+    had ever requested a second page, so nothing found out — the frontend typed `next_cursor`
+    and never read it.
+    """
+    import datetime as dt
+
+    from backend.app.pagination import decode_cursor, encode_cursor
+
+    moment = dt.datetime(2026, 9, 21, 19, 18, 29, 260008, tzinfo=dt.UTC)
+    decoded = decode_cursor(encode_cursor(moment))
+    assert isinstance(decoded, dt.datetime)
+    assert decoded == moment
+
+
+def test_a_cursor_that_is_not_ours_is_a_400_not_a_500() -> None:
+    """Decodable base64 that is not a timestamp is the client's mistake, not a server fault."""
+    import base64
+
+    from backend.app import problems
+    from backend.app.pagination import decode_cursor
+
+    junk = base64.urlsafe_b64encode(b"not-a-timestamp").decode("ascii")
+    with pytest.raises(problems.Problem) as raised:
+        decode_cursor(junk)
+    assert raised.value.status == 400
+
+    with pytest.raises(problems.Problem) as raised:
+        decode_cursor("!!! not base64 !!!")
+    assert raised.value.status == 400
+
+
+def test_no_cursor_means_start_at_the_beginning() -> None:
+    from backend.app.pagination import decode_cursor
+
+    assert decode_cursor(None) is None
+    assert decode_cursor("") is None
