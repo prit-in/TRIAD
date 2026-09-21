@@ -184,9 +184,12 @@ def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
 
         state = prepared.details
         selection = state.get("selection") or {}
-        chosen = selection.get("selected") or {}
-        test_values = (selection.get("test_metrics") or {}).get("values", {}) or {}
-        trial.record("selected_family", chosen.get("family"))
+        # `SelectionResult.to_dict` writes `selected_family` and `test` - not `selected` and
+        # `test_metrics`, which are the attribute names on the object. Reading the attribute
+        # names off the serialised dict returned None for both and the experiment reported a
+        # completed run with no model and no PR-AUC.
+        test_values = (selection.get("test") or {}).get("values", {}) or {}
+        trial.record("selected_family", selection.get("selected_family"))
         trial.record("test_pr_auc", _round(test_values.get("pr_auc")))
         trial.record("test_roc_auc", _round(test_values.get("roc_auc")))
         trial.record("test_brier", _round(test_values.get("brier")))
@@ -210,7 +213,8 @@ def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
         trial.ok = True
         trial.detail = (
             f"completed in {wall:.0f}s over {len(executions)} Spark jobs; "
-            f"{chosen.get('family')} at test PR-AUC {_round(test_values.get('pr_auc'))}; "
+            f"{selection.get('selected_family')} at test PR-AUC "
+            f"{_round(test_values.get('pr_auc'))}; "
             f"{approvals_needed} approval(s) required, no other manual step"
         )
         q.set_state(session, run, "CANCELLED", actor="exp01")
@@ -220,9 +224,15 @@ def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
 def _cutoff_groups(split: dict[str, Any]) -> dict[str, list[pd.Timestamp]]:
     """The train/valid/test month starts P chose, so the baselines split identically."""
     return {
-        "train": [pd.Timestamp(c) for c in split.get("train_cutoffs", [])],
-        "valid": [pd.Timestamp(c) for c in split.get("valid_cutoffs", [])],
-        "test": [pd.Timestamp(c) for c in split.get("test_cutoffs", [])],
+        # `valid_cutoff` and `test_cutoff` are single dates. Reading plurals gave empty
+        # validation and test splits, and both baselines refused to run - correctly, since a
+        # baseline scored on nothing would have been worse than one that failed.
+        "train": [
+            pd.Timestamp(c)
+            for c in [*split.get("train_cutoffs", []), *split.get("calibration_cutoffs", [])]
+        ],
+        "valid": [pd.Timestamp(split["valid_cutoff"])],
+        "test": [pd.Timestamp(split["test_cutoff"])],
     }
 
 

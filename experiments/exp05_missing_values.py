@@ -151,7 +151,8 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
 
         state = prepared.details
         selection = state.get("selection") or {}
-        chosen = selection.get("selected") or {}
+        # `to_dict` writes `selected_family`, `test` and `valid` - not the attribute names.
+        chosen_family = selection.get("selected_family")
 
         # --- the cleaning stage: quarantine counts ------------------------------
         # Read from the stage records the pipeline itself wrote, not recomputed here.
@@ -189,14 +190,13 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
         trial.observations["quarantine_by_rule"] = clean_metrics.get("quarantined_by_rule")
 
         # --- the model: PR-AUC and calibration ----------------------------------
-        test_metrics = selection.get("test_metrics", {}).get("values", {}) or {}
-        valid_metrics = (chosen.get("valid_metrics") or {}).get("values", {}) or {}
-        trial.record("selected_family", chosen.get("family"))
-        trial.record("valid_pr_auc", _round(valid_metrics.get("pr_auc")))
+        test_metrics = (selection.get("test") or {}).get("values", {}) or {}
+        # The winner's validation metrics are not in the serialised selection - `rejected`
+        # holds the families that lost. The test split is what the hypothesis is about, so the
+        # validation figures are simply not recorded rather than reconstructed from a guess.
+        trial.record("selected_family", chosen_family)
         trial.record("test_pr_auc", _round(test_metrics.get("pr_auc")))
         trial.record("test_roc_auc", _round(test_metrics.get("roc_auc")))
-        trial.record("valid_ece", _round(valid_metrics.get("ece")),
-                     note="expected calibration error after calibration (AP-5)")
         trial.record("test_ece", _round(test_metrics.get("ece")))
         trial.record("churn_rate", _round(state.get("cutoffs", {}).get("churn_rate")))
         trial.record("selection_outcome", selection.get("outcome"))

@@ -60,10 +60,13 @@ def build_features(spark: Any, root: Path, cutoffs: list[pd.Timestamp]) -> pd.Da
         [(pd.Timestamp(c).to_pydatetime(),) for c in cutoffs], ["snapshot_date"]
     )
 
+    # `try_cast` is a Column method in PySpark, not a function on `pyspark.sql.functions`;
+    # `F.try_cast` does not exist and this baseline failed on its first stage with an
+    # AttributeError. `try_divide` below *is* a function, which is what made the mistake easy.
     tx = (
-        tx.withColumn("price", F.try_cast(F.col("price"), "double"))
-        .withColumn("quantity", F.try_cast(F.col("quantity"), "double"))
-        .withColumn("discount", F.coalesce(F.try_cast(F.col("discount"), "double"), F.lit(0.0)))
+        tx.withColumn("price", F.col("price").try_cast("double"))
+        .withColumn("quantity", F.col("quantity").try_cast("double"))
+        .withColumn("discount", F.coalesce(F.col("discount").try_cast("double"), F.lit(0.0)))
     )
     tx = tx.withColumn("gross", F.col("price") * F.abs(F.col("quantity")))
     tx = tx.withColumn("net", F.col("gross") - F.col("discount"))
