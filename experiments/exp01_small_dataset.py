@@ -81,6 +81,7 @@ def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
     from agents.graph import queue as q
     from dataeng.ingest import DatasetRegistry
     from triad_core.db import session_scope
+    from triad_core.models import PipelineRun
     from triad_core.storage import storage
 
     trial = exp.trial("P_triad")
@@ -113,6 +114,17 @@ def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
             if result.version_id:
                 registered[table] = result.storage_uri or ""
         ingest_s = round(time.perf_counter() - t0, 2)
+        run_id = run.id
+
+    # Committed before the pipeline starts. `audit.record` takes a per-chain
+    # `pg_advisory_xact_lock` and the ingest writes above land in the *system* chain, so one
+    # transaction spanning the whole run holds that lock for its duration and every
+    # `auth.login` blocks behind it. This experiment was observed doing exactly that: one
+    # transaction idle for 377s with a login queued behind it.
+    with session_scope() as session:
+        run = session.get(PipelineRun, run_id)
+        if run is None:
+            raise RuntimeError(f"run {run_id} vanished between transactions")
 
         spark = _spark("triad-exp01-p")
         try:

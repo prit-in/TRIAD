@@ -80,6 +80,7 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
     from dataeng.ingest import DatasetRegistry
     from datasets.synthetic.generator import GeneratorConfig, SyntheticGenerator
     from triad_core.db import session_scope
+    from triad_core.models import PipelineRun
     from triad_core.storage import storage
 
     trial = exp.trial(name)
@@ -115,6 +116,18 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
             if result.version_id:
                 registered[table] = result.storage_uri or ""
         trial.record("datasets_registered", len(registered))
+        run_id = run.id
+
+    # Committed before the pipeline starts, and not for tidiness. `audit.record` takes a
+    # per-chain `pg_advisory_xact_lock`, and the ingest writes above land in the *system*
+    # chain because `register_source` and `register_version` carry no run id. Holding one
+    # transaction across the whole run therefore holds that lock for its entire duration, and
+    # every `auth.login` - which writes to the same chain - blocks behind it. EXP-1 was
+    # observed doing exactly that: one transaction idle for 377s with a login queued behind it.
+    with session_scope() as session:
+        run = session.get(PipelineRun, run_id)
+        if run is None:
+            raise RuntimeError(f"run {run_id} vanished between transactions")
 
         spark = _spark()
         try:

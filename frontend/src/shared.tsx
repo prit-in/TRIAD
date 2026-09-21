@@ -349,3 +349,62 @@ export function Meter({ label, value, limit, format }: {
     </div>
   );
 }
+
+/**
+ * Cursor pagination controls.
+ *
+ * The API has paged since it was written — `Page<T>` carries `next_cursor` and the runs
+ * endpoint accepts one — and nothing read it. Every list was hard-capped at its `limit` and
+ * rows past the cap were simply unreachable, which looks identical to "there are no more".
+ *
+ * Cursors are opaque and one-directional, so "previous" is a stack of the cursors already
+ * visited rather than an arithmetic offset. `usePages` keeps that stack.
+ */
+export function usePages() {
+  const [stack, setStack] = useState<(string | null)[]>([null]);
+  const cursor = stack[stack.length - 1] ?? null;
+
+  return {
+    cursor,
+    pageNumber: stack.length,
+    canGoBack: stack.length > 1,
+    next: (nextCursor: string | null) => {
+      if (nextCursor) setStack((s) => [...s, nextCursor]);
+    },
+    back: () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)),
+    reset: () => setStack([null]),
+  };
+}
+
+export function Pager({
+  pages,
+  nextCursor,
+  shown,
+}: {
+  pages: ReturnType<typeof usePages>;
+  nextCursor: string | null;
+  shown: number;
+}) {
+  // Nothing to page through: one page that fills nothing and has no next.
+  if (!pages.canGoBack && !nextCursor) return null;
+  return (
+    <div className="pager">
+      <button type="button" className="secondary" disabled={!pages.canGoBack} onClick={pages.back}>
+        Previous
+      </button>
+      <span className="muted">
+        Page {pages.pageNumber} · {shown} shown
+        {/* No total. The API returns a cursor, not a count, and inventing "of N" would mean
+            a second query whose answer is already stale by the time it is drawn. */}
+      </span>
+      <button
+        type="button"
+        className="secondary"
+        disabled={!nextCursor}
+        onClick={() => pages.next(nextCursor)}
+      >
+        Next
+      </button>
+    </div>
+  );
+}

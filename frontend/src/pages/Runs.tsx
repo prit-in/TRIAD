@@ -8,23 +8,40 @@ import {
   Meter,
   Panel,
   Problem,
+  Pager,
   SearchBox,
   State,
   useLoad,
+  usePages,
   useToast,
   when,
 } from "../shared";
 
 export function Runs() {
   const [state, setState] = useState("");
-  const runs = useLoad(() => api.runs(state ? `?limit=50&state=${state}` : "?limit=50"), [state]);
+  const pages = usePages();
+  const runs = useLoad(
+    () =>
+      api.runs(
+        `?limit=25${state ? `&state=${state}` : ""}${pages.cursor ? `&cursor=${encodeURIComponent(pages.cursor)}` : ""}`,
+      ),
+    [state, pages.cursor],
+  );
 
   return (
     <Panel
       title="Runs"
       provenance="Measured"
       actions={
-        <select value={state} onChange={(e) => setState(e.target.value)}>
+        <select
+          value={state}
+          onChange={(e) => {
+            // A new filter is a new result set, so the cursor stack from the old one is
+            // meaningless — keeping it would page into rows the filter excludes.
+            pages.reset();
+            setState(e.target.value);
+          }}
+        >
           <option value="">every state</option>
           {["RECEIVED", "APPROVAL_REQUIRED", "PUBLISHED", "COMPLETED", "ESCALATED", "CANCELLED"].map(
             (option) => (
@@ -67,6 +84,11 @@ export function Runs() {
       ) : (
         <Empty what="runs in this state" />
       )}
+      <Pager
+        pages={pages}
+        nextCursor={runs.data?.next_cursor ?? null}
+        shown={runs.data?.items.length ?? 0}
+      />
     </Panel>
   );
 }

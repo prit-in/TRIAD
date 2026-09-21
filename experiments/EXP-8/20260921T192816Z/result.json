@@ -1,0 +1,1563 @@
+{
+  "exp_id": "EXP-8",
+  "title": "Scala compile failures",
+  "hypothesis": "At least 70% of seeded code faults are repaired within 3 attempts; repeated fingerprints escalate; forbidden APIs never run.",
+  "independent_variable": "fault class",
+  "dependent_measures": [
+    "detected",
+    "first_failed_gate",
+    "compiled",
+    "reached_execution",
+    "distinct_fingerprints_over_3_attempts",
+    "repair_rate"
+  ],
+  "started_at": "2026-09-21T19:28:16.956201+00:00",
+  "duration_s": 715.46,
+  "status": "partial",
+  "hypothesis_held": null,
+  "conclusion": "20 of 20 seeded faults were detected before execution. Forbidden APIs: 5 of 5 refused by gate 2, the static scan, so none was compiled let alone submitted - the PRD's strongest claim, and it holds. Per class: type_mismatch 5/5 detected at gate(s) [4]; missing_import 5/5 detected at gate(s) [4]; wrong_column 5/5 detected at gate(s) [4]; forbidden_api 5/5 detected at gate(s) [2]. Fingerprints repeat identically across three attempts: True, so an unrepairable fault trips the circuit breaker rather than burning the attempt budget. The expected observation about semantic faults holds in a stronger form than the PRD states it: a wrong column name does not merely escalate more often, it passes every static gate, because the name is a string until Spark resolves it. Repair rate is not measured - see the limitations.",
+  "limitations": [
+    "Repair rate is not measured. Rewriting a generated slot requires an LLM provider and none is configured (ADR-0003); `StageRunner._apply_fix` adjusts infrastructure inputs only, so `generate` returns identical code on every attempt. A measured 0% would describe the missing provider, not the repair loop, so it is recorded as not measured rather than reported as a number.",
+    "`reached_execution` means the gates passed and a real run would have submitted the job. The Spark submission itself is not performed for the 5 wrong_column faults, so what gate 6/7/9 would report about each of them is not measured here."
+  ],
+  "trials": [
+    {
+      "condition": "control_unmutated",
+      "ok": true,
+      "detail": "",
+      "measurements": [
+        {
+          "name": "passed_all_gates",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 175.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "detail": ""
+      }
+    },
+    {
+      "condition": "TM-1_type_mismatch",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=4 expected=4",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 30.4,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "TM-1",
+          "class": "type_mismatch",
+          "description": "assign a Seq[String] to an Int",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 4 s, completed Sep 21, 2026, 7:31:34 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm-1.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08tm-1 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 8 s, completed Sep 21, 2026, 7:31:42 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "ba51af4e80eff41e28e70bb10cd6e772": 3
+        }
+      }
+    },
+    {
+      "condition": "TM-2_type_mismatch",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=4 expected=4",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 28.6,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "TM-2",
+          "class": "type_mismatch",
+          "description": "add a String to a DataFrame",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 4 s, completed Sep 21, 2026, 7:32:02 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm-2.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08tm-2 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 9 s, completed Sep 21, 2026, 7:32:11 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "ba51af4e80eff41e28e70bb10cd6e772": 3
+        }
+      }
+    },
+    {
+      "condition": "TM-3_type_mismatch",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=4 expected=4",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 30.4,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "TM-3",
+          "class": "type_mismatch",
+          "description": "pass a String where a Seq[String] is required",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Sep 21, 2026, 7:32:33 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm-3.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08tm-3 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 8 s, completed Sep 21, 2026, 7:32:41 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "ba51af4e80eff41e28e70bb10cd6e772": 3
+        }
+      }
+    },
+    {
+      "condition": "TM-4_type_mismatch",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=4 expected=4",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 29.2,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "TM-4",
+          "class": "type_mismatch",
+          "description": "call a Seq method on a DataFrame",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 4 s, completed Sep 21, 2026, 7:33:02 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm-4.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08tm-4 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 9 s, completed Sep 21, 2026, 7:33:10 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "ba51af4e80eff41e28e70bb10cd6e772": 3
+        }
+      }
+    },
+    {
+      "condition": "TM-5_type_mismatch",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=4 expected=4",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 37.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "TM-5",
+          "class": "type_mismatch",
+          "description": "return Unit where a DataFrame is expected",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 7 s, completed Sep 21, 2026, 7:33:36 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm-5.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08tm-5 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 12 s, completed Sep 21, 2026, 7:33:48 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "ba51af4e80eff41e28e70bb10cd6e772": 3
+        }
+      }
+    },
+    {
+      "condition": "MI-1_missing_import",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=4 expected=4",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 38.7,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "MI-1",
+          "class": "missing_import",
+          "description": "use `col` without importing functions",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Sep 21, 2026, 7:34:15 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi-1.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08mi-1 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 11 s, completed Sep 21, 2026, 7:34:26 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "c8d03e432404c1303e3580d825379d1e": 3
+        }
+      }
+    },
+    {
+      "condition": "MI-2_missing_import",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=4 expected=4",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 41.4,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "MI-2",
+          "class": "missing_import",
+          "description": "use `lit` without importing functions",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Sep 21, 2026, 7:34:55 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi-2.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08mi-2 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 13 s, completed Sep 21, 2026, 7:35:08 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "c8d03e432404c1303e3580d825379d1e": 3
+        }
+      }
+    },
+    {
+      "condition": "MI-3_missing_import",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=4 expected=4",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 40.7,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "MI-3",
+          "class": "missing_import",
+          "description": "reference an unimported type",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Sep 21, 2026, 7:35:38 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi-3.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08mi-3 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 11 s, completed Sep 21, 2026, 7:35:49 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "c8d03e432404c1303e3580d825379d1e": 3
+        }
+      }
+    },
+    {
+      "condition": "MI-4_missing_import",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=4 expected=4",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 37.8,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "MI-4",
+          "class": "missing_import",
+          "description": "use a Java class that is not imported",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Sep 21, 2026, 7:36:15 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi-4.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08mi-4 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 11 s, completed Sep 21, 2026, 7:36:26 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "c8d03e432404c1303e3580d825379d1e": 3
+        }
+      }
+    },
+    {
+      "condition": "MI-5_missing_import",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=4 expected=4",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 32.7,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "MI-5",
+          "class": "missing_import",
+          "description": "call an unimported helper object",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Sep 21, 2026, 7:36:49 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi-5.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08mi-5 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 10 s, completed Sep 21, 2026, 7:36:59 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "c8d03e432404c1303e3580d825379d1e": 3
+        }
+      }
+    },
+    {
+      "condition": "WC-1_wrong_column",
+      "ok": true,
+      "detail": "no static gate can see this; recorded, not scored",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 38.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "WC-1",
+          "class": "wrong_column",
+          "description": "de-duplicate on a column that does not exist",
+          "expected_gate": 9,
+          "note": "compiles; caught at execution or by the contract"
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Sep 21, 2026, 7:37:27 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08wc-1.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08wc-1 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 10 s, completed Sep 21, 2026, 7:37:37 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "1c46efb586df9bd64dbabb586fa65700": 3
+        }
+      }
+    },
+    {
+      "condition": "WC-2_wrong_column",
+      "ok": true,
+      "detail": "no static gate can see this; recorded, not scored",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 37.0,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "WC-2",
+          "class": "wrong_column",
+          "description": "normalise a column that does not exist",
+          "expected_gate": 9,
+          "note": "compiles; the filter on `columns.contains` may absorb it"
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Sep 21, 2026, 7:38:05 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08wc-2.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08wc-2 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 9 s, completed Sep 21, 2026, 7:38:14 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "1c46efb586df9bd64dbabb586fa65700": 3
+        }
+      }
+    },
+    {
+      "condition": "WC-3_wrong_column",
+      "ok": true,
+      "detail": "no static gate can see this; recorded, not scored",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 37.7,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "WC-3",
+          "class": "wrong_column",
+          "description": "test the wrong column for the cancellation rule",
+          "expected_gate": 9,
+          "note": "compiles; changes behaviour silently"
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 7 s, completed Sep 21, 2026, 7:38:43 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08wc-3.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08wc-3 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 9 s, completed Sep 21, 2026, 7:38:52 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "1c46efb586df9bd64dbabb586fa65700": 3
+        }
+      }
+    },
+    {
+      "condition": "WC-4_wrong_column",
+      "ok": true,
+      "detail": "no static gate can see this; recorded, not scored",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 36.8,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "WC-4",
+          "class": "wrong_column",
+          "description": "order de-duplication by a column that does not exist",
+          "expected_gate": 9,
+          "note": "compiles; the contains filter drops it"
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Sep 21, 2026, 7:39:18 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08wc-4.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08wc-4 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 11 s, completed Sep 21, 2026, 7:39:29 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "1c46efb586df9bd64dbabb586fa65700": 3
+        }
+      }
+    },
+    {
+      "condition": "WC-5_wrong_column",
+      "ok": true,
+      "detail": "no static gate can see this; recorded, not scored",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 41.5,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "WC-5",
+          "class": "wrong_column",
+          "description": "filter on a misspelled column",
+          "expected_gate": 9,
+          "note": "compiles; fails when Spark resolves the name"
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Sep 21, 2026, 7:39:58 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08wc-5.scala:13:24: ';' expected but identifier found.\n[error] object CleanJob_exp08wc-5 extends TriadJob {\n[error]                        ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 12 s, completed Sep 21, 2026, 7:40:10 PM\n",
+        "violations": [],
+        "fingerprints": {
+          "1c46efb586df9bd64dbabb586fa65700": 3
+        }
+      }
+    },
+    {
+      "condition": "FA-1_forbidden_api",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=2 expected=2",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 0.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "FA-1",
+          "class": "forbidden_api",
+          "description": "collect() the event data onto the driver",
+          "expected_gate": 2,
+          "note": ""
+        },
+        "gate_detail": "1 violation(s)",
+        "violations": [
+          "forbidden API: collect() on event data: driver memory (LR-09)"
+        ],
+        "fingerprints": {
+          "f5fe138cf17c3b287140c22529b7d4fd": 3
+        }
+      }
+    },
+    {
+      "condition": "FA-2_forbidden_api",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=2 expected=2",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 0.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "FA-2",
+          "class": "forbidden_api",
+          "description": "write output from inside the slot",
+          "expected_gate": 2,
+          "note": ""
+        },
+        "gate_detail": "1 violation(s)",
+        "violations": [
+          "forbidden API: output writing belongs to the template, never to a slot"
+        ],
+        "fingerprints": {
+          "f5fe138cf17c3b287140c22529b7d4fd": 3
+        }
+      }
+    },
+    {
+      "condition": "FA-3_forbidden_api",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=2 expected=2",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 0.2,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "FA-3",
+          "class": "forbidden_api",
+          "description": "build a second SparkSession",
+          "expected_gate": 2,
+          "note": ""
+        },
+        "gate_detail": "1 violation(s)",
+        "violations": [
+          "forbidden API: the job template owns the SparkSession"
+        ],
+        "fingerprints": {
+          "f5fe138cf17c3b287140c22529b7d4fd": 3
+        }
+      }
+    },
+    {
+      "condition": "FA-4_forbidden_api",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=2 expected=2",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 0.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "FA-4",
+          "class": "forbidden_api",
+          "description": "kill the driver with System.exit",
+          "expected_gate": 2,
+          "note": ""
+        },
+        "gate_detail": "1 violation(s)",
+        "violations": [
+          "forbidden API: System.exit: kills the driver"
+        ],
+        "fingerprints": {
+          "f5fe138cf17c3b287140c22529b7d4fd": 3
+        }
+      }
+    },
+    {
+      "condition": "FA-5_forbidden_api",
+      "ok": true,
+      "detail": "detected=True first_failed_gate=2 expected=2",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "distinct_fingerprints_over_3_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "max_fingerprint_repeats",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 0.2,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "FA-5",
+          "class": "forbidden_api",
+          "description": "reach the network from a sandbox job",
+          "expected_gate": 2,
+          "note": ""
+        },
+        "gate_detail": "1 violation(s)",
+        "violations": [
+          "forbidden API: java.net: network access"
+        ],
+        "fingerprints": {
+          "f5fe138cf17c3b287140c22529b7d4fd": 3
+        }
+      }
+    }
+  ]
+}
