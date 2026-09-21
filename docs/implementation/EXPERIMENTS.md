@@ -13,14 +13,14 @@ carrying an estimate.
 
 | ID | Title | Status | Hypothesis | Where |
 | --- | --- | --- | --- | --- |
-| EXP-1 | Small dataset against the non-agentic baselines | implemented, not yet run | — | `experiments/exp01_small_dataset.py` |
-| EXP-2 | Medium dataset: where a single node gives out | implemented, not yet run | — | `experiments/exp02_medium_dataset.py` |
-| EXP-3 | Scaling with parallelism | implemented, not yet run | — | `experiments/exp03_large_dataset.py` |
+| EXP-1 | Small dataset against the non-agentic baselines | **partial** | **held** | `experiments/EXP-1/latest.json` |
+| EXP-2 | Medium dataset: where a single node gives out | **partial** | **did not hold** | `experiments/EXP-2/latest.json` |
+| EXP-3 | Scaling with parallelism | **partial** | **did not hold** | `experiments/EXP-3/latest.json` |
 | EXP-4 | Schema errors | **partial** | **held** | `experiments/EXP-4/latest.json` |
-| EXP-5 | Missing values | implemented, not yet run | — | `experiments/exp05_missing_values.py` |
+| EXP-5 | Missing values | **partial** | **held** | `experiments/EXP-5/latest.json` |
 | EXP-6 | Spark failures and recovery | **partial** | **did not hold** | `experiments/EXP-6/latest.json` |
 | EXP-7 | Model degradation | **partial** | **held** | `experiments/EXP-7/latest.json` |
-| EXP-8 | Scala compile failures | implemented, not yet run | — | `experiments/exp08_codegen_faults.py` |
+| EXP-8 | Scala compile failures | **partial** | **no verdict** | `experiments/EXP-8/latest.json` |
 | EXP-9 | Leakage sentinel | **completed** | **held** | `experiments/EXP-9/latest.json` |
 | EXP-10 | Governance bypass | **completed** | **held** | `experiments/EXP-10/latest.json` |
 
@@ -29,7 +29,10 @@ PRD specifies, and the limitation is recorded in the result. The harness refuses
 `not_run` result that names no limitation, and refuses a verdict on a hypothesis when no
 measurement was recorded.
 
-## What the four completed experiments found
+All ten have now been run. Three hypotheses did not hold and one has no verdict; those
+four sections are the ones worth reading first.
+
+## What each experiment found
 
 ### EXP-9, leakage sentinel — held
 
@@ -186,6 +189,113 @@ EXP-6 is also what proved the `RAISE_EXECUTOR_MEMORY` plumbing fix: that remedy 
 nothing read, so an out-of-memory retry was submitted with exactly the memory that had just
 failed. The plumbing is fixed and the classifier gap in (2) now stands between it and the
 failure it exists for.
+
+### EXP-1, TRIAD against the non-agentic baselines — held, partial
+
+| Configuration | Wall clock | Test PR-AUC | Features | Hand-written lines | Approvals | Audit entries |
+| --- | --- | --- | --- | --- | --- | --- |
+| P (TRIAD) | 749.3s | 0.7801 | full catalogue (23) | 0 | 0 | 15 |
+| B2 (pandas only) | 4.1s | 0.7900 | 12 | 188 | 0 | 0 |
+| B3 (Spark, no agents) | 25.7s | 0.7871 | 12 | 201 | 0 | 0 |
+| B1 (manual runbook) | **not measured** | — | — | — | — | — |
+
+The hypothesis is that P finishes end to end with no manual step except approval. It does: 0
+approvals were required on this run, 0 other human actions, 4 Spark jobs, 6 decision records and
+15 audit entries. P is 183 times slower than B2 at this size, which is the expected observation
+and the argument for LR-07 rather than a defect.
+
+**The PR-AUC column is not a quality comparison and is labelled as one nowhere.** P uses the full
+feature catalogue and the baselines twelve hand-picked features, so the three numbers measure
+different feature sets. The experiment therefore runs a fifth trial that holds the features
+constant: on P's own 23-feature table and P's split, the baselines' shortlist reaches **0.7894**
+with logreg. That is the only line in this experiment where the numbers are comparable, and it
+says the modelling itself is not where the agentic loop earns its time — the governance is:
+the baselines produce no decision record, no audit entry, no calibration, no acceptance policy
+and no approval gate, and P's extra 745 seconds is what those cost.
+
+The second half of the hypothesis — "agent overhead dominates P's time" — **cannot be tested
+here**, and the result says so rather than claiming it. P made 0 LLM calls because no provider
+is configured (ADR-0003), so the overhead that is present is validation gates including an sbt
+compile, per-job sandbox start-up, governance and audit writes. Attributing those to "agent
+overhead" would be reading a different experiment's conclusion into this one.
+
+### EXP-2, where a single node gives out — did NOT hold, partial
+
+| Customers | On disk | B2 (pandas) | B3 (Spark) | Peak RSS |
+| --- | --- | --- | --- | --- |
+| 400 | 0.4 MB | ok, 8.9s | ok, 46.1s | 246 MB |
+| 1 500 | 1.4 MB | ok, 6.7s | ok, 29.1s | 312 MB |
+| 6 000 | 5.1 MB | ok, 9.2s | ok, 32.8s | 525 MB |
+| 20 000 | 14.9 MB | ok, 19.8s | ok, 54.8s | 1 065 MB |
+
+The hypothesis is that B2 fails first as the data grows while B3 keeps going. **No crossover was
+observed at any size this machine can hold.** B2 finished every rung and was two to five times
+faster than B3 on all of them, because at 15 MB the Spark job is paying for planning and
+shuffling that pandas never does.
+
+This is a *failure to observe*, not evidence of absence, and the distinction is the whole point
+of reporting it this way. The PRD's 10 GB tier is where the hypothesis expects the crossover and
+that tier was not run: Docker has a 5.27 GB VM here and the sandbox clamps a container to 3 GB
+(ADR-0002), so 10 GB would fail for every configuration — three failures and no information.
+What is reported is the ladder that fits, with the rung the hypothesis is actually about marked
+absent.
+
+### EXP-3, scaling with parallelism — did NOT hold, partial
+
+| Cores | Wall clock (best of 2) | Fixed cost | Work | Speed-up on work | Raw speed-up |
+| --- | --- | --- | --- | --- | --- |
+| `local[1]` | 31.76s | 8.57s | 23.19s | 1.000 | 1.000 |
+| `local[2]` | 18.29s | 0.46s | 17.83s | **1.301** | 1.736 |
+| `local[4]` | 22.83s | 0.24s | 22.59s | **1.026** | 1.391 |
+
+The hypothesis asks for at least 1.6x from doubling the cores. Two to four cores gives **0.789x**
+— slower, not faster. One to two gives 1.301x, below the threshold as well.
+
+Two things in this table are worth more than the verdict. First, the **fixed cost is measured,
+not assumed**: a trivial job is timed at each parallelism and subtracted, which is why the raw
+column looks so much better than the work column. `local[1]`'s 8.57s of JVM start-up flatters
+every raw speed-up computed against it, and a scaling experiment that did not subtract it would
+report 1.736x and call the hypothesis half-held. Second, sub-linear scaling is the expected
+observation: these are windowed aggregations, they shuffle, and a shuffle does not halve when
+the cores double.
+
+This is intra-node scaling inside one JVM. Distributed workers were not used deliberately —
+with 8 host cores and ~3 GB usable, two Compose workers would contend for the same cores and
+measure scheduling overhead rather than scaling. Shuffle bytes and spill come from Spark event
+logs, which are disabled here; they are absent rather than approximated.
+
+### EXP-8, seeded Scala faults — no verdict, partial
+
+| Fault class | Seeded | Detected before execution | Gate that caught it |
+| --- | --- | --- | --- |
+| forbidden API | 5 | **5** | 2 (static scan) |
+| type mismatch | 5 | **5** | 4 (compile) |
+| missing import | 5 | **5** | 4 (compile) |
+| wrong column name | 5 | **0** | none |
+
+**15 of 20, and the five that get through are the interesting ones.** A wrong column name passes
+every static gate because the name is a string until Spark resolves it: gate 2 has nothing to
+scan for, gate 4 compiles it happily, and the fault only exists at execution. The PRD expects
+semantic faults to escalate more often; what this measures is stronger than that — they are
+invisible to static analysis entirely.
+
+The forbidden-API result is the PRD's strongest claim about codegen and it holds exactly: 5 of 5
+refused at gate 2 in under a third of a second each, never compiled, never submitted. And
+fingerprints repeat identically across three attempts on every detected fault, so an unrepairable
+fault trips the circuit breaker rather than burning the attempt budget.
+
+**The hypothesis has no verdict because its headline number cannot be measured here.** "At least
+70% repaired within 3 attempts" needs an LLM to rewrite the slot, and no provider is configured
+(ADR-0003); `StageRunner._apply_fix` adjusts infrastructure inputs only, so `generate` returns
+identical code on every attempt. A measured 0% would describe the missing provider, not the
+repair loop, so the harness records no verdict rather than a number that reads like one.
+
+This experiment first reported **20 of 20**, and that result was deleted. The generated object
+name carried the experiment's run suffix — `object CleanJob_exp08wc-1` — and a hyphen is not a
+legal Scala identifier, so every job failed to compile and the harness read the compile failure
+as the seeded fault being caught. Fifteen of the twenty detections were real; five were the
+experiment detecting its own bug. The suffix is now sanitised and the false result is gone from
+`experiments/`.
 
 ## Deviations from PRD section 33 that apply to every experiment
 

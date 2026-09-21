@@ -24,7 +24,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from agents.graph.pipeline import ChurnPipeline
-from agents.monitoring import MonitoringService
+from agents.monitoring import MonitoringService, jsonable
 from triad_core.config import settings
 from triad_core.ids import utcnow
 from triad_core.models import Experiment, ModelVersion, PipelineRun
@@ -392,6 +392,34 @@ def prepare(
                     + (f"; {record['stopped_because']}" if record["stopped_because"] else ""),
             True)
     say("select", f"{selection.outcome}: {selection.reason}", selection.outcome != "ESCALATE")
+
+    # The acceptance decision is recorded whatever it was, and before the escalation branch.
+    # It used to be written only on the paths that continued, so a run stopped by the
+    # acceptance policy left the database holding a one-line reason and nothing else: no rule
+    # ids, no measured calibration error, no record of which remedies were tried. EXP-5 made
+    # that plain - three of its four conditions escalated on MISCALIBRATED and not one of the
+    # three recorded the number it escalated on, which is the number a person resuming the run
+    # needs first. FR-060 asks for a decision record per stage; an escalation is the stage where
+    # it matters most.
+    pipeline.runner.record_decision(
+        agent="model_selection",
+        decision_type="acceptance",
+        decision=f"{selection.outcome}: {selection.reason}",
+        summary=f"{selection.selected.family if selection.selected else 'no candidate'} "
+                f"judged against the acceptance policy",
+        # A JSON column, and the acceptance evidence carries numpy scalars.
+        evidence=jsonable(selection.evidence),
+        policy_rules=selection.rules_applied,
+        outcome="escalated" if selection.outcome == "ESCALATE" else "applied",
+    )
+    # Validation metrics too, for the same reason: they are what the verdict was computed from.
+    if selection.selected is not None:
+        for name, value in (selection.selected.valid_metrics.values or {}).items():
+            pipeline._record_metric(
+                name, value, split="valid",
+                ci=selection.selected.valid_metrics.intervals.get(name),
+            )
+
     if selection.outcome == "ESCALATE":
         pipeline.finish("ESCALATED", ok=False, reason=selection.reason)
         return PhaseResult(False, "ESCALATED", selection.reason,

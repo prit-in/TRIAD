@@ -117,7 +117,7 @@ class MonitoringService:
             run_id=run.id if run else None,
             mlflow_version=str(mlflow_version) if mlflow_version is not None else None,
             algorithm=algorithm,
-            params_json=_jsonable(params or {}),
+            params_json=jsonable(params or {}),
             feature_set_version=feature_set_version,
             training_data_ref=training_data_ref,
             threshold=float(threshold) if threshold is not None else None,
@@ -515,8 +515,9 @@ class MonitoringService:
         )
 
 
-def _jsonable(payload: dict[str, Any]) -> dict[str, Any]:
-    """Params come from Optuna and sklearn, so numpy scalars and tuples turn up."""
+def jsonable(payload: dict[str, Any]) -> dict[str, Any]:
+    """Coerce a payload for a JSON column: numpy scalars and tuples turn up from Optuna,
+    sklearn and the evaluation code, and `json.dumps` refuses both."""
     import numpy as np
 
     def convert(value: Any) -> Any:

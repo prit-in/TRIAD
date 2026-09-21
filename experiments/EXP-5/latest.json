@@ -11,20 +11,20 @@
     "test_ece",
     "approval_requests"
   ],
-  "started_at": "2026-09-21T19:51:32.965583+00:00",
-  "duration_s": 1729.87,
+  "started_at": "2026-09-21T21:01:42.925466+00:00",
+  "duration_s": 2418.65,
   "status": "partial",
-  "hypothesis_held": true,
-  "conclusion": "PR-AUC on the sealed test split by null rate: nulls_0pct_baseline=None. Monotone decline: True. Calibration error: nulls_0pct_baseline=None. Quarantine: nulls_0pct_baseline 0/8078 rows (0.0%). Row accounting balanced in every completed condition: True, so no rows were lost silently at any null rate. Quarantine rises with the key-null rate: None. Approval requests: nulls_0pct_baseline=0. The 5% limit in the cleaning.execute policy is compared against rows_affected_pct, recorded above for each condition.",
+  "hypothesis_held": null,
+  "conclusion": "PR-AUC on the sealed test split by null rate: nulls_0pct_baseline=0.7259. Monotone decline: not assessable - fewer than two conditions produced a test PR-AUC. Calibration error: nulls_0pct_baseline=0.0744. Quarantine: nulls_0pct_baseline 0/8078 rows (0.0%). Row accounting balanced in every completed condition: True, so no rows were lost silently at any null rate. Quarantine rises with the key-null rate: None. Approval requests: nulls_0pct_baseline=0. The 5% limit in the cleaning.execute policy is compared against rows_affected_pct, recorded above for each condition.",
   "limitations": [
-    "3 of 4 conditions did not complete the pipeline; their measurements are absent rather than estimated: nulls_5pct_nonkey: the pipeline stopped at ESCALATED: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED; nulls_20pct_nonkey: the pipeline stopped at ESCALATED: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED; nulls_50pct_nonkey: the pipeline stopped at ESCALATED: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED",
+    "3 of 4 conditions did not complete the pipeline; their measurements are absent rather than estimated: nulls_5pct_nonkey: quarantined 72 of 8078 rows; test PR-AUC None, ECE None; approvals 0; the run stopped: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED; nulls_20pct_nonkey: quarantined 72 of 8078 rows; test PR-AUC None, ECE None; approvals 0; the run stopped: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED; nulls_50pct_nonkey: quarantined 72 of 8078 rows; test PR-AUC None, ECE None; approvals 0; the run stopped: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED",
     "The word 'imputed' in the PRD hypothesis is not measured as such: cleaning does not impute, the model pipeline does. What is measured is that non-key nulls do not cost rows."
   ],
   "trials": [
     {
       "condition": "nulls_0pct_baseline",
       "ok": true,
-      "detail": "quarantined 0 of 8078 rows; test PR-AUC None, ECE None; approvals 0",
+      "detail": "quarantined 0 of 8078 rows; test PR-AUC 0.7259, ECE 0.0744; approvals 0",
       "measurements": [
         {
           "name": "null_rate_non_key",
@@ -88,37 +88,25 @@
         },
         {
           "name": "selected_family",
-          "value": null,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "valid_pr_auc",
-          "value": null,
+          "value": "xgboost",
           "unit": "",
           "note": ""
         },
         {
           "name": "test_pr_auc",
-          "value": null,
+          "value": 0.7259,
           "unit": "",
           "note": ""
         },
         {
           "name": "test_roc_auc",
-          "value": null,
+          "value": 0.7933,
           "unit": "",
           "note": ""
         },
         {
-          "name": "valid_ece",
-          "value": null,
-          "unit": "",
-          "note": "expected calibration error after calibration (AP-5)"
-        },
-        {
           "name": "test_ece",
-          "value": null,
+          "value": 0.0744,
           "unit": "",
           "note": ""
         },
@@ -156,7 +144,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 685.8,
+          "value": 782.0,
           "unit": "s",
           "note": ""
         }
@@ -258,7 +246,7 @@
                 "trials_run": 30,
                 "trials_attempted": 30,
                 "trials_requested": 30,
-                "seconds": 111.0,
+                "seconds": 144.4,
                 "stopped_because": ""
               },
               {
@@ -276,7 +264,7 @@
                 "trials_run": 30,
                 "trials_attempted": 30,
                 "trials_requested": 30,
-                "seconds": 10.2,
+                "seconds": 16.4,
                 "stopped_because": ""
               }
             ]
@@ -294,7 +282,7 @@
                 "ece": 0.05109211775878433,
                 "segment_recall_gap": 0.0,
                 "model_size_mb": 0.0021257400512695312,
-                "train_minutes": 0.0015491998500086386,
+                "train_minutes": 0.0014087467166670345,
                 "train_pr_auc": 0.2205128205128205
               }
             }
@@ -1128,7 +1116,7 @@
                 "ece": 0.05109211775878433,
                 "segment_recall_gap": 0.0,
                 "model_size_mb": 0.0021257400512695312,
-                "train_minutes": 0.0015491998500086386,
+                "train_minutes": 0.0014087467166670345,
                 "train_pr_auc": 0.2205128205128205
               }
             },
@@ -1154,7 +1142,7 @@
                 "ece": 0.07499240346327014,
                 "segment_recall_gap": 0.02083333333333326,
                 "model_size_mb": 0.0036020278930664062,
-                "train_minutes": 0.0036227054666596813,
+                "train_minutes": 0.006525023366672637,
                 "train_pr_auc": 0.663679865009345
               }
             },
@@ -1182,7 +1170,7 @@
                 "ece": 0.07775388215186345,
                 "segment_recall_gap": 0.008333333333333304,
                 "model_size_mb": 1.2720041275024414,
-                "train_minutes": 0.06132535359999262,
+                "train_minutes": 0.04213382071666274,
                 "train_pr_auc": 0.930846269966241
               }
             },
@@ -1211,7 +1199,7 @@
                 "ece": 0.1636147658559099,
                 "segment_recall_gap": 0.06666666666666665,
                 "model_size_mb": 0.3636627197265625,
-                "train_minutes": 0.07196875306667608,
+                "train_minutes": 0.08003396193334993,
                 "train_pr_auc": 1.0
               }
             },
@@ -1240,7 +1228,7 @@
                 "ece": 0.13064002905028044,
                 "segment_recall_gap": 0.029166666666666674,
                 "model_size_mb": 0.37119102478027344,
-                "train_minutes": 0.01101553483332888,
+                "train_minutes": 0.006930674683341446,
                 "train_pr_auc": 1.0
               }
             },
@@ -1263,10 +1251,10 @@
                 "valid_pr_auc": 0.7165683791610447,
                 "valid_churn_rate": 0.2716049382716049,
                 "logreg_pr_auc": 0.6999496454767473,
-                "brier_skill": 0.2236270516178599,
-                "ece": 0.1287403069137498,
+                "brier_skill": 0.22362705161786,
+                "ece": 0.12874030691374982,
                 "model_size_mb": 0.6899862289428711,
-                "train_minutes": 0.044970233300000474,
+                "train_minutes": 0.06739753370002291,
                 "train_pr_auc": 0.7703194206704773
               }
             },
@@ -1293,7 +1281,7 @@
                 "brier_skill": 0.3037133670634702,
                 "ece": 0.09108544835617667,
                 "model_size_mb": 0.10847187042236328,
-                "train_minutes": 0.0038372984499953117,
+                "train_minutes": 0.002080786816683637,
                 "train_pr_auc": 0.9994637222606237
               }
             },
@@ -1325,7 +1313,7 @@
     {
       "condition": "nulls_5pct_nonkey",
       "ok": false,
-      "detail": "the pipeline stopped at ESCALATED: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED",
+      "detail": "quarantined 72 of 8078 rows; test PR-AUC None, ECE None; approvals 0; the run stopped: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED",
       "measurements": [
         {
           "name": "null_rate_non_key",
@@ -1364,8 +1352,94 @@
           "note": ""
         },
         {
+          "name": "input_rows",
+          "value": "8078",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quarantined_rows",
+          "value": "72",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "removed_duplicates",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "rows_affected_pct",
+          "value": 0.8913,
+          "unit": "%",
+          "note": "what the cleaning.execute policy limit of 5% is compared against"
+        },
+        {
+          "name": "selected_family",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_pr_auc",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_roc_auc",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_ece",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "churn_rate",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "selection_outcome",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_policy_decisions",
+          "value": [
+            "cleaning.execute -> allow"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
           "name": "wall_clock_s",
-          "value": 382.6,
+          "value": 591.6,
           "unit": "s",
           "note": ""
         }
@@ -1407,7 +1481,7 @@
                   "ece": 0.05109211775878433,
                   "segment_recall_gap": 0.0,
                   "model_size_mb": 0.0021257400512695312,
-                  "train_minutes": 0.0001473066833265572,
+                  "train_minutes": 0.00019221428331851105,
                   "train_pr_auc": 0.2205128205128205
                 }
               }
@@ -1442,7 +1516,7 @@
                   "ece": 0.05109211775878433,
                   "segment_recall_gap": 0.0,
                   "model_size_mb": 0.0021257400512695312,
-                  "train_minutes": 0.0001473066833265572,
+                  "train_minutes": 0.00019221428331851105,
                   "train_pr_auc": 0.2205128205128205
                 }
               },
@@ -1468,7 +1542,7 @@
                   "ece": 0.07510907146419267,
                   "segment_recall_gap": 0.02083333333333326,
                   "model_size_mb": 0.0036020278930664062,
-                  "train_minutes": 0.003796027849997093,
+                  "train_minutes": 0.002346330100014408,
                   "train_pr_auc": 0.6778465586609216
                 }
               },
@@ -1494,10 +1568,10 @@
                   "valid_churn_rate": 0.2716049382716049,
                   "logreg_pr_auc": 0.6783270822576755,
                   "brier_skill": 0.27155945302512663,
-                  "ece": 0.08264661792349454,
+                  "ece": 0.08264661792349456,
                   "segment_recall_gap": 0.008333333333333304,
                   "model_size_mb": 1.267435073852539,
-                  "train_minutes": 0.03644736461666677,
+                  "train_minutes": 0.050442891483332156,
                   "train_pr_auc": 0.9328361300534862
                 }
               },
@@ -1526,7 +1600,7 @@
                   "ece": 0.14560163081678795,
                   "segment_recall_gap": 0.004166666666666652,
                   "model_size_mb": 0.359466552734375,
-                  "train_minutes": 0.04984408133332181,
+                  "train_minutes": 0.08540970815001855,
                   "train_pr_auc": 1.0
                 }
               },
@@ -1555,7 +1629,7 @@
                   "ece": 0.12962763514757178,
                   "segment_recall_gap": 0.016666666666666607,
                   "model_size_mb": 0.3711261749267578,
-                  "train_minutes": 0.005011530983347256,
+                  "train_minutes": 0.009525338916682813,
                   "train_pr_auc": 1.0
                 }
               },
@@ -1579,9 +1653,9 @@
                   "valid_churn_rate": 0.2716049382716049,
                   "logreg_pr_auc": 0.6783270822576755,
                   "brier_skill": 0.21945858621463343,
-                  "ece": 0.13064212896857855,
+                  "ece": 0.13064212896857857,
                   "model_size_mb": 0.9507579803466797,
-                  "train_minutes": 0.05455910166667006,
+                  "train_minutes": 0.10221059205002045,
                   "train_pr_auc": 0.7688094237988543
                 }
               },
@@ -1608,7 +1682,7 @@
                   "brier_skill": 0.2775203539315201,
                   "ece": 0.07037518745663848,
                   "model_size_mb": 0.21214008331298828,
-                  "train_minutes": 0.0024496645166739955,
+                  "train_minutes": 0.005636787733328675,
                   "train_pr_auc": 0.9915383867302279
                 }
               },
@@ -1636,13 +1710,60 @@
               }
             }
           }
-        }
+        },
+        "executions": [
+          {
+            "engine": "spark",
+            "status": "succeeded",
+            "metrics": {
+              "quality_score": 0.9145
+            }
+          },
+          {
+            "engine": "scala_spark",
+            "status": "succeeded",
+            "metrics": {
+              "input_rows": "8078",
+              "output_rows": "8006",
+              "grain_unique": "true",
+              "output_columns": "15",
+              "quarantined_rows": "72",
+              "removed_duplicates": "0",
+              "rule_null_customer": "72",
+              "rule_zero_quantity": "0",
+              "rule_null_order_date": "0",
+              "row_accounting_balanced": "true",
+              "rule_non_positive_price": "0"
+            }
+          },
+          {
+            "engine": "scala_spark",
+            "status": "succeeded",
+            "metrics": {
+              "output_rows": "2097",
+              "grain_unique": "true",
+              "output_columns": "25"
+            }
+          },
+          {
+            "engine": "scala_spark",
+            "status": "succeeded",
+            "metrics": {
+              "output_rows": "2097",
+              "grain_unique": "true",
+              "output_columns": "3"
+            }
+          }
+        ],
+        "quarantine_by_rule": null,
+        "selection": {},
+        "approvals": []
       }
     },
     {
       "condition": "nulls_20pct_nonkey",
       "ok": false,
-      "detail": "the pipeline stopped at ESCALATED: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED",
+      "detail": "quarantined 72 of 8078 rows; test PR-AUC None, ECE None; approvals 0; the run stopped: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED",
       "measurements": [
         {
           "name": "null_rate_non_key",
@@ -1681,8 +1802,94 @@
           "note": ""
         },
         {
+          "name": "input_rows",
+          "value": "8078",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quarantined_rows",
+          "value": "72",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "removed_duplicates",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "rows_affected_pct",
+          "value": 0.8913,
+          "unit": "%",
+          "note": "what the cleaning.execute policy limit of 5% is compared against"
+        },
+        {
+          "name": "selected_family",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_pr_auc",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_roc_auc",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_ece",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "churn_rate",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "selection_outcome",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_policy_decisions",
+          "value": [
+            "cleaning.execute -> allow"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
           "name": "wall_clock_s",
-          "value": 320.6,
+          "value": 513.3,
           "unit": "s",
           "note": ""
         }
@@ -1724,7 +1931,7 @@
                   "ece": 0.05109211775878433,
                   "segment_recall_gap": 0.0,
                   "model_size_mb": 0.0021257400512695312,
-                  "train_minutes": 0.00011016993333517651,
+                  "train_minutes": 0.0002873555166843289,
                   "train_pr_auc": 0.2205128205128205
                 }
               }
@@ -1759,7 +1966,7 @@
                   "ece": 0.05109211775878433,
                   "segment_recall_gap": 0.0,
                   "model_size_mb": 0.0021257400512695312,
-                  "train_minutes": 0.00011016993333517651,
+                  "train_minutes": 0.0002873555166843289,
                   "train_pr_auc": 0.2205128205128205
                 }
               },
@@ -1785,7 +1992,7 @@
                   "ece": 0.09407686510265864,
                   "segment_recall_gap": 0.008333333333333304,
                   "model_size_mb": 0.0036020278930664062,
-                  "train_minutes": 0.002402289033322328,
+                  "train_minutes": 0.0037812251333283107,
                   "train_pr_auc": 0.6969426763462776
                 }
               },
@@ -1814,7 +2021,7 @@
                   "ece": 0.08672110528449077,
                   "segment_recall_gap": 0.008333333333333304,
                   "model_size_mb": 1.2680368423461914,
-                  "train_minutes": 0.03131216684999648,
+                  "train_minutes": 0.057051106066683135,
                   "train_pr_auc": 0.9295340010542557
                 }
               },
@@ -1843,7 +2050,7 @@
                   "ece": 0.14904625631631205,
                   "segment_recall_gap": 0.004166666666666652,
                   "model_size_mb": 0.3596620559692383,
-                  "train_minutes": 0.04823145074998744,
+                  "train_minutes": 0.13231577761665297,
                   "train_pr_auc": 1.0
                 }
               },
@@ -1871,7 +2078,7 @@
                   "ece": 0.14643546652660602,
                   "segment_recall_gap": 0.029166666666666674,
                   "model_size_mb": 0.37268543243408203,
-                  "train_minutes": 0.004577762399988691,
+                  "train_minutes": 0.009643773466662727,
                   "train_pr_auc": 1.0
                 }
               },
@@ -1898,7 +2105,7 @@
                   "brier_skill": 0.2753830904240153,
                   "ece": 0.08567125530369242,
                   "model_size_mb": 0.4178924560546875,
-                  "train_minutes": 0.006186012200002248,
+                  "train_minutes": 0.0077975876499901155,
                   "train_pr_auc": 0.9995943387705506
                 }
               },
@@ -1924,7 +2131,7 @@
                   "brier_skill": 0.21072640546281607,
                   "ece": 0.15686543541757245,
                   "model_size_mb": 0.18344497680664062,
-                  "train_minutes": 0.011137751283331453,
+                  "train_minutes": 0.015736114266655932,
                   "train_pr_auc": 0.7564567718578263
                 }
               },
@@ -1952,13 +2159,60 @@
               }
             }
           }
-        }
+        },
+        "executions": [
+          {
+            "engine": "scala_spark",
+            "status": "succeeded",
+            "metrics": {
+              "output_rows": "2097",
+              "grain_unique": "true",
+              "output_columns": "25"
+            }
+          },
+          {
+            "engine": "scala_spark",
+            "status": "succeeded",
+            "metrics": {
+              "output_rows": "2097",
+              "grain_unique": "true",
+              "output_columns": "3"
+            }
+          },
+          {
+            "engine": "spark",
+            "status": "succeeded",
+            "metrics": {
+              "quality_score": 0.8885
+            }
+          },
+          {
+            "engine": "scala_spark",
+            "status": "succeeded",
+            "metrics": {
+              "input_rows": "8078",
+              "output_rows": "8006",
+              "grain_unique": "true",
+              "output_columns": "15",
+              "quarantined_rows": "72",
+              "removed_duplicates": "0",
+              "rule_null_customer": "72",
+              "rule_zero_quantity": "0",
+              "rule_null_order_date": "0",
+              "row_accounting_balanced": "true",
+              "rule_non_positive_price": "0"
+            }
+          }
+        ],
+        "quarantine_by_rule": null,
+        "selection": {},
+        "approvals": []
       }
     },
     {
       "condition": "nulls_50pct_nonkey",
       "ok": false,
-      "detail": "the pipeline stopped at ESCALATED: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED",
+      "detail": "quarantined 72 of 8078 rows; test PR-AUC None, ECE None; approvals 0; the run stopped: calibration rules still failing after isotonic and sigmoid: MISCALIBRATED",
       "measurements": [
         {
           "name": "null_rate_non_key",
@@ -1997,8 +2251,94 @@
           "note": ""
         },
         {
+          "name": "input_rows",
+          "value": "8078",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quarantined_rows",
+          "value": "72",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "removed_duplicates",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "rows_affected_pct",
+          "value": 0.8913,
+          "unit": "%",
+          "note": "what the cleaning.execute policy limit of 5% is compared against"
+        },
+        {
+          "name": "selected_family",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_pr_auc",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_roc_auc",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_ece",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "churn_rate",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "selection_outcome",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_policy_decisions",
+          "value": [
+            "cleaning.execute -> allow"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
           "name": "wall_clock_s",
-          "value": 333.6,
+          "value": 526.6,
           "unit": "s",
           "note": ""
         }
@@ -2040,7 +2380,7 @@
                   "ece": 0.05109211775878433,
                   "segment_recall_gap": 0.0,
                   "model_size_mb": 0.0021257400512695312,
-                  "train_minutes": 0.004923420116665511,
+                  "train_minutes": 0.00034554133332373265,
                   "train_pr_auc": 0.2205128205128205
                 }
               }
@@ -2075,7 +2415,7 @@
                   "ece": 0.05109211775878433,
                   "segment_recall_gap": 0.0,
                   "model_size_mb": 0.0021257400512695312,
-                  "train_minutes": 0.004923420116665511,
+                  "train_minutes": 0.00034554133332373265,
                   "train_pr_auc": 0.2205128205128205
                 }
               },
@@ -2101,7 +2441,7 @@
                   "ece": 0.0991416313649957,
                   "segment_recall_gap": 0.012500000000000067,
                   "model_size_mb": 0.0036020278930664062,
-                  "train_minutes": 0.003974672983334434,
+                  "train_minutes": 0.0029449852499965345,
                   "train_pr_auc": 0.6789568896940904
                 }
               },
@@ -2129,7 +2469,7 @@
                   "ece": 0.0885181426354413,
                   "segment_recall_gap": 0.012500000000000067,
                   "model_size_mb": 1.279947280883789,
-                  "train_minutes": 0.038762931516672934,
+                  "train_minutes": 0.05965048565000567,
                   "train_pr_auc": 0.9323746149651884
                 }
               },
@@ -2158,7 +2498,7 @@
                   "ece": 0.15533678136913506,
                   "segment_recall_gap": 0.004166666666666652,
                   "model_size_mb": 0.3582887649536133,
-                  "train_minutes": 0.04927868948334435,
+                  "train_minutes": 0.08895949084999302,
                   "train_pr_auc": 1.0
                 }
               },
@@ -2187,7 +2527,7 @@
                   "ece": 0.15219324922260735,
                   "segment_recall_gap": 0.004166666666666652,
                   "model_size_mb": 0.37151050567626953,
-                  "train_minutes": 0.009254774349998721,
+                  "train_minutes": 0.016023134383340222,
                   "train_pr_auc": 1.0
                 }
               },
@@ -2210,10 +2550,10 @@
                   "valid_pr_auc": 0.7093458112921133,
                   "valid_churn_rate": 0.2716049382716049,
                   "logreg_pr_auc": 0.6590878896836284,
-                  "brier_skill": 0.2240118264842207,
-                  "ece": 0.13729485659673002,
+                  "brier_skill": 0.22401182648422036,
+                  "ece": 0.13729485659673005,
                   "model_size_mb": 0.4991188049316406,
-                  "train_minutes": 0.021872360883329143,
+                  "train_minutes": 0.04261112506665086,
                   "train_pr_auc": 0.8057016150871247
                 }
               },
@@ -2240,7 +2580,7 @@
                   "brier_skill": 0.2631078573922133,
                   "ece": 0.08734186907747278,
                   "model_size_mb": 0.11055469512939453,
-                  "train_minutes": 0.0011684062999999393,
+                  "train_minutes": 0.003736642600021393,
                   "train_pr_auc": 0.9853338402505103
                 }
               },
@@ -2268,9 +2608,56 @@
               }
             }
           }
-        }
+        },
+        "executions": [
+          {
+            "engine": "spark",
+            "status": "succeeded",
+            "metrics": {
+              "quality_score": 0.836
+            }
+          },
+          {
+            "engine": "scala_spark",
+            "status": "succeeded",
+            "metrics": {
+              "input_rows": "8078",
+              "output_rows": "8006",
+              "grain_unique": "true",
+              "output_columns": "15",
+              "quarantined_rows": "72",
+              "removed_duplicates": "0",
+              "rule_null_customer": "72",
+              "rule_zero_quantity": "0",
+              "rule_null_order_date": "0",
+              "row_accounting_balanced": "true",
+              "rule_non_positive_price": "0"
+            }
+          },
+          {
+            "engine": "scala_spark",
+            "status": "succeeded",
+            "metrics": {
+              "output_rows": "2097",
+              "grain_unique": "true",
+              "output_columns": "25"
+            }
+          },
+          {
+            "engine": "scala_spark",
+            "status": "succeeded",
+            "metrics": {
+              "output_rows": "2097",
+              "grain_unique": "true",
+              "output_columns": "3"
+            }
+          }
+        ],
+        "quarantine_by_rule": null,
+        "selection": {},
+        "approvals": []
       }
     }
   ],
-  "run_dir": "20260921T195132Z"
+  "run_dir": "20260921T210142Z"
 }

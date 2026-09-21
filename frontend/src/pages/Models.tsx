@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
-import type { Evaluation, ModelSummary, ModelVersion } from "../api";
+import type { Evaluation, ModelDetail, ModelSummary, ModelVersion } from "../api";
 import { BarChart, ConfusionMatrix, LineChart, UnitLineChart } from "../charts";
 import { Empty, Panel, Problem, Tabs, num, pct, useLoad, when } from "../shared";
 
@@ -41,6 +41,7 @@ export function Models() {
             <Aliased label="Challenger" version={model.challenger} />
           </div>
           {open === model.name && <Versions name={model.name} />}
+          <VersionComparison model={model} />
           {/* Both aliases, not just the champion. The challenger is the one whose curves
               someone needs while deciding a promotion (FR-066), and in practice it is also
               the version that has an evaluation document at all: a champion promoted before
@@ -357,5 +358,218 @@ function ModelEvaluation({ modelRef, version }: { modelRef: string; version: Mod
         },
       ]}
     />
+  );
+}
+
+
+/**
+ * Compare any two versions (PRD 26.1 "Model": *compare any two versions*; FR-066).
+ *
+ * Both sides come from stored evaluation documents, so a version trained before those existed
+ * says so instead of showing blanks that read like zeros. The delta is arithmetic on two served
+ * numbers; the intervals beside it are not, and they are what say whether the delta means
+ * anything. Two overlapping 95% intervals mean this test set cannot separate the versions
+ * whatever the point estimates do, and the table says so in words rather than leaving a reader
+ * to compare four numbers in their head.
+ */
+const COMPARED = [
+  ["pr_auc", "PR-AUC"],
+  ["roc_auc", "ROC-AUC"],
+  ["recall", "Recall"],
+  ["precision", "Precision"],
+  ["brier_skill", "Brier skill"],
+  ["ece", "Calibration error"],
+  ["lift_at_10pct", "Lift at 10%"],
+] as const;
+
+function VersionComparison({ model }: { model: ModelSummary }) {
+  const detail = useLoad<ModelDetail>(() => api.model(model.name), [model.name]);
+  const [left, setLeft] = useState<string | null>(null);
+  const [right, setRight] = useState<string | null>(null);
+
+  const versions = detail.data?.versions ?? [];
+  const [first, second] = versions;
+  if (!first || !second) {
+    return first ? (
+      <p className="muted">
+        Only one version of this model is registered, so there is nothing to compare it with yet.
+      </p>
+    ) : null;
+  }
+
+  const a = left ?? model.champion?.id ?? first.id;
+  const b = right ?? model.challenger?.id ?? versions.find((v) => v.id !== a)?.id ?? second.id;
+
+  const picker = (label: string, value: string, onChange: (id: string) => void) => (
+    <label className="search">
+      <span className="sr-only">{label}</span>
+      <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
+        {versions.map((v) => (
+          <option key={v.id} value={v.id}>
+            v{v.mlflow_version ?? "?"} - {v.algorithm} - {v.governance_status}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
+  return (
+    <details className="compare">
+      <summary>Compare two versions</summary>
+      <div className="compare-pickers">
+        {picker("First version to compare", a, setLeft)}
+        <span className="muted">against</span>
+        {picker("Second version to compare", b, setRight)}
+      </div>
+      {a === b ? (
+        <p className="muted">Pick two different versions.</p>
+      ) : (
+        <ComparisonBody modelRef={model.name} a={a} b={b} versions={versions} />
+      )}
+    </details>
+  );
+}
+
+function ComparisonBody({
+  modelRef,
+  a,
+  b,
+  versions,
+}: {
+  modelRef: string;
+  a: string;
+  b: string;
+  versions: ModelVersion[];
+}) {
+  const left = useLoad<Evaluation>(() => api.evaluation(modelRef, a), [modelRef, a]);
+  const right = useLoad<Evaluation>(() => api.evaluation(modelRef, b), [modelRef, b]);
+  const name = (id: string) => {
+    const version = versions.find((v) => v.id === id);
+    return "v" + (version?.mlflow_version ?? "?");
+  };
+
+  const missing = [
+    left.problem ? name(a) + ": " + left.problem.message : null,
+    right.problem ? name(b) + ": " + right.problem.message : null,
+  ].filter((m): m is string => m !== null);
+  if (missing.length > 0) {
+    return <p className="muted">No stored evaluation to compare. {missing.join(" ")}</p>;
+  }
+  if (!left.data || !right.data) return <p className="muted">Loading both evaluations...</p>;
+
+  const l = left.data.test;
+  const r = right.data.test;
+  const curvesL = "roc" in l.curves ? l.curves : null;
+  const curvesR = "roc" in r.curves ? r.curves : null;
+
+  return (
+    <>
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>{name(a)} (95% interval)</th>
+            <th>{name(b)} (95% interval)</th>
+            <th>Difference</th>
+          </tr>
+        </thead>
+        <tbody>
+          {COMPARED.map(([key, label]) => {
+            const lv = l.values[key];
+            const rv = r.values[key];
+            const li = l.intervals[key];
+            const ri = r.intervals[key];
+            const overlap = li && ri ? li[0] <= ri[1] && ri[0] <= li[1] : null;
+            const delta = lv !== undefined && rv !== undefined ? rv - lv : null;
+            return (
+              <tr key={key}>
+                <td>{label}</td>
+                <td>
+                  {num(lv, 4)}
+                  {li && (
+                    <span className="muted">
+                      {" "}
+                      [{num(li[0], 3)}, {num(li[1], 3)}]
+                    </span>
+                  )}
+                </td>
+                <td>
+                  {num(rv, 4)}
+                  {ri && (
+                    <span className="muted">
+                      {" "}
+                      [{num(ri[0], 3)}, {num(ri[1], 3)}]
+                    </span>
+                  )}
+                </td>
+                <td>
+                  {delta === null ? (
+                    "not measured"
+                  ) : (
+                    <>
+                      {delta > 0 ? "+" : ""}
+                      {delta.toFixed(4)}
+                      {overlap === true && <span className="muted"> - intervals overlap</span>}
+                      {overlap === false && <span className="pill good">separated</span>}
+                    </>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="chart-grid">
+        <UnitLineChart
+          title="ROC, both versions"
+          xLabel="False positive rate"
+          yLabel="True positive rate"
+          series={[
+            curvesL && {
+              label: name(a) + " (AUC " + num(l.values.roc_auc, 3) + ")",
+              points: curvesL.roc.fpr.map(
+                (x, i) => [x, curvesL.roc.tpr[i] ?? 0] as [number, number],
+              ),
+            },
+            curvesR && {
+              label: name(b) + " (AUC " + num(r.values.roc_auc, 3) + ")",
+              points: curvesR.roc.fpr.map(
+                (x, i) => [x, curvesR.roc.tpr[i] ?? 0] as [number, number],
+              ),
+              tone: "good" as const,
+              dashed: true,
+            },
+          ].filter((s) => s !== null)}
+          reference={{ label: "No better than chance", points: [[0, 0], [1, 1]] }}
+        />
+        <UnitLineChart
+          title="Precision-recall, both versions"
+          xLabel="Recall"
+          yLabel="Precision"
+          series={[
+            curvesL && {
+              label: name(a) + " (AUC " + num(l.values.pr_auc, 3) + ")",
+              points: curvesL.pr.recall.map(
+                (x, i) => [x, curvesL.pr.precision[i] ?? 0] as [number, number],
+              ),
+            },
+            curvesR && {
+              label: name(b) + " (AUC " + num(r.values.pr_auc, 3) + ")",
+              points: curvesR.pr.recall.map(
+                (x, i) => [x, curvesR.pr.precision[i] ?? 0] as [number, number],
+              ),
+              tone: "good" as const,
+              dashed: true,
+            },
+          ].filter((s) => s !== null)}
+        />
+      </div>
+      <p className="footnote">
+        Both rows come from the test split of each version's own evaluation document. The two
+        were scored on the same sealed test cutoff, which is what makes the difference column
+        meaningful; the split is part of the stored document, so a version scored on a different
+        one would not be comparable.
+      </p>
+    </>
   );
 }

@@ -362,3 +362,10 @@ tr.selected > td { background: var(--row-hover, rgba(37,99,235,0.06)); }
    page navigable; the frame cannot resize itself because it has no script permission. */
 .report-frame { width: 100%; height: 34rem; border: 1px solid var(--line);
                 border-radius: var(--radius); background: #fff; }
+
+/* Version comparison, collapsed until asked for: a promotion decision needs it, a glance at
+   the champion does not. */
+.compare { margin-top: 0.9rem; border-top: 1px solid var(--line); padding-top: 0.75rem; }
+.compare > summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; }
+.compare-pickers { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+                   margin: 0.75rem 0; }
