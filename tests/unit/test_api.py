@@ -11,14 +11,17 @@ these tests read are rows the handlers really wrote, and everything is rolled ba
 from __future__ import annotations
 
 import datetime as dt
+import json
 import uuid
 
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.app.api.v1.settings import redact_dsn
 from backend.app.deps import get_session
 from backend.app.main import app
 from backend.app.security import hash_password, issue_token
+from triad_core.config import settings
 from triad_core.models import User
 
 pytestmark = pytest.mark.postgres
@@ -787,3 +790,62 @@ def test_no_cursor_means_start_at_the_beginning() -> None:
 
     assert decode_cursor(None) is None
     assert decode_cursor("") is None
+
+
+# --- settings ------------------------------------------------------------------
+
+
+def test_the_settings_page_is_admin_only(client, users) -> None:
+    for role in ("viewer", "business_analyst", "ml_engineer", "data_engineer"):
+        assert client.get("/api/v1/settings", headers=_auth(users[role])).status_code == 403
+    assert client.get("/api/v1/settings", headers=_auth(users["admin"])).status_code == 200
+
+
+def test_settings_never_serves_a_credential(client, users) -> None:
+    """The page shows connection targets, and a target is not a DSN.
+
+    Asserted against the whole payload rather than the connection list: a password that
+    reached the browser through some other field would be just as leaked.
+    """
+    body = client.get("/api/v1/settings", headers=_auth(users["admin"])).json()
+    blob = json.dumps(body)
+    assert "password_hash" not in blob
+    assert settings().db_url not in blob
+    postgres = next(c for c in body["connections"] if c["name"] == "PostgreSQL")
+    assert postgres["target"].startswith("postgresql")
+    assert "***@" in postgres["target"]
+
+
+@pytest.mark.parametrize(
+    ("dsn", "expected"),
+    [
+        ("postgresql+psycopg://triad:pw@postgres:5432/triad", "postgresql+psycopg://***@postgres:5432/triad"),
+        # A password containing the separators a hand-rolled split would trip over.
+        ("postgresql://u:p@ss:word@host:1/db", "postgresql://***@host:1/db"),
+        ("http://mlflow:5000", "http://mlflow:5000"),
+        ("local[2]", "local[2]"),
+    ],
+)
+def test_a_dsn_is_redacted_without_losing_its_target(dsn: str, expected: str) -> None:
+    assert redact_dsn(dsn) == expected
+
+
+def test_both_policy_files_are_read_the_way_their_own_engine_reads_them(client, users) -> None:
+    """Routing is not a governance policy, and judging it as one reported a false alarm.
+
+    `PolicyEngine` requires `policy_version` and an `actions` map; routing.yaml has
+    `routing_version` and `rules`. The first version of this endpoint ran the governance
+    validator over both and told the administrator that the routing policy had been refused -
+    on a page whose whole job is saying whether the policy loaded.
+    """
+    body = client.get("/api/v1/settings", headers=_auth(users["admin"])).json()
+    by_name = {p["name"]: p for p in body["policies"]}
+
+    assert by_name["governance"]["valid"] is True
+    assert by_name["governance"]["action_count"] > 0
+    assert by_name["routing"]["valid"] is True
+    assert by_name["routing"]["version"] != "invalid"
+    assert by_name["routing"]["action_count"] > 0
+    for policy in by_name.values():
+        assert policy["sha256"] and len(policy["sha256"]) == 64
+        assert policy["text"].strip()

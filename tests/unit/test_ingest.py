@@ -283,3 +283,70 @@ class TestContractIsEnforcedWithoutBeingAskedTo:
             "tx_no_contract", path / "part-00000.parquet", actor="test"
         )
         assert result.created is True, result.reason
+
+
+class TestTheProfileReachesTheVersionItDescribes:
+    """`dataset_versions.profile_uri` and `.quality_score` were columns nothing filled.
+
+    The profiling stage wrote the document to storage and returned its URI; the caller used the
+    score for the quality gate and dropped the rest. Across 130 version rows both columns were
+    NULL, which meant the one endpoint that serves a profile - `GET
+    /datasets/{ref}/versions/{n}/profile`, FR-068 - refused every request it could ever be
+    given, because it checks `profile_uri` first.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _db(self, postgres_available, db_session, storage):
+        if not postgres_available:
+            pytest.skip("postgres service is not reachable")
+        self.session = db_session
+        self.storage = storage
+        self.registry = DatasetRegistry(db_session, storage)
+
+    def _register(self, name: str, tmp_path: Path):
+        self.registry.register_source(name, entity_type="transactions", source_type="parquet")
+        d = tmp_path / "pq"
+        write_parquet(_sample_frame(12), d / "part-00000.parquet")
+        return self.registry.register_version(name, d / "part-00000.parquet")
+
+    def _pipeline(self):
+        from agents.graph.pipeline import ChurnPipeline
+        from triad_core.models import PipelineRun
+
+        run = PipelineRun(
+            run_key=f"test-{dt.datetime.now(dt.UTC).timestamp()}",
+            pipeline_name="churn_v1", state="RUNNING", mode="full",
+            trigger_type="manual",
+        )
+        self.session.add(run)
+        self.session.flush()
+        return ChurnPipeline(self.session, run, store=self.storage)
+
+    def test_a_profiled_version_carries_its_score_and_document(self, tmp_path: Path) -> None:
+        from triad_core.models import DatasetVersion
+
+        result = self._register("tx_profile_link", tmp_path)
+        self._pipeline()._attach_profile_to_version(
+            result.storage_uri,
+            {"profile_uri": "file:///data/triad/profiles/test_tx.json", "quality_score": 0.91},
+        )
+
+        version = self.session.get(DatasetVersion, result.version_id)
+        assert version.quality_score == pytest.approx(0.91)
+        assert version.profile_uri == "file:///data/triad/profiles/test_tx.json"
+
+    def test_profiling_a_path_that_is_not_a_registered_version_changes_nothing(
+        self, tmp_path: Path
+    ) -> None:
+        """The experiments profile scratch folders; that must not raise or touch a row."""
+        from triad_core.models import DatasetVersion
+
+        result = self._register("tx_profile_unrelated", tmp_path)
+        self._pipeline()._attach_profile_to_version(
+            "file:///data/triad/raw/not_a_registered_version/v=1",
+            {"profile_uri": "file:///elsewhere.json", "quality_score": 0.1},
+        )
+
+        version = self.session.get(DatasetVersion, result.version_id)
+        assert version.quality_score is None
+        assert version.profile_uri is None

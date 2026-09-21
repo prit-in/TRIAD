@@ -56,11 +56,11 @@ export function whenUnauthorised(handler: () => void): void {
   onUnauthorised = handler;
 }
 
-async function request<T>(
+async function send(
   path: string,
-  init: RequestInit = {},
-  { authenticated = true }: { authenticated?: boolean } = {},
-): Promise<T> {
+  init: RequestInit,
+  authenticated: boolean,
+): Promise<{ response: Response; text: string }> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
 
@@ -73,11 +73,40 @@ async function request<T>(
     storeToken(null);
     onUnauthorised();
   }
+  return { response, text: await response.text() };
+}
 
-  const text = await response.text();
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  { authenticated = true }: { authenticated?: boolean } = {},
+): Promise<T> {
+  const { response, text } = await send(path, init, authenticated);
   const body = text ? (JSON.parse(text) as Record<string, unknown>) : null;
   if (!response.ok) throw new ApiProblem(response.status, body);
   return body as T;
+}
+
+/**
+ * The same call for an endpoint that answers with a document rather than JSON.
+ *
+ * The rendered report is HTML behind the same bearer token as everything else, so it cannot be
+ * an `<a href>` or an `<iframe src>`: neither carries the header. It is fetched here and
+ * handed to the page as text. A failure still arrives as Problem Details JSON, so the error
+ * path parses and the success path does not.
+ */
+async function requestText(path: string): Promise<string> {
+  const { response, text } = await send(path, {}, true);
+  if (!response.ok) {
+    let body: Record<string, unknown> | null = null;
+    try {
+      body = text ? (JSON.parse(text) as Record<string, unknown>) : null;
+    } catch {
+      /* a non-JSON error body: ApiProblem falls back to the status line */
+    }
+    throw new ApiProblem(response.status, body);
+  }
+  return text;
 }
 
 export const api = {
@@ -117,6 +146,14 @@ export const api = {
   experiments: () => request<ExperimentResult[]>("/experiments"),
   auditLogs: (query = "") => request<AuditEntry[]>(`/audit-logs${query}`),
   chainStatus: () => request<ChainStatus>("/audit-logs/verify"),
+  datasets: () => request<DatasetSummary[]>("/datasets"),
+  datasetVersions: (ref: string) =>
+    request<DatasetVersionSummary[]>(`/datasets/${encodeURIComponent(ref)}/versions`),
+  datasetProfile: (ref: string, versionNo: number) =>
+    request<Profile>(`/datasets/${encodeURIComponent(ref)}/versions/${versionNo}/profile`),
+  /** The rendered document, not its metadata row (FR-072). */
+  reportHtml: (id: string) => requestText(`/reports/${id}?file=true`),
+  settings: () => request<SettingsView>("/settings"),
 };
 
 // --- what the API returns -------------------------------------------------------
@@ -397,7 +434,119 @@ export interface Report {
   status: string;
   storage_uri: string;
   claim_check_status: string | null;
+  /** What the claim check actually checked (FR-071): counts, and anything it refused. */
+  claim_check_json: {
+    passed?: boolean;
+    facts_verified?: number;
+    unverified_numbers?: string[];
+    unknown_placeholders?: string[];
+    causal_phrases?: string[];
+  };
   created_at: string | null;
+}
+
+export interface DatasetSummary {
+  id: string;
+  name: string;
+  entity_type: string | null;
+  source_type: string | null;
+  latest_version: number | null;
+  latest_quality_score: number | null;
+  updated_at: string | null;
+}
+
+export interface DatasetVersionSummary {
+  version_no: number;
+  row_count: number | null;
+  checksum: string | null;
+  quality_score: number | null;
+  created_at: string | null;
+  storage_uri: string | null;
+}
+
+export interface ProfileColumn {
+  name: string;
+  physical_type: string;
+  semantic_type: string;
+  null_count: number;
+  null_rate: number;
+  empty_string_count: number;
+  approx_distinct: number;
+  /** Counted exactly only for key columns and low-cardinality ones; null means approximated. */
+  exact_distinct: number | null;
+  min_value: string | number | null;
+  max_value: string | number | null;
+  mean: number | null;
+  stddev: number | null;
+  outlier_count: number | null;
+  quantiles: Record<string, number>;
+  top_values: { value: string | null; count: number }[];
+}
+
+export interface ProfileIssue {
+  id: string;
+  column: string | null;
+  severity: string;
+  message: string;
+  evidence: Record<string, unknown>;
+}
+
+/** The profile document the profiling stage wrote, served per dataset version (FR-068). */
+export interface Profile {
+  dataset: string;
+  version_no: number | null;
+  row_count: number;
+  column_count: number;
+  duplicate_rows: number;
+  key_columns: string[];
+  key_duplicate_rows: number;
+  quality_score: number;
+  quality_dimensions: Record<string, number>;
+  issues: ProfileIssue[];
+  columns: ProfileColumn[];
+  computed_at: string | null;
+  schema_hash: string | null;
+  sample_fraction: number | null;
+  schema_diff: {
+    added_columns?: string[];
+    removed_columns?: string[];
+    retyped_columns?: { column: string; from: string; to: string }[];
+    rename_candidates?: { from: string; to: string }[];
+    row_count_delta?: number;
+  };
+  population_stability: Record<string, number>;
+}
+
+export interface SettingsView {
+  environment: string;
+  policies: {
+    name: string;
+    path: string;
+    version: string;
+    valid: boolean;
+    load_error: string | null;
+    sha256: string | null;
+    action_count: number;
+    defaults: Record<string, number | string | boolean>;
+    text: string;
+  }[];
+  budgets: {
+    keys: string[];
+    code_default: Record<string, number>;
+    pipeline_config: Record<string, number>;
+    pipeline_config_path: string;
+    pipeline_config_error: string | null;
+  };
+  connections: { name: string; target: string; detail: string }[];
+  users: {
+    id: string;
+    email: string;
+    display_name: string;
+    role: string;
+    is_active: boolean;
+    created_at: string | null;
+    last_login_at: string | null;
+  }[];
 }
 
 export function isAggregate(

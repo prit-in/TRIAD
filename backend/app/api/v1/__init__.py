@@ -6,7 +6,15 @@ in each module, so a second version can be added beside this one without touchin
 
 from fastapi import APIRouter
 
-from backend.app.api.v1 import approvals, auth, datasets, insights, models, pipelines
+from backend.app.api.v1 import (
+    approvals,
+    auth,
+    datasets,
+    insights,
+    models,
+    pipelines,
+    settings,
+)
 
 api_v1 = APIRouter(prefix="/api/v1")
 api_v1.include_router(auth.router)
@@ -15,5 +23,6 @@ api_v1.include_router(pipelines.router)
 api_v1.include_router(models.router)
 api_v1.include_router(approvals.router)
 api_v1.include_router(insights.router)
+api_v1.include_router(settings.router)
 
 __all__ = ["api_v1"]

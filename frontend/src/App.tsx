@@ -1,6 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { SignIn, useAuth } from "./auth";
 import { Dashboard } from "./pages/Dashboard";
+import { Datasets } from "./pages/Datasets";
 import { Runs, RunDetailPage } from "./pages/Runs";
 import { Models } from "./pages/Models";
 import { Predictions } from "./pages/Predictions";
@@ -8,16 +9,21 @@ import { Approvals } from "./pages/Approvals";
 import { Experiments } from "./pages/Experiments";
 import { Monitoring } from "./pages/Monitoring";
 import { Audit } from "./pages/Audit";
+import { Reports } from "./pages/Reports";
+import { Settings } from "./pages/Settings";
 
 const PAGES: { to: string; label: string; end: boolean; adminOnly?: boolean }[] = [
   { to: "/", label: "Dashboard", end: true },
+  { to: "/datasets", label: "Datasets", end: false },
   { to: "/runs", label: "Runs", end: false },
   { to: "/models", label: "Models", end: false },
   { to: "/predictions", label: "Predictions", end: false },
+  { to: "/reports", label: "Reports", end: false },
   { to: "/approvals", label: "Approvals", end: false },
   { to: "/monitoring", label: "Monitoring", end: false },
   { to: "/experiments", label: "Experiments", end: false },
   { to: "/audit", label: "Audit", end: false, adminOnly: true },
+  { to: "/settings", label: "Settings", end: false, adminOnly: true },
 ];
 
 export function App() {
@@ -50,6 +56,7 @@ export function App() {
       <main>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/datasets" element={<Datasets />} />
           <Route path="/runs" element={<Runs />} />
           <Route path="/runs/:runId" element={<RunDetailPage />} />
           <Route path="/models" element={<Models />} />
@@ -57,7 +64,9 @@ export function App() {
           <Route path="/approvals" element={<Approvals />} />
           <Route path="/monitoring" element={<Monitoring />} />
           <Route path="/experiments" element={<Experiments />} />
+          <Route path="/reports" element={<Reports />} />
           <Route path="/audit" element={<Audit />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

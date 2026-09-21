@@ -341,3 +341,24 @@ dialog.confirm h2 { margin-top: 0; }
 
 /* "live" reads as a claim, so it only appears when the stream is actually connected. */
 .pill.live::before { content: "● "; color: var(--good); }
+
+/* The row whose detail is open below the table. A left rule as well as a tint, because a
+   background alone is the kind of "colour is the only signal" WCAG 2.2 asks about. */
+tr.selected > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+tr.selected > td { background: var(--row-hover, rgba(37,99,235,0.06)); }
+
+.search select { min-width: 14rem; }
+
+/* A budget the pipeline config and the code default disagree about. */
+.problem-cell { color: var(--bad); font-weight: 600; }
+
+/* The policy file, shown as written. Scrolls rather than stretching the page to the length
+   of a 300-line YAML document. */
+.policy-text { max-height: 26rem; overflow: auto; background: var(--bg); border: 1px solid var(--line);
+               border-radius: var(--radius); padding: 0.75rem; font-size: 0.78rem;
+               font-family: ui-monospace, "SF Mono", Menlo, monospace; white-space: pre; }
+
+/* The rendered report, sandboxed. A fixed height with its own scroll keeps the surrounding
+   page navigable; the frame cannot resize itself because it has no script permission. */
+.report-frame { width: 100%; height: 34rem; border: 1px solid var(--line);
+                border-radius: var(--radius); background: #fff; }

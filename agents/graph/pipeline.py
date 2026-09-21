@@ -362,7 +362,34 @@ class ChurnPipeline:
         self.result.stages.append(outcome.to_dict())
         if outcome.ok:
             self._record_metric("quality_score", outcome.outputs.get("quality_score"))
+            self._attach_profile_to_version(uri, outcome.outputs)
         return outcome.outputs if outcome.ok else {}
+
+    def _attach_profile_to_version(self, uri: str, outputs: dict[str, Any]) -> None:
+        """Write the profile back onto the version row it describes.
+
+        `dataset_versions.profile_uri` and `.quality_score` were two more columns nothing
+        filled. The profile document was written to storage and its URI handed back to the
+        caller, which used the score for the quality gate and dropped the rest - so across 130
+        version rows both columns were NULL, `GET /datasets/{ref}/versions/{n}/profile` could
+        only ever answer 404 (it refuses when `profile_uri` is unset), and every dataset in the
+        list read "not profiled" whatever its measured score was.
+
+        Matched on `storage_uri` because that is what the caller passes as the profiling input:
+        it is the same string `register_version` wrote on the row. A version that cannot be
+        found is left alone rather than guessed at - profiling a path that is not a registered
+        version is legitimate, and the experiments do it.
+        """
+        from triad_core.models import DatasetVersion
+
+        version = self.session.execute(
+            select(DatasetVersion).where(DatasetVersion.storage_uri == uri)
+        ).scalars().first()
+        if version is None:
+            return
+        version.profile_uri = outputs.get("profile_uri")
+        version.quality_score = outputs.get("quality_score")
+        self.session.flush()
 
     def _contract(self, dataset: str) -> Contract | None:
         path = settings().repo_root / "pipelines" / "contracts" / f"{dataset}.yaml"
