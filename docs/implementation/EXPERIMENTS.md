@@ -148,17 +148,22 @@ This is the one experiment whose hypothesis failed, and it is the most informati
 
 Four findings, none of which a passing test would have surfaced:
 
-1. **The content hash of a Spark output is not reproducible.** The killed-container arm read
+1. **The content hash of a Spark output was not reproducible.** The killed-container arm read
    byte-identical source data and ran identical code, produced the same 8078 rows with balanced
-   accounting, and committed a *different* content hash. `sha256_dir` hashes (relative path,
-   file hash) pairs, and Spark embeds a per-job UUID in every part-file name
-   (`part-00000-bd116240-…-c000.zstd.parquet`). The hash therefore cannot be stable across runs
-   by construction, which makes NFR-REP-02 ("identical content for deterministic stages") and
-   ATC-18's "output hashes identical" unachievable as currently implemented. **Open.** The fix
-   is a name-independent content hash for data folders — hash the sorted multiset of file
-   hashes, not the (name, hash) pairs — with the existing path-sensitive hash kept for code
-   trees, where names are meaningful. This has not been done yet and the replay script will
-   report a mismatch until it is.
+   accounting, and committed a *different* content hash. **Fixed**, and it took two goes,
+   because there were two causes and only the first was visible from this experiment:
+
+   - Spark mints a UUID per job and puts it in every part-file name, and `sha256_dir` folded
+     the names into the digest.
+   - `OutputValidator` writes without sorting, so which rows land in which part file — and in
+     what order inside one — depends on task scheduling. A replay with the names dealt with
+     reproduced the identical 7815 clean rows and *still* wrote different bytes.
+
+   A table's content is now defined as the multiset of its rows: each row hashed with its
+   column names attached, the hashes sorted, the digest over that. Measured stable across 3, 4
+   and 5 files holding the same rows. `sha256_dir` keeps its name-sensitive behaviour for code
+   trees. The cost is a read-back on commit, O(rows); the cheaper alternative is a
+   deterministic sort before write in the Scala job, and that trade is recorded in the code.
 2. **A 256m Spark driver's out-of-memory failure is classified `UNKNOWN`,** so the playbook
    prescribed `none` and `RAISE_EXECUTOR_MEMORY` never fired. The classifier does not recognise
    the signature this failure actually produces. **Open.**

@@ -199,12 +199,22 @@ def validate_shortlist(families: list[str]) -> None:
 
 
 def split_feature_types(
-    df, *, label_col: str = "churned_90d", id_cols: tuple[str, ...] = ("customer_id",)
+    df,
+    *,
+    label_col: str = "churned_90d",
+    id_cols: tuple[str, ...] = ("customer_id",),
+    exclude: tuple[str, ...] = (),
 ) -> tuple[list[str], list[str]]:
-    """Numeric and categorical feature columns. Identifiers are never features (rule H2)."""
+    """Numeric and categorical feature columns. Identifiers are never features (rule H2).
+
+    `exclude` names columns that are present for evaluation and must not become features -
+    the customer attributes the segment checks group by. A fairness check asks whether a model
+    built from behaviour treats groups differently; a model handed `country` as an input
+    answers a different question and the check stops meaning anything.
+    """
     import pandas as pd
 
-    excluded = {label_col, "snapshot_date", *id_cols}
+    excluded = {label_col, "snapshot_date", *id_cols, *exclude}
     num_cols, cat_cols = [], []
     for col in df.columns:
         if col in excluded:

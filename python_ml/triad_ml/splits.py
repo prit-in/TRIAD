@@ -52,6 +52,14 @@ class SplitData:
     test: pd.DataFrame
     spec: SplitSpec
     class_balance: dict[str, float] = field(default_factory=dict)
+    # Columns present in these frames for *evaluation only* - the customer attributes the
+    # segment checks group by. They live on the split rather than being passed to each
+    # training call because there are three such calls and forgetting one silently turns a
+    # demographic attribute into a model feature. That is exactly what happened: joining
+    # `country`, `loyalty_tier` and `acquisition_channel` for AP-6 moved every family's
+    # validation PR-AUC and escalated the run on MISCALIBRATED, because `train_candidate` and
+    # `calibrate` derive their own feature list from `split.train`.
+    evaluation_only_cols: tuple[str, ...] = ()
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -62,6 +70,7 @@ class SplitData:
                 "test": len(self.test),
             },
             "class_balance": self.class_balance,
+            "evaluation_only_cols": list(self.evaluation_only_cols),
             "spec": self.spec.to_dict(),
         }
 

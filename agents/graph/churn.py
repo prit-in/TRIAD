@@ -343,6 +343,9 @@ def prepare(
     pipeline._advance("TRAINING", stage="train")
     spec = plan_split(sorted(dataset.snapshot_date.unique()), horizon_days=90)
     split = apply_split(dataset, spec)
+    # The segment attributes stay in the frames - `segment_metrics` groups by them - and the
+    # split carries the fact that they are not features, so every training call excludes them.
+    split.evaluation_only_cols = tuple(segment_columns)
     say("split", f"train {len(split.train)} / valid {len(split.valid)} / "
                  f"test {len(split.test)}; churn rate "
                  f"{split.class_balance.get('valid', float('nan')):.3f}", True)
@@ -359,9 +362,9 @@ def prepare(
     # AP-8 is a comparison against the champion on the *same* test cutoff. Without the
     # champion's scores every run would silently behave as if it were the first one, and the
     # rule that a challenger must beat what is deployed would never actually apply.
-    # The segment attributes are dropped here, not in the join: they must reach `split.test`
-    # for the per-segment metrics and must never reach the model.
-    num_cols, cat_cols = split_feature_types(split.train.drop(columns=segment_columns))
+    num_cols, cat_cols = split_feature_types(
+        split.train, exclude=split.evaluation_only_cols
+    )
     feature_cols = num_cols + cat_cols
     champion_scores, champion_note = _champion_scores(split, feature_cols)
     if champion_note:

@@ -576,3 +576,55 @@ def test_ap6_passes_when_the_segments_agree() -> None:
         segments=segments,
     )
     assert "SEGMENT_RECALL_GAP" not in verdict.reason_codes, verdict.reason_codes
+
+
+def test_evaluation_only_columns_never_become_model_features() -> None:
+    """The trap that caught me: a column joined for fairness became a model input.
+
+    The segment attributes have to be *in* the split frames, because `segment_metrics` groups
+    by them. Excluding them at one call site is not enough — `train_candidate` and `calibrate`
+    each derive their own feature list from `split.train`, so joining `country`,
+    `loyalty_tier` and `acquisition_channel` for AP-6 silently moved every family's validation
+    PR-AUC and escalated the run on MISCALIBRATED.
+
+    `SplitData` carries the exclusion so no call site can forget it. This asserts the property
+    through the split, not through one function.
+    """
+    from python_ml.triad_ml.splits import SplitData, SplitSpec
+
+    frame = pd.DataFrame({
+        "customer_id": ["a", "b"],
+        "snapshot_date": ["2025-01-01", "2025-01-01"],
+        "churned_90d": [0, 1],
+        "recency_days": [3.0, 90.0],
+        "country": ["IN", "GB"],
+        "loyalty_tier": ["gold", "bronze"],
+    })
+    spec = SplitSpec(
+        train_cutoffs=["2025-01-01"], calibration_cutoffs=[], valid_cutoff="2025-04-01",
+        test_cutoff="2025-07-01", horizon_days=90, gap_days=90,
+    )
+    split = SplitData(frame, frame, frame, frame, spec,
+                      evaluation_only_cols=("country", "loyalty_tier"))
+
+    num_cols, cat_cols = split_feature_types(
+        split.train, exclude=split.evaluation_only_cols
+    )
+    assert "country" not in num_cols + cat_cols
+    assert "loyalty_tier" not in num_cols + cat_cols
+    assert num_cols == ["recency_days"]
+
+    # And they are still present in the frame, or the segment metrics would have nothing to
+    # group by — which is the whole reason they were joined.
+    assert "country" in split.test.columns
+    assert "loyalty_tier" in split.test.columns
+
+
+def test_without_the_exclusion_they_would_be_features() -> None:
+    """Shows the default is unchanged, so the exclusion is doing the work and not a rename."""
+    frame = pd.DataFrame({
+        "customer_id": ["a"], "snapshot_date": ["2025-01-01"], "churned_90d": [0],
+        "recency_days": [3.0], "country": ["IN"],
+    })
+    _, cat_cols = split_feature_types(frame)
+    assert "country" in cat_cols

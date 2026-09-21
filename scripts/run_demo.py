@@ -32,7 +32,7 @@ from agents.graph import queue as q
 from triad_core import audit
 from triad_core.config import settings
 from triad_core.db import session_scope
-from triad_core.models import User
+from triad_core.models import PipelineRun, User
 from triad_core.storage import storage
 
 SCALA_ROOT = settings().repo_root / "scala_spark"
@@ -156,6 +156,17 @@ def main() -> int:
 
     summary: dict[str, Any] = {"steps": []}
 
+    # Creating the run and registering the inputs is its own unit of work, and is committed
+    # before the pipeline starts. That is not tidiness. `audit.record` takes a per-chain
+    # `pg_advisory_xact_lock`, and the ingest writes land in the *system* chain because
+    # `register_source` and `register_version` carry no run id. Holding one transaction across
+    # the whole run therefore held the system-chain lock for its entire duration, and every
+    # `auth.login` - which writes to that same chain - blocked behind it. Measured before this
+    # split: one transaction idle for 9m56s with three logins queued at 4:32, 3:08 and 1:47,
+    # all released the moment the run finished. The API was unusable for the length of a run.
+    #
+    # Registering a dataset is also genuinely independent of whether a later Spark stage
+    # succeeds, so committing it separately is the honest boundary as well as the working one.
     with session_scope() as session:
         run = q.create_run(
             session, pipeline_name="churn_v1", trigger_type="manual", triggered_by="demo",
@@ -163,6 +174,7 @@ def main() -> int:
             config={"demo": True, "customers": args.customers, "months": args.months},
         )
         log("run", f"created {run.run_key}", ok=True)
+        run_id = run.id
 
         from dataeng.ingest import DatasetRegistry
 
@@ -178,6 +190,11 @@ def main() -> int:
                 registered[name] = result.storage_uri or ""
         log("ingest", f"registered {len(registered)} dataset versions", ok=True)
         summary["steps"].append({"step": "ingest", "datasets": len(registered)})
+
+    with session_scope() as session:
+        run = session.get(PipelineRun, run_id)
+        if run is None:   # the row was just committed; its absence would be a real fault
+            raise SystemExit(f"run {run_id} vanished between transactions")
 
         # --- phase one: everything up to the approval gate ---------------------
         spark = spark_session()

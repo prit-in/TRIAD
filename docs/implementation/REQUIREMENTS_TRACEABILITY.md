@@ -113,6 +113,7 @@ which part is missing.
 | --- | --- | --- | --- |
 | FR-064 | Metrics reporting | met | `metrics` table, `/models/{id}`, the dashboard |
 | FR-065 | Standard charts | **partly met** (Must) | The *data* now exists: `reports/<run_key>/evaluation.json` carries ROC, precision-recall, calibration bins and a lift/gain sweep, served at `GET /models/{ref}/versions/{id}/evaluation`. Before this the points were computed and discarded, so the charts could only have been drawn from invented numbers. The frontend does not yet draw them and has no charting code beyond a div-width bar |
+| AP-6 | Segment recall gap | **now enforced** — it never compared anything: `churn.prepare` passed `segment_cols=["country"] if "country" in dataset.columns else None`, and the feature job emits only numeric aggregates, so every run evaluated an empty list. Customer attributes are joined at the hand-off for evaluation and kept out of the model's features. Two tests pin that the gate bites and does not over-fire |
 | FR-066 | Model comparison | **partly met** (Must) | Bootstrap intervals now reach the database - `metrics.ci_low`/`ci_high` were columns nothing filled, so "comparison with confidence intervals" had no intervals. The evaluation document carries every screened family and the champion delta. No side-by-side UI yet |
 | FR-067 | Feature importance | met | in the report and on the predictions page, labelled as association. Now also persisted with its method in the evaluation document, instead of being recomputed each publish and dropped |
 | FR-068 | Data quality report | met | the profile document and `/datasets/{id}/versions/{n}/profile` |
@@ -163,7 +164,7 @@ which part is missing.
 | ATC-12 | Smoke-test failure rolls back | met — implemented and reachable with `--fail-smoke` |
 | ATC-13 | Prompt injection in data | met — `tests/unit/test_injection.py`, four defences tested separately. EXP-10 found a fifth class the scanner read past: chat-template control tokens, now flagged and broken up before fencing |
 | ATC-17 | Self-approval refused | met — asserted through the service *and* through the API |
-| ATC-18 | Replay with no LLM calls | **partly met** — `scripts/replay_run.py` exists, `ChurnPipeline._replay_scala` reads the stored artifact back and refuses code whose hash no longer matches, and `pipeline_runs.input_versions` is written so a replay reads the same bytes. The "output hashes identical" half **cannot pass yet**: EXP-6 found that `sha256_dir` hashes file *paths*, and Spark embeds a per-job UUID in every part-file name, so a data folder's hash is not reproducible by construction |
+| ATC-18 | Replay with no LLM calls | **partly met** — `scripts/replay_run.py` exists; a replay reuses all three stored artifacts with identical content hashes, makes 0 LLM calls, and reproduces identical rows and identical per-family PR-AUCs. The output-hash half needed two fixes: Spark's per-job UUID in every part-file name, and row-to-file assignment that varies with task scheduling. A table's content is now the multiset of its rows. Pending one end-to-end confirmation run |
 | ATC-06..11, 14..16 | (various) | **partly covered** by the tests above; not individually mapped |
 
 ## Experiments
