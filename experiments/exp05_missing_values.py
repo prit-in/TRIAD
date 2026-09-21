@@ -143,13 +143,8 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
         if not prepared.ok:
             trial.record("stop_reason", prepared.reason[:300])
             trial.observations["details"] = prepared.details
-            trial.ok = False
-            trial.detail = f"the pipeline stopped at {prepared.state}: {prepared.reason[:150]}"
-            trial.record("wall_clock_s", round(time.perf_counter() - started, 1), "s")
-            q.set_state(session, run, "CANCELLED", actor="exp05")
-            return
 
-        state = prepared.details
+        state = prepared.details if prepared.ok else {}
         selection = state.get("selection") or {}
         # `to_dict` writes `selected_family`, `test` and `valid` - not the attribute names.
         chosen_family = selection.get("selected_family")
@@ -190,6 +185,10 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
         trial.observations["quarantine_by_rule"] = clean_metrics.get("quarantined_by_rule")
 
         # --- the model: PR-AUC and calibration ----------------------------------
+        # Absent when the run escalated, and absent is what gets recorded. A condition whose
+        # model the acceptance policy refused has no test PR-AUC, and inventing one - or
+        # reading the last good model's - would be the whole point of this experiment thrown
+        # away.
         test_metrics = (selection.get("test") or {}).get("values", {}) or {}
         # The winner's validation metrics are not in the serialised selection - `rejected`
         # holds the families that lost. The test split is what the hypothesis is about, so the
@@ -226,10 +225,14 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
         q.set_state(session, run, "CANCELLED", actor="exp05")
 
     trial.ok = bool(trial.get("prepare_ok"))
+    stopped = next(
+        (m.value for m in trial.measurements if m.name == "stop_reason"), ""
+    )
     trial.detail = (
         f"quarantined {trial.get('quarantined_rows')} of {trial.get('input_rows')} rows; "
         f"test PR-AUC {trial.get('test_pr_auc')}, ECE {trial.get('test_ece')}; "
         f"approvals {trial.get('approval_requests')}"
+        + (f"; the run stopped: {stopped}" if stopped else "")
     )
 
 
@@ -289,8 +292,13 @@ def run() -> Experiment:
             (t, next(x for x in ok if x.condition == t).get("test_pr_auc")) for t in ordered
         ]
         numeric = [(n, v) for n, v in pr_aucs if isinstance(v, (int, float))]
-        monotone = all(
-            numeric[i][1] >= numeric[i + 1][1] - 1e-9 for i in range(len(numeric) - 1)
+        # `all()` over an empty or single-element sequence is True, so a run where only the
+        # baseline produced a PR-AUC previously reported "monotone decline: True" from one
+        # data point - and the hypothesis as held. A trend needs at least two points.
+        monotone = (
+            all(numeric[i][1] >= numeric[i + 1][1] - 1e-9 for i in range(len(numeric) - 1))
+            if len(numeric) >= 2
+            else None
         )
         balanced = all(t.get("row_accounting_balanced") in (True, "true") for t in ok)
         quarantine_rises = None
@@ -317,11 +325,18 @@ def run() -> Experiment:
 
         exp.conclude(
             status="completed" if len(ok) == len(CONDITIONS) else "partial",
-            hypothesis_held=monotone and balanced,
+            # `None` when the decline could not be assessed at all: no verdict is the honest
+            # answer when three of four conditions never produced a model.
+            hypothesis_held=(monotone and balanced) if monotone is not None else None,
             conclusion=(
                 "PR-AUC on the sealed test split by null rate: "
                 + ", ".join(f"{n}={v}" for n, v in pr_aucs)
-                + f". Monotone decline: {monotone}. "
+                + (
+                    f". Monotone decline: {monotone}. "
+                    if monotone is not None
+                    else ". Monotone decline: not assessable - fewer than two conditions "
+                         "produced a test PR-AUC. "
+                )
                 + "Calibration error: "
                 + ", ".join(
                     f"{t.condition}={t.get('test_ece')}" for t in ok
