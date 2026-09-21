@@ -72,17 +72,52 @@ def _find_run(session: DbSession, run_ref: str) -> PipelineRun:
 
 
 def _stages(session: DbSession, run: PipelineRun) -> list[StageView]:
+    """The stages of a run, from its queued tasks - or from what actually executed.
+
+    A run driven through the API has `agent_tasks`; one driven directly, as
+    `scripts/run_demo.py` does, has none, and the timeline used to come back empty for every
+    such run even though four stages had executed and recorded durations. The executions are
+    the record of what really ran, so they are the fallback rather than an empty list.
+
+    The two sources are not merged. A run has one shape or the other, and interleaving a task's
+    attempt count with an execution's duration would present a timeline that never happened.
+    """
     tasks = session.execute(
         select(AgentTask).where(AgentTask.run_id == run.id).order_by(AgentTask.created_at)
     ).scalars().all()
-    out: list[StageView] = []
-    for task in tasks:
+    if tasks:
+        out: list[StageView] = []
+        for task in tasks:
+            duration = None
+            if task.started_at and task.finished_at:
+                duration = round((task.finished_at - task.started_at).total_seconds(), 1)
+            out.append(StageView(name=task.stage, status=task.status,
+                                 attempts=task.attempt, duration_s=duration))
+        return out
+
+    executions = session.execute(
+        select(Execution).where(Execution.run_id == run.id).order_by(Execution.started_at)
+    ).scalars().all()
+    views: list[StageView] = []
+    for execution in executions:
         duration = None
-        if task.started_at and task.finished_at:
-            duration = round((task.finished_at - task.started_at).total_seconds(), 1)
-        out.append(StageView(name=task.stage, status=task.status,
-                             attempts=task.attempt, duration_s=duration))
-    return out
+        if execution.duration_ms is not None:
+            duration = round(execution.duration_ms / 1000.0, 1)
+        elif execution.started_at and execution.finished_at:
+            duration = round((execution.finished_at - execution.started_at).total_seconds(), 1)
+        views.append(
+            StageView(
+                # Rows written before `executions.stage` existed have none; the engine is what
+                # is actually known about them, and is labelled as that rather than guessed at.
+                name=execution.stage or f"({execution.engine})",
+                status=execution.status,
+                # An execution is one attempt by definition: the repair loop creates a new row
+                # per attempt, so counting them as 1 each is the truth, not a placeholder.
+                attempts=1,
+                duration_s=duration,
+            )
+        )
+    return views
 
 
 def _pending_approval(session: DbSession, run: PipelineRun) -> PendingApprovalView | None:

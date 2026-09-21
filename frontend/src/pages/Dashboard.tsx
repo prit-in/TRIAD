@@ -76,7 +76,15 @@ export function Dashboard() {
                 <span className="alert-message">{alert.message}</span>
                 <button
                   className="link"
-                  onClick={() => api.acknowledgeAlert(alert.id).then(alerts.refresh)}
+                  onClick={() =>
+                    api.acknowledgeAlert(alert.id).then(() => {
+                      // Both, because the tile and this list are two views of one number.
+                      // Refreshing only the list left "Open alerts" reading 12 beside a list
+                      // of 11 — the page contradicting itself after the user's own action.
+                      alerts.refresh();
+                      stats.refresh();
+                    })
+                  }
                 >
                   Acknowledge
                 </button>

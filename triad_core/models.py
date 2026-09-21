@@ -309,6 +309,13 @@ class Execution(Base):
     run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("pipeline_runs.id"), nullable=False)
     task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agent_tasks.id"))
     artifact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("code_artifacts.id"))
+    # Which pipeline stage this execution belongs to. `task_id` is null whenever the pipeline
+    # is driven directly rather than through the queue - which is what `scripts/run_demo.py`
+    # does - and the run detail's stage list was built from `agent_tasks` alone, so a demo run
+    # showed an empty timeline despite having executed four stages. The stage was recoverable
+    # only by scraping `--output=` out of the command string, and the profiling row has no
+    # command at all, so it is recorded here instead of inferred later.
+    stage: Mapped[str | None] = mapped_column(String(64))
     engine: Mapped[str] = mapped_column(String(32), nullable=False)
     spark_app_id: Mapped[str | None] = mapped_column(String(128))
     image_digest: Mapped[str | None] = mapped_column(String(128))

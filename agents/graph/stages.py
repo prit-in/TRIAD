@@ -246,6 +246,7 @@ class StageRunner:
     def _execute(self, request: StageRequest, artifact: dict[str, Any]) -> dict[str, Any]:
         execution = Execution(
             run_id=self.run.id,
+            stage=request.stage,
             engine=request.engine,
             command=str(artifact.get("command", ""))[:2000],
             resources_json=artifact.get("resources", {}),
