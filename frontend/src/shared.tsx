@@ -6,7 +6,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ApiProblem } from "./api";
+import { ApiProblem, apiBase, storedToken } from "./api";
 
 export function useLoad<T>(load: () => Promise<T>, deps: unknown[] = []) {
   const [data, setData] = useState<T | null>(null);
@@ -407,4 +407,89 @@ export function Pager({
       </button>
     </div>
   );
+}
+
+/**
+ * Subscribe to a run's server-sent events (PRD 26.2: "live, not refreshed").
+ *
+ * Built on `fetch` rather than `EventSource`, and not by preference: `EventSource` cannot set
+ * an `Authorization` header, and this endpoint is authenticated. The alternative is a token in
+ * the query string, which ends up in access logs and browser history — so the stream is read
+ * from a `ReadableStream` and the SSE framing is parsed here. It is about thirty lines.
+ *
+ * `onEvent` fires per event. The hook returns the connection state so a page can say it is
+ * live rather than leaving the reader to guess whether silence means "nothing happened" or
+ * "the connection died".
+ */
+export function useRunEvents(
+  runId: string,
+  onEvent: (name: string, data: unknown) => void,
+  { enabled = true }: { enabled?: boolean } = {},
+) {
+  const [status, setStatus] = useState<"idle" | "live" | "closed" | "error">("idle");
+  const handler = useRef(onEvent);
+  handler.current = onEvent;
+
+  useEffect(() => {
+    if (!enabled || !runId) return;
+    const abort = new AbortController();
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const token = storedToken();
+        const response = await fetch(`${apiBase()}/pipelines/${runId}/events`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: abort.signal,
+        });
+        if (!response.ok || !response.body) {
+          setStatus("error");
+          return;
+        }
+        setStatus("live");
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (!cancelled) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          // SSE frames are separated by a blank line; a partial frame stays in the buffer.
+          let split = buffer.indexOf("\n\n");
+          while (split !== -1) {
+            const frame = buffer.slice(0, split);
+            buffer = buffer.slice(split + 2);
+            let name = "message";
+            const dataLines: string[] = [];
+            for (const line of frame.split("\n")) {
+              if (line.startsWith("event:")) name = line.slice(6).trim();
+              else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+            }
+            if (dataLines.length) {
+              try {
+                handler.current(name, JSON.parse(dataLines.join("\n")));
+              } catch {
+                // A frame we cannot parse is skipped rather than killing the stream: one bad
+                // event should not stop the rest of the run from being watched.
+                handler.current(name, dataLines.join("\n"));
+              }
+            }
+            split = buffer.indexOf("\n\n");
+          }
+        }
+        setStatus("closed");
+      } catch (error) {
+        // An abort is this component unmounting, not a failure.
+        if (!abort.signal.aborted) setStatus("error");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      abort.abort();
+    };
+  }, [runId, enabled]);
+
+  return status;
 }

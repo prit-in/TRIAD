@@ -338,3 +338,6 @@ dialog.confirm h2 { margin-top: 0; }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 1rem;
          margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
 .pager button { margin: 0; }
+
+/* "live" reads as a claim, so it only appears when the stream is actually connected. */
+.pill.live::before { content: "● "; color: var(--good); }

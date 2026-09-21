@@ -11,6 +11,9 @@
  */
 
 const BASE: string = import.meta.env.VITE_API_BASE ?? "/api/v1";
+
+/** The API root, for the one caller that cannot go through `request`: the SSE stream. */
+export const apiBase = (): string => BASE;
 const TOKEN_KEY = "triad.token";
 
 export class ApiProblem extends Error {

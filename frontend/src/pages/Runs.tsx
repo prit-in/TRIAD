@@ -13,6 +13,7 @@ import {
   State,
   useLoad,
   usePages,
+  useRunEvents,
   useToast,
   when,
 } from "../shared";
@@ -102,6 +103,25 @@ export function RunDetailPage() {
   const artifacts = useLoad<Artifact[]>(() => api.runArtifacts(runId), [runId]);
   const logs = useLoad<LogLine[]>(() => api.runLogs(runId), [runId]);
 
+  // Live progress (PRD 26.2: "stage changes appear within 5 seconds"). The backend has served
+  // this stream since it was written and nothing subscribed, so a run in flight only moved
+  // when someone reloaded the page. Subscribed only while the run is unfinished: a finished
+  // run has nothing further to say and the server closes the stream anyway.
+  const finished = ["COMPLETED", "PUBLISHED", "CANCELLED", "ABORTED", "REJECTED_INPUT"].includes(
+    run.data?.state ?? "",
+  );
+  const liveStatus = useRunEvents(
+    runId,
+    () => {
+      // The event carries what changed; the panels re-read rather than patching their own
+      // copies, because a half-applied patch is worse than a round trip on a page this size.
+      run.refresh();
+      decisions.refresh();
+      logs.refresh();
+    },
+    { enabled: Boolean(run.data) && !finished },
+  );
+
   const decisionQueryLower = decisionQuery.trim().toLowerCase();
   const matchingDecisions = (decisions.data ?? []).filter((decision) =>
     decisionQueryLower === "" ||
@@ -142,6 +162,15 @@ export function RunDetailPage() {
             <p>
               <State value={run.data.state} /> {run.data.pipeline} · {run.data.mode} · started{" "}
               {when(run.data.started_at)}
+              {!finished && liveStatus === "live" && (
+                <span className="pill busy live"> live</span>
+              )}
+              {!finished && liveStatus === "error" && (
+                <span className="pill bad">
+                  {" "}
+                  not live — reload to refresh
+                </span>
+              )}
             </p>
             {run.data.error_summary && <p className="problem">{run.data.error_summary}</p>}
             {run.data.pending_approval && (
