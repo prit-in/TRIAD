@@ -35,18 +35,16 @@ def sha256_file(path: str | Path, chunk_size: int = 1 << 20) -> str:
     return h.hexdigest()
 
 
-def sha256_dir(path: str | Path, include_suffixes: tuple[str, ...] | None = None) -> str:
-    """Content hash of a directory: hash of (relative path, file hash) pairs, sorted.
-
-    Used for feature-set folders and generated-code trees so replay can verify outputs
-    (NFR-REP-02).
+def _hashable_files(
+    root: Path, include_suffixes: tuple[str, ...] | None = None
+) -> list[tuple[str, str]]:
+    """(relative path, file hash) for every file whose bytes are part of the content.
 
     Commit markers are excluded, so the hash describes the *content* and stays stable
     whether it is computed before or after the folder is committed: `_SUCCESS` and
     `_manifest.json` are written by the commit itself (the manifest even contains this
     hash), and Spark's `.crc` sidecars are checksums of the same bytes.
     """
-    root = Path(path)
     entries: list[tuple[str, str]] = []
     skip = {"_SUCCESS", "_manifest.json"}
     for f in sorted(root.rglob("*")):
@@ -58,7 +56,35 @@ def sha256_dir(path: str | Path, include_suffixes: tuple[str, ...] | None = None
         if include_suffixes and not rel.endswith(include_suffixes):
             continue
         entries.append((rel, sha256_file(f)))
-    return sha256_obj(entries)
+    return entries
+
+
+def sha256_dir(path: str | Path, include_suffixes: tuple[str, ...] | None = None) -> str:
+    """Content hash of a directory: hash of (relative path, file hash) pairs, sorted.
+
+    **Names are part of this hash**, so use it only where a file's name is part of what the
+    folder means - a generated-code tree, where `CleanJob_ab12cd34.scala` renaming itself
+    would be a real difference. For a data folder written by Spark, use `sha256_data_dir`.
+    """
+    return sha256_obj(_hashable_files(Path(path), include_suffixes))
+
+
+def sha256_data_dir(path: str | Path, include_suffixes: tuple[str, ...] | None = None) -> str:
+    """Content hash of a data folder, independent of the file names inside it.
+
+    Spark names every part file with a UUID minted per job: two runs over identical input
+    with identical code write `part-00000-e7ee49db-....parquet` and
+    `part-00000-afd64427-....parquet`. The *bytes* are identical - measured, not assumed -
+    but `sha256_dir` folds the names in, so its hash differed on every run and
+    NFR-REP-02 ("identical content for deterministic stages") and ATC-18's "output hashes
+    identical" could never pass. EXP-6 found this by recovering from an injected fault and
+    producing a correct output that did not match the clean run.
+
+    So this hashes the sorted multiset of file hashes and nothing else. Sorted, because the
+    order Spark happens to emit partitions in is not part of the content; a multiset rather
+    than a set, because two files with identical bytes are not the same as one.
+    """
+    return sha256_obj(sorted(h for _, h in _hashable_files(Path(path), include_suffixes)))
 
 
 def normalise_source(source: str) -> str:

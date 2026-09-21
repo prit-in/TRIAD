@@ -42,7 +42,7 @@ from agents.graph import queue as q
 from agents.graph.pipeline import ReplayUnavailable
 from triad_core.config import settings
 from triad_core.db import session_scope
-from triad_core.models import CodeArtifact, LLMInvocation, PipelineRun
+from triad_core.models import CodeArtifact, LlmInvocation, PipelineRun
 from triad_core.storage import storage
 
 # A run worth replaying is one that got far enough to commit outputs and generate code.
@@ -200,8 +200,8 @@ def main() -> int:
 
         # --- no LLM calls -------------------------------------------------------
         calls = session.execute(
-            select(func.count()).select_from(LLMInvocation)
-            .where(LLMInvocation.run_id == replay.id)
+            select(func.count()).select_from(LlmInvocation)
+            .where(LlmInvocation.run_id == replay.id)
         ).scalar_one()
         log("llm", f"{calls} LLM invocation(s) during the replay", calls == 0)
 

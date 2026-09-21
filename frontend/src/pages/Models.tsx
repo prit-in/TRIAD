@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { api } from "../api";
-import type { ModelSummary, ModelVersion } from "../api";
-import { Empty, Panel, Problem, num, useLoad, when } from "../shared";
+import type { Evaluation, ModelSummary, ModelVersion } from "../api";
+import { BarChart, ConfusionMatrix, LineChart, UnitLineChart } from "../charts";
+import { Empty, Panel, Problem, Tabs, num, pct, useLoad, when } from "../shared";
 
 /** The metrics worth putting in front of someone deciding a promotion (PRD 17.5). */
 const HEADLINE = [
@@ -40,6 +41,7 @@ export function Models() {
             <Aliased label="Challenger" version={model.challenger} />
           </div>
           {open === model.name && <Versions name={model.name} />}
+          {model.champion && <ModelEvaluation modelRef={model.name} version={model.champion} />}
         </Panel>
       ))}
     </>
@@ -105,5 +107,233 @@ function Versions({ name }: { name: string }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+/**
+ * The charts FR-065 asks for, drawn from the evaluation document the run wrote.
+ *
+ * Every point here was computed during the run and persisted. Nothing is recomputed in the
+ * browser, because the curves need the labels and the scores together and the API serves
+ * neither to a client — so a chart drawn here from anything else would be a chart of invented
+ * numbers, which is the one thing these pages must never show.
+ */
+function ModelEvaluation({ modelRef, version }: { modelRef: string; version: ModelVersion }) {
+  const evaluation = useLoad<Evaluation>(
+    () => api.evaluation(modelRef, version.id),
+    [modelRef, version.id],
+  );
+
+  if (evaluation.problem) {
+    // A version trained before evaluation documents existed has none. Worth saying plainly
+    // rather than showing an error the reader cannot act on.
+    return (
+      <p className="muted">
+        No stored curves for v{version.mlflow_version ?? "?"}. {evaluation.problem.message}
+      </p>
+    );
+  }
+  if (!evaluation.data) return <p className="muted">Loading the stored evaluation…</p>;
+
+  const evaluated = evaluation.data;
+  const test = evaluated.test;
+  const curves = "roc" in test.curves ? test.curves : null;
+
+  return (
+    <Tabs
+      label={`Evaluation of v${version.mlflow_version ?? "?"}`}
+      tabs={[
+        {
+          id: "quality",
+          label: "Quality",
+          content: (
+            <div className="chart-grid">
+              <UnitLineChart
+                title="ROC curve"
+                xLabel="False positive rate"
+                yLabel="True positive rate"
+                series={
+                  curves
+                    ? [
+                        {
+                          label: `ROC (AUC ${num(test.values.roc_auc, 3)})`,
+                          points: curves.roc.fpr.map(
+                            (x, i) => [x, curves.roc.tpr[i] ?? 0] as [number, number],
+                          ),
+                        },
+                      ]
+                    : []
+                }
+                reference={{ label: "No better than chance", points: [[0, 0], [1, 1]] }}
+              />
+              <UnitLineChart
+                title="Precision-recall curve"
+                xLabel="Recall"
+                yLabel="Precision"
+                series={
+                  curves
+                    ? [
+                        {
+                          label: `PR (AUC ${num(test.values.pr_auc, 3)})`,
+                          points: curves.pr.recall.map(
+                            (x, i) => [x, curves.pr.precision[i] ?? 0] as [number, number],
+                          ),
+                          tone: "good",
+                        },
+                      ]
+                    : []
+                }
+                reference={
+                  curves
+                    ? {
+                        label: `Churn rate (${pct(curves.pr.baseline)})`,
+                        points: [
+                          [0, curves.pr.baseline],
+                          [1, curves.pr.baseline],
+                        ],
+                      }
+                    : undefined
+                }
+              />
+              <div>
+                <h3>Confusion matrix</h3>
+                <ConfusionMatrix confusion={test.confusion} threshold={evaluated.threshold} />
+              </div>
+            </div>
+          ),
+        },
+        {
+          id: "calibration",
+          label: "Calibration",
+          content: (
+            <div className="chart-grid">
+              <UnitLineChart
+                title="Reliability diagram"
+                xLabel="Mean predicted probability"
+                yLabel="Observed churn rate"
+                series={
+                  curves
+                    ? [
+                        {
+                          label: `Observed (ECE ${num(test.values.ece, 3)})`,
+                          // Bins no prediction fell into arrive as NaN and are dropped here:
+                          // a gap in the data is a gap, not a point at zero.
+                          points: curves.calibration
+                            .filter((b) => b.n > 0)
+                            .map((b) => [b.mean_predicted, b.observed_rate] as [number, number]),
+                          tone: "waiting",
+                        },
+                      ]
+                    : []
+                }
+                reference={{ label: "Perfectly calibrated", points: [[0, 0], [1, 1]] }}
+              />
+              <LineChart
+                title="Lift and cumulative gain"
+                xLabel="Share contacted, highest risk first"
+                yLabel="Lift over the base rate"
+                xFormat={(v) => `${(v * 100).toFixed(0)}%`}
+                series={
+                  curves
+                    ? [
+                        {
+                          label: "Lift",
+                          points: curves.lift.map((p) => [p.k, p.lift] as [number, number]),
+                        },
+                        {
+                          label: "Cumulative gain",
+                          points: curves.lift.map(
+                            (p) => [p.k, p.cumulative_gain] as [number, number],
+                          ),
+                          tone: "good",
+                          dashed: true,
+                        },
+                      ]
+                    : []
+                }
+                reference={{ label: "No targeting benefit", value: 1 }}
+              />
+            </div>
+          ),
+        },
+        {
+          id: "candidates",
+          label: "Candidates",
+          content: (
+            <div className="chart-grid">
+              <BarChart
+                title="Validation PR-AUC by family"
+                yLabel="Validation PR-AUC"
+                bars={evaluated.candidates.map((c) => ({
+                  label: c.family,
+                  value: c.valid_pr_auc,
+                  tone: c.selected ? "good" : "muted",
+                }))}
+              />
+              <BarChart
+                title="Headline test metrics"
+                yLabel="Value, with 95% intervals where measured"
+                bars={(
+                  [
+                    ["pr_auc", "PR-AUC"],
+                    ["roc_auc", "ROC-AUC"],
+                    ["recall", "Recall"],
+                    ["precision", "Precision"],
+                  ] as const
+                ).map(([key, label]) => ({
+                  label,
+                  value: test.values[key] ?? null,
+                  interval: test.intervals[key],
+                }))}
+              />
+            </div>
+          ),
+        },
+        {
+          id: "segments",
+          label: `Segments (${evaluated.segments.length})`,
+          content:
+            evaluated.segments.length === 0 ? (
+              <p className="muted">
+                No per-segment metrics were recorded for this version. A segment needs enough
+                rows and enough positives before its recall means anything, so thin segments
+                are left out rather than reported as a number nobody should act on.
+              </p>
+            ) : (
+              <BarChart
+                title="Recall by segment"
+                yLabel="Recall on the test split"
+                width={620}
+                bars={evaluated.segments.map((seg) => ({
+                  label: seg.segment ?? "?",
+                  value: seg.values.recall ?? null,
+                }))}
+              />
+            ),
+        },
+        {
+          id: "importance",
+          label: "Importance",
+          content: evaluated.feature_importance?.global?.length ? (
+            <>
+              <BarChart
+                title="Global feature importance"
+                yLabel={`Importance (${evaluated.feature_importance.method})`}
+                width={620}
+                bars={evaluated.feature_importance.global.slice(0, 10).map((f) => ({
+                  label: f.feature,
+                  value: f.importance,
+                }))}
+              />
+              <p className="footnote">{evaluated.feature_importance.note}</p>
+            </>
+          ) : (
+            <p className="muted">
+              No feature importance was stored. {evaluated.feature_importance?.note ?? ""}
+            </p>
+          ),
+        },
+      ]}
+    />
   );
 }

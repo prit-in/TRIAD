@@ -20,7 +20,12 @@ from pathlib import Path
 from typing import Any
 
 from triad_core.config import settings
-from triad_core.ids import canonical_json, sha256_dir, sha256_file, sha256_obj
+from triad_core.ids import (
+    canonical_json,
+    sha256_data_dir,
+    sha256_file,
+    sha256_obj,
+)
 
 MANIFEST_NAME = "_manifest.json"
 SUCCESS_NAME = "_SUCCESS"
@@ -133,8 +138,14 @@ class Storage:
         }
 
     def checksum(self, path: str | Path) -> str:
+        """Content hash of a file or a data folder, independent of part-file names.
+
+        A folder here is a data output, so the name-independent hash is the right one: see
+        `sha256_data_dir`. It has no callers in the project today and is kept as the storage
+        layer's general-purpose answer to "what is in there".
+        """
         p = self.path(path)
-        return sha256_dir(p) if p.is_dir() else sha256_file(p)
+        return sha256_data_dir(p) if p.is_dir() else sha256_file(p)
 
     def copy_immutable(self, source: str | Path, target_dir: str | Path) -> Path:
         """Write-once copy into a version folder. Refuses to overwrite an existing file."""
@@ -160,7 +171,9 @@ class Storage:
         if not stage_path.exists():
             raise StorageError(f"staging folder missing: {stage_path}")
 
-        manifest.content_hash = sha256_dir(stage_path)
+        # Name-independent: Spark mints a fresh UUID into every part-file name, so a hash
+        # that included the names changed on every run of identical work (EXP-6).
+        manifest.content_hash = sha256_data_dir(stage_path)
         if manifest.schema and not manifest.schema_hash:
             manifest.schema_hash = schema_hash(manifest.schema)
         (stage_path / MANIFEST_NAME).write_text(manifest.to_json(), encoding="utf-8")
@@ -197,7 +210,9 @@ class Storage:
             m = self.read_manifest(d)
         except StorageError as exc:
             return False, str(exc)
-        actual = sha256_dir(d)
+        # Must be the same function `commit` used to write it, or every committed folder
+        # would fail its own verification.
+        actual = sha256_data_dir(d)
         if m.content_hash and m.content_hash != actual:
             return False, f"content hash mismatch: manifest {m.content_hash} != actual {actual}"
         return True, "ok"

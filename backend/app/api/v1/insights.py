@@ -40,6 +40,41 @@ from triad_core.storage import storage
 
 router = APIRouter(tags=["insights"])
 
+
+# --- the case-study experiments (PRD section 33) --------------------------------
+
+
+@router.get("/experiments", summary="The ten case-study experiments and their latest results")
+def list_experiments(user: CurrentUser) -> list[dict]:
+    """Read from `experiments/<EXP-n>/latest.json`, which the harness writes.
+
+    These are results of the *case study*, not rows of the `experiments` table - that one
+    records a run's modelling experiment and is reached through the run. The two share a word
+    and nothing else.
+
+    Served as the harness wrote them, including `status` and `limitations`. An experiment that
+    could not run the workload the PRD specifies says so in its own result, and flattening that
+    into a pass/fail here would throw away the only part a reader needs.
+    """
+    from experiments.harness import load_results
+
+    results = load_results()
+    known = {r.get("exp_id") for r in results}
+    # Every experiment the PRD defines appears, so one that has never been run is visibly
+    # absent rather than silently missing from the list.
+    for exp_id in [f"EXP-{n}" for n in range(1, 11)]:
+        if exp_id not in known:
+            results.append({
+                "exp_id": exp_id,
+                "status": "not_run",
+                "title": "",
+                "hypothesis_held": None,
+                "conclusion": "No result has been recorded for this experiment yet.",
+                "limitations": [],
+                "trials": [],
+            })
+    return sorted(results, key=lambda r: int(str(r["exp_id"]).split("-")[1]))
+
 ROW_ROLES = (BUSINESS_ANALYST, DATA_SCIENTIST, ML_ENGINEER)
 
 

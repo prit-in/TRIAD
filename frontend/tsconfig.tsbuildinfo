@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/api.ts","./src/auth.tsx","./src/main.tsx","./src/shared.tsx","./src/pages/Approvals.tsx","./src/pages/Dashboard.tsx","./src/pages/Models.tsx","./src/pages/Predictions.tsx","./src/pages/Runs.tsx"],"version":"5.9.3"}
+{"root":["./src/App.tsx","./src/api.ts","./src/auth.tsx","./src/charts.tsx","./src/main.tsx","./src/shared.tsx","./src/pages/Approvals.tsx","./src/pages/Dashboard.tsx","./src/pages/Experiments.tsx","./src/pages/Models.tsx","./src/pages/Predictions.tsx","./src/pages/Runs.tsx"],"version":"5.9.3"}

@@ -2,7 +2,18 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import type { Artifact, Decision, LogLine, RunDetail } from "../api";
-import { Empty, Panel, Problem, State, useLoad, when } from "../shared";
+import {
+  ConfirmButton,
+  Empty,
+  Meter,
+  Panel,
+  Problem,
+  SearchBox,
+  State,
+  useLoad,
+  useToast,
+  when,
+} from "../shared";
 
 export function Runs() {
   const [state, setState] = useState("");
@@ -61,11 +72,23 @@ export function Runs() {
 }
 
 export function RunDetailPage() {
+  const toast = useToast();
+  const [decisionQuery, setDecisionQuery] = useState("");
   const { runId = "" } = useParams();
   const run = useLoad<RunDetail>(() => api.run(runId), [runId]);
   const decisions = useLoad<Decision[]>(() => api.runDecisions(runId), [runId]);
   const artifacts = useLoad<Artifact[]>(() => api.runArtifacts(runId), [runId]);
   const logs = useLoad<LogLine[]>(() => api.runLogs(runId), [runId]);
+
+  const decisionQueryLower = decisionQuery.trim().toLowerCase();
+  const matchingDecisions = (decisions.data ?? []).filter((decision) =>
+    decisionQueryLower === "" ||
+    [decision.decision, decision.summary ?? "", decision.agent, decision.decision_type,
+     decision.policy_rule_ids.join(" ")]
+      .join(" ")
+      .toLowerCase()
+      .includes(decisionQueryLower),
+  );
 
   return (
     <>
@@ -75,9 +98,20 @@ export function RunDetailPage() {
         provenance="Measured"
         actions={
           run.data && !["COMPLETED", "PUBLISHED", "CANCELLED", "ABORTED"].includes(run.data.state) ? (
-            <button className="link" onClick={() => api.cancelRun(runId).then(run.refresh)}>
-              Cancel
-            </button>
+            // Cancelling is irreversible and used to fire on the first click, which for an
+            // in-flight run is one misclick away from losing the work it has already done.
+            <ConfirmButton
+              label="Cancel"
+              title={`Cancel ${runId}?`}
+              question="Every queued, leased and running task is cancelled and the run stops where it is. Work already committed to the catalogue stays; work in flight is lost. This cannot be undone."
+              confirmLabel="Cancel the run"
+              onConfirm={() =>
+                api.cancelRun(runId).then((result) => {
+                  toast(`${runId} is now ${result.state.toLowerCase()}.`);
+                  run.refresh();
+                })
+              }
+            />
           ) : undefined
         }
       >
@@ -116,18 +150,41 @@ export function RunDetailPage() {
                 ))}
               </tbody>
             </table>
-            <p className="muted">
-              Budget used: {run.data.budget_used.llm_calls ?? 0} LLM calls, cost{" "}
-              {run.data.budget_used.llm_cost_usd ?? 0}
-            </p>
+            {/* PRD 26.1 asks for budget meters, not a sentence: a number without its
+                limit does not say whether the run is near the edge. */}
+            <Meter
+              label="LLM calls"
+              value={run.data.budget_used.llm_calls ?? 0}
+              limit={run.data.budget_limits?.max_llm_calls}
+            />
+            <Meter
+              label="LLM cost"
+              value={run.data.budget_used.llm_cost_usd ?? 0}
+              limit={run.data.budget_limits?.max_llm_cost_usd}
+              format={(v) => `$${v.toFixed(2)}`}
+            />
           </>
         )}
       </Panel>
 
-      <Panel title="Agent decisions" provenance="Decision records">
-        {decisions.data && decisions.data.length > 0 ? (
+      <Panel
+        title="Agent decisions"
+        provenance="Decision records"
+        actions={
+          <SearchBox
+            label="Search decisions"
+            value={decisionQuery}
+            onChange={setDecisionQuery}
+            placeholder="rule, agent, wording…"
+          />
+        }
+      >
+        {/* FR-070 asks for searchable decision records. The filter runs in the browser over
+            the run's own records: the list is bounded by one run, and a server round trip per
+            keystroke would be slower and no more correct. */}
+        {matchingDecisions.length > 0 ? (
           <ul className="decisions">
-            {decisions.data.map((decision) => (
+            {matchingDecisions.map((decision) => (
               <li key={decision.id}>
                 <span className="pill busy">{decision.decision_type}</span>
                 <strong>{decision.decision}</strong>
@@ -138,6 +195,11 @@ export function RunDetailPage() {
               </li>
             ))}
           </ul>
+        ) : decisionQuery ? (
+          <p className="muted">
+            No decision matches “{decisionQuery}”. {decisions.data?.length ?? 0} recorded for
+            this run.
+          </p>
         ) : (
           <Empty what="decisions" />
         )}

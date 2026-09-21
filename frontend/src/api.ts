@@ -108,9 +108,80 @@ export const api = {
   predictions: (query = "") => request<Prediction[] | PredictionAggregate>(`/predictions${query}`),
   drift: () => request<DriftReport[]>("/drift"),
   reports: () => request<Report[]>("/reports"),
+  /** The curves, intervals, segment metrics and importance behind one version's charts. */
+  evaluation: (modelRef: string, versionId: string) =>
+    request<Evaluation>(`/models/${modelRef}/versions/${versionId}/evaluation`),
+  experiments: () => request<ExperimentResult[]>("/experiments"),
 };
 
 // --- what the API returns -------------------------------------------------------
+
+/**
+ * The evaluation document a run writes, served per model version.
+ *
+ * These are point series, not scalars, and they are read rather than recomputed: a ROC or a
+ * reliability curve needs the labels and the scores together, and the predictions table holds
+ * no labels. Drawing them from anything the browser could derive would mean inventing them.
+ */
+export interface Evaluation {
+  run_key: string;
+  model_name: string;
+  selected_family: string;
+  threshold: number;
+  generated_at: string;
+  test: MetricsBlock;
+  valid: MetricsBlock;
+  segments: MetricsBlock[];
+  champion_delta: Record<string, number> | null;
+  candidates: { family: string; valid_pr_auc: number | null; valid_roc_auc: number | null; selected: boolean }[];
+  rejected: { family: string; reason: string }[];
+  acceptance: Record<string, { passed: boolean; reason_codes: string[] }>;
+  rules_applied: string[];
+  feature_importance: { method: string; note: string; global: { feature: string; importance: number }[] } | null;
+}
+
+/** One case-study experiment as the harness wrote it (PRD section 33). */
+export interface ExperimentResult {
+  exp_id: string;
+  title?: string;
+  hypothesis?: string;
+  status: string;
+  hypothesis_held: boolean | null;
+  conclusion: string;
+  limitations: string[];
+  started_at?: string;
+  duration_s?: number;
+  trials: {
+    condition: string;
+    ok: boolean;
+    detail: string;
+    measurements?: { name: string; value: unknown; unit: string; note: string }[];
+  }[];
+}
+
+export interface MetricsBlock {
+  split: string;
+  segment: string | null;
+  n_rows: number;
+  prevalence: number;
+  values: Record<string, number>;
+  intervals: Record<string, [number, number]>;
+  confusion: { tn: number; fp: number; fn: number; tp: number };
+  curves: Curves | Record<string, never>;
+}
+
+export interface Curves {
+  roc: { fpr: number[]; tpr: number[] };
+  pr: { recall: number[]; precision: number[]; baseline: number };
+  calibration: {
+    bin_low: number;
+    bin_high: number;
+    n: number;
+    mean_predicted: number;
+    observed_rate: number;
+  }[];
+  lift: { k: number; lift: number; cumulative_gain: number }[];
+}
 
 export interface TokenResponse {
   access_token: string;
@@ -164,7 +235,7 @@ export interface RunDetail extends RunSummary {
   config_hash: string | null;
   stages: Stage[];
   budget_used: Record<string, number>;
-  budget_limits: Record<string, unknown>;
+  budget_limits: Record<string, number | undefined>;
   pending_approval: {
     id: string;
     action_type: string;

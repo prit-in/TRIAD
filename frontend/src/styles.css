@@ -253,3 +253,84 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 .decide { display: flex; align-items: flex-end; gap: 0.6rem; }
 .decide label { flex: 1; margin-top: 0; }
 .decide button { margin-top: 0; }
+
+/* --- charts (charts.tsx) ------------------------------------------------------
+   Plain SVG, so everything it needs is here rather than in a library's own sheet.
+   Series carry a dash pattern as well as a colour: hue alone is not a signal
+   everyone can read. */
+.chart-figure { margin: 0; }
+.chart { width: 100%; height: auto; max-width: 420px; display: block; }
+.chart .grid { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 3; }
+.chart .axis { stroke: var(--line); stroke-width: 1.5; }
+.chart .tick { font-size: 10px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.chart .tick-y { text-anchor: end; }
+.chart .tick-x { text-anchor: middle; }
+.chart .axis-label { font-size: 11px; fill: var(--muted); text-anchor: middle; }
+.chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .line.dashed, .chart .line.reference { stroke-dasharray: 5 4; stroke-width: 1.5; }
+.chart .bar-rect { rx: 2; }
+.chart .bar-number { font-size: 10px; fill: var(--ink); text-anchor: middle;
+                     font-variant-numeric: tabular-nums; }
+.chart .interval line { stroke: var(--ink); stroke-width: 1.2; opacity: 0.65; }
+.chart-empty { margin: 1rem 0; }
+
+.chart-legend { list-style: none; margin: 0.35rem 0 0; padding: 0; display: flex;
+                flex-wrap: wrap; gap: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+.chart-legend li { display: flex; align-items: center; gap: 0.35rem; }
+.chart-legend .swatch { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+
+.chart-grid { display: grid; gap: 1.25rem;
+              grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); }
+
+table.confusion { width: auto; }
+table.confusion caption { caption-side: top; text-align: left; color: var(--muted);
+                          font-size: 0.8rem; padding-bottom: 0.4rem; }
+table.confusion td { font-variant-numeric: tabular-nums; }
+table.confusion .good-cell { background: #f2f8f4; }
+
+/* --- tabs, dialogs, toasts, search, meters ---------------------------------- */
+.tabs { margin-top: 1rem; }
+.tablist { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--line);
+           flex-wrap: wrap; }
+.tab { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
+       padding: 0.45rem 0.8rem; margin: 0; border-radius: 0; cursor: pointer;
+       font-size: 0.9rem; }
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+[role="tabpanel"] { padding-top: 1rem; }
+
+dialog.confirm { border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem;
+                 max-width: 30rem; color: var(--ink); background: var(--card); }
+dialog.confirm::backdrop { background: rgba(17, 24, 39, 0.45); }
+dialog.confirm h2 { margin-top: 0; }
+.confirm-actions { display: flex; gap: 0.6rem; justify-content: flex-end; margin-top: 1rem; }
+
+.toasts { position: fixed; right: 1rem; bottom: 1rem; display: grid; gap: 0.5rem;
+          z-index: 50; max-width: 26rem; }
+.toast { background: var(--card); border: 1px solid var(--line); border-left-width: 4px;
+         border-radius: var(--radius); padding: 0.6rem 0.8rem; display: flex;
+         align-items: center; gap: 0.75rem; box-shadow: 0 6px 20px rgba(17,24,39,0.12); }
+.toast.good { border-left-color: var(--good); }
+.toast.bad { border-left-color: var(--bad); }
+.toast button { margin: 0; font-size: 1.1rem; line-height: 1; }
+
+.search input { min-width: 14rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+           overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+.meter { display: grid; grid-template-columns: 10rem 1fr auto; gap: 0.6rem;
+         align-items: center; margin: 0.35rem 0; }
+.meter-label { color: var(--muted); font-size: 0.85rem; }
+.meter-value { font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+.meter progress { width: 100%; height: 0.75rem; }
+.meter-text { color: var(--muted); font-size: 0.85rem; }
+
+/* Keyboard focus was invisible everywhere; WCAG 2.2 AA needs it seen. */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+.limitations { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.5rem; }
+.limitations li { color: var(--muted); }

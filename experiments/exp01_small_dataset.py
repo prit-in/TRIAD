@@ -136,7 +136,7 @@ def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
         } if isinstance(prepared.details.get("stages"), list) else {}
         from sqlalchemy import select as sa_select
 
-        from triad_core.models import AuditLog, DecisionRecord, Execution, LLMInvocation
+        from triad_core.models import AuditLog, DecisionRecord, Execution, LlmInvocation
 
         executions = session.execute(
             sa_select(Execution).where(Execution.run_id == run.id)
@@ -148,7 +148,7 @@ def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
         trial.observations["per_stage_s"] = stage_times
 
         llm_calls = session.execute(
-            sa_select(LLMInvocation).where(LLMInvocation.run_id == run.id)
+            sa_select(LlmInvocation).where(LlmInvocation.run_id == run.id)
         ).scalars().all()
         decisions = session.execute(
             sa_select(DecisionRecord).where(DecisionRecord.run_id == run.id)

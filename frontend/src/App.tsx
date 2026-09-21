@@ -5,6 +5,7 @@ import { Runs, RunDetailPage } from "./pages/Runs";
 import { Models } from "./pages/Models";
 import { Predictions } from "./pages/Predictions";
 import { Approvals } from "./pages/Approvals";
+import { Experiments } from "./pages/Experiments";
 
 const PAGES = [
   { to: "/", label: "Dashboard", end: true },
@@ -12,6 +13,7 @@ const PAGES = [
   { to: "/models", label: "Models", end: false },
   { to: "/predictions", label: "Predictions", end: false },
   { to: "/approvals", label: "Approvals", end: false },
+  { to: "/experiments", label: "Experiments", end: false },
 ];
 
 export function App() {
@@ -47,6 +49,7 @@ export function App() {
           <Route path="/models" element={<Models />} />
           <Route path="/predictions" element={<Predictions />} />
           <Route path="/approvals" element={<Approvals />} />
+          <Route path="/experiments" element={<Experiments />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
