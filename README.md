@@ -6,7 +6,7 @@ not support.
 
 The interesting part is not the model. It is that **every step leaves evidence**: a routing
 decision with the rule that produced it, a hash-chained audit entry, a generated Scala job with
-the nine gates it passed, a promotion that needs a second person, and a report in which no digit
+the gates it passed, a promotion that needs a second person, and a report in which no digit
 appears unless a fact sheet entry backs it.
 
 ```mermaid
@@ -53,10 +53,10 @@ acceptance policy working.
 
 | Service | URL | What it is |
 | --- | --- | --- |
-| Frontend | <http://localhost:5173> | The eight pages |
-| API | <http://localhost:8010/docs> | OpenAPI, 39 endpoints |
+| Frontend | <http://localhost:5173> | Eleven pages: the eight the PRD names, plus monitoring, experiments and the audit trail |
+| API | <http://localhost:8010/docs> | OpenAPI, 40 endpoints |
 | MLflow | <http://localhost:5500> | Experiment tracking and the model registry |
-| Prometheus metrics | <http://localhost:8010/metrics> | 22 series, read from the database per scrape |
+| Prometheus metrics | <http://localhost:8010/metrics> | 12 metric families, read from the database per scrape |
 
 ## What is in the repository
 

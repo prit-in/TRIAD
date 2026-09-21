@@ -47,22 +47,33 @@ What it *is* subject to is the manifest schema and the content hash, both of whi
 because there is nothing to call. `agents/tools/pipeline_tools.py` ends with a comment saying so,
 because an absence is easy to delete by accident and the comment is what makes it a decision.
 
-## Code generation and the nine gates
+## Code generation and its gates
 
 Generation is template-first: a job is a `Template` with named slots, and only the slots may
 vary. An out-of-slot change is a checked property, not a convention.
 
-| Gate | What it checks | Where it runs |
-| --- | --- | --- |
-| 1 | The proposal is structured output matching the expected shape | before rendering |
-| 2 | Static scan: forbidden APIs, unbounded driver-side collection, out-of-slot edits | on the rendered source |
-| 3 | Dependencies are unchanged against the declared set | on the rendered source |
-| 4 | It compiles (`sbt core/package jobs/package`), or byte-compiles for Python, or `EXPLAIN`s for SQL | in the toolchain container |
-| 5 | Fixture tests pass | in the toolchain container |
-| 6 | Dry run produces a plausible report | in the sandbox |
-| 7 | The output satisfies the dataset contract | after execution |
-| 8 | The artifact is stored and its content hash matches | on commit |
-| 9 | Execution succeeded and row accounting balances | after execution |
+| Gate | What it checks | Where it runs | Runs here |
+| --- | --- | --- | --- |
+| 1 | The proposal is structured output matching the expected shape | before rendering | yes |
+| 2 | Static scan: forbidden APIs, unbounded driver-side collection, out-of-slot edits | on the rendered source | yes |
+| 3 | Dependencies are unchanged against the declared set | on the rendered source | yes |
+| 4 | It compiles (`sbt core/package jobs/package`), or byte-compiles for Python, or `EXPLAIN`s for SQL | in the toolchain container | yes |
+| 5 | Fixture tests pass | in the toolchain container | **no** |
+| 6 | Dry run produces a plausible report on a sample | in the sandbox | **no** |
+| 7 | The output satisfies the dataset contract | after execution | yes |
+| 8 | The artifact is stored and its content hash matches | on store | yes |
+| 9 | Execution succeeded and the contract still passes | after execution | yes |
+
+**Seven of the nine run. Gates 5 and 6 do not, and that is stated rather than implied.** Gate 5
+is the Scala fixture suite: it exists, `sbt core/test` passes its 21 cases, and running it on
+every generated job would add minutes to every stage on top of gate 4's compile. Gate 6 is a dry
+run on a sample, and this pipeline does not do one — it runs the job once, on the whole input.
+
+The gate functions for 7, 8 and 9 were themselves dead code until recently: the *checks* were
+being made — the contract was evaluated, the execution status decided the stage, the artifact was
+stored under its content hash — but none of them was recorded as a gate, so a reader of
+`gate_results` saw four gates where the documentation claimed nine. They are now recorded, which
+is what makes the count above checkable rather than asserted.
 
 Gate 2 is the one the governance story depends on: in EXP-8, five seeded forbidden-API faults
 were all refused there in under a third of a second each, and none was compiled, let alone

@@ -159,7 +159,7 @@ killed mid-task and the run completed.
 
 ## Monitoring
 
-`GET /metrics` serves 22 Prometheus series, read from the database on each scrape. A minimal
+`GET /metrics` serves 12 Prometheus metric families, read from the database on each scrape. A minimal
 scrape config:
 
 ```yaml

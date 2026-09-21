@@ -15,15 +15,15 @@ execution and artifact recorded as a row.
 ```mermaid
 flowchart TB
   subgraph UI[Presentation]
-    FE[React 19 / Vite<br/>eight pages, plain SVG charts]
+    FE[React 19 / Vite<br/>eleven pages, plain SVG charts]
   end
   subgraph API[Service]
-    FA[FastAPI<br/>39 endpoints, RFC 9457 problems]
+    FA[FastAPI<br/>40 endpoints, RFC 9457 problems]
   end
   subgraph ORCH[Orchestration]
     W[Worker<br/>leases, retries, budgets]
     R[Routing LR-01..LR-10]
-    CG[Code generation<br/>templates + 9 gates]
+    CG[Code generation<br/>templates + gates 1-4, 7-9]
     TR[Tool registry<br/>allowlist, schema, policy, audit]
   end
   subgraph COMPUTE[Compute]
@@ -53,7 +53,7 @@ flowchart TB
 | Decision | Made by | Written down as |
 | --- | --- | --- |
 | Which engine and language a stage runs on | `agents/routing.py`, rules LR-01..LR-10, deterministic | a `routing` decision record with the rule id and the evidence |
-| Whether a generated job may run | `agents/codegen/gates.py`, nine gates | `code_artifacts.gate_results` |
+| Whether a generated job may run | `agents/codegen/gates.py`; seven of the nine gates run (5 and 6 do not — see the agent design document) | `code_artifacts.gate_results` and the stage's gate reports |
 | Whether a tool call is allowed | `agents/tools/registry.py` — agent allowlist, argument schema, policy action | an `audit_logs` entry on the run's chain |
 | Whether an action needs a person | `triad_core/policy.py` against `agents/policies/governance.yaml` | a `policy` decision record with the verdict and rule ids |
 | Whether a model may be promoted | the acceptance policy AP-1..AP-8 in `python_ml/triad_ml/train.py` | an `acceptance` decision record with its evidence and rule ids |
@@ -62,7 +62,7 @@ flowchart TB
 
 **The LLM appears in none of those rows.** It is not in the routing path, the policy path, the
 promotion path or the audit path. Where it is used at all — proposing a slot's contents for a
-generated job — its output passes the same nine gates as anything else, and this environment
+generated job — its output passes the same gates as anything else, and this environment
 configures no provider (ADR-0003), so the template path is what runs.
 
 ## Data flow, one run

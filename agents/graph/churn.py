@@ -581,7 +581,11 @@ def prepare(
         candidate_comparison=[
             {
                 "family": c["family"],
-                "valid_pr_auc": c["valid_pr_auc"],
+                # Rounded for a document a person reads; the unrounded value is in
+                # evaluation.json, which is what anything recomputing should use.
+                "valid_pr_auc": (
+                    round(c["valid_pr_auc"], 4) if c["valid_pr_auc"] is not None else None
+                ),
                 "outcome": "selected" if c["selected"] else "screened out",
             }
             for c in evaluation["candidates"]

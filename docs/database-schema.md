@@ -44,7 +44,7 @@ head` runs at container start for the API; the worker assumes the schema is alre
 | `pipeline_runs` | One run | `run_key` is the human-readable id; `input_versions` records the exact versions read, which is what makes a replay read the same bytes; `budget_json` persists the ceilings and what has been spent |
 | `agent_tasks` | One unit of work inside a run | `lease_owner` / `lease_expires_at` are how a crashed worker's task is re-queued rather than stranded; `error_fingerprint` drives the circuit breaker |
 | `executions` | One job that actually ran | `spark_app_id`, `image_digest`, `resources_json`, `duration_ms`, `metrics_json` |
-| `code_artifacts` | One generated program | `content_hash` addresses it in storage; `gate_results` records all nine gates; `parent_artifact_id` links a repair to what it repaired |
+| `code_artifacts` | One generated program | `content_hash` addresses it in storage; `gate_results` records the gates that ran; `parent_artifact_id` links a repair to what it repaired |
 | `events` | One thing to tell a listener about | Drains to the SSE stream |
 | `llm_invocations` | One model call | `redacted_prompt_uri`, token counts, cost. Empty in this environment (ADR-0003) |
 | `fix_memory` | A remedy that worked before | Keyed by `error_fingerprint`, with a `success_count` |

@@ -214,6 +214,7 @@ class StageRunner:
             execution = self._execute(request, artifact)
             if execution.get("ok"):
                 contract_ok = True
+                result = None
                 if request.contract_check is not None:
                     result = request.contract_check(execution)
                     contract_ok = bool(getattr(result, "passed", result))
@@ -222,6 +223,11 @@ class StageRunner:
                         execution["error"] = "contract check failed: " + "; ".join(
                             v.message for v in violations
                         )
+                # Gates 7 and 9 record the two checks just made: the output satisfies its
+                # contract, and the full run completed with that contract still passing. Both
+                # were already deciding whether the stage succeeded; neither was written down
+                # as a gate, which is why every recorded gate report stopped at four.
+                self._record_execution_gates(outcome, execution, result)
                 if contract_ok:
                     outcome.ok = True
                     outcome.outputs = execution.get("outputs", {})
@@ -243,6 +249,25 @@ class StageRunner:
         )
 
     # -- helpers ----------------------------------------------------------------
+    def _record_execution_gates(
+        self, outcome: StageOutcome, execution: dict[str, Any], contract_result: Any
+    ) -> None:
+        """Append gates 7 and 9 to this stage's gate reports.
+
+        Gates 5 and 6 are deliberately **not** recorded here, because they do not run: gate 5
+        is the Scala fixture suite, which gate 4's compile already shares a toolchain with and
+        which would add minutes to every stage, and gate 6 is a sandbox dry run on a sample,
+        which this pipeline does not perform - it runs the job once, on the whole input. Both
+        absences are stated in the documentation rather than papered over with a gate that
+        reports `True` for something nobody checked.
+        """
+        from agents.codegen import gates as G
+
+        report = G.GateReport(
+            [G.gate7_contract(contract_result), G.gate9_execute(execution, contract_result)]
+        )
+        outcome.gate_reports.append(report.to_dict())
+
     def _execute(self, request: StageRequest, artifact: dict[str, Any]) -> dict[str, Any]:
         execution = Execution(
             run_id=self.run.id,

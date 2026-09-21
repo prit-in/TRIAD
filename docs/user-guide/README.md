@@ -1,6 +1,6 @@
 # User guide
 
-For anyone using the interface. Eight pages, one per question people actually ask.
+For anyone using the interface. Eleven pages — the eight the PRD names, plus monitoring, experiments and the audit trail — one per question people actually ask.
 
 Sign in at <http://localhost:5173>. Your role decides what you see; two pages are admin-only and
 one page answers a coarser question for viewers rather than refusing them.
@@ -61,7 +61,7 @@ Every run with its state, newest first, paged. Open one for:
   "live" pill only appears when the stream is actually connected, because it is a claim;
 - the **agent decision feed**: every routing, policy and acceptance decision with the rule ids
   and the evidence behind it;
-- **generated code** with the nine gates it passed;
+- **generated code** with the gates it passed;
 - **budget meters** — attempts, time and cost against the ceilings the run started with;
 - **Cancel**, behind a confirmation dialog, and **Resume** after an escalation.
 

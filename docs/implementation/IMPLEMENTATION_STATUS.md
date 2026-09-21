@@ -110,7 +110,7 @@ without the worker.
   hygiene and leakage checks, the MLflow registry with aliases and rollback, predictions with
   risk bands and explanations, claim-checked reporting, PSI/KS/chi-square drift.
 - **agents**: the tool registry, the LLM adapter with budgets and redaction, template slots
-  with out-of-slot detection and parse-time checks, the nine gates, deterministic routing,
+  with out-of-slot detection and parse-time checks, the validation gates, deterministic routing,
   the PostgreSQL queue with leases, a reaper and race-safe run keys, the bounded stage loop
   with playbook repair and a circuit breaker, retraining triggers RT-1..RT-9 with the 19.3
   validity gate, the Monitor service, **the churn run as two phases**, and **the worker**.
@@ -239,7 +239,7 @@ docker compose -f docker/compose.yaml --profile tools run --rm -T dev     python
 docker compose -f docker/compose.yaml exec -T frontend npm run build
   -> built in 9.71s, 332 kB / 102 kB gzipped
 curl -s http://localhost:8010/metrics
-  -> 200, 22 series read from the database
+  -> 200, 12 metric families read from the database
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m experiments.exp04_schema_errors
   -> partial, hypothesis held: rename caught at ingest, price-as-text caught at clean
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m experiments.exp06_spark_failures

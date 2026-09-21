@@ -161,7 +161,7 @@ production.
 
 ## Prometheus
 
-`GET /metrics` — not under `/api/v1`, no authentication, 22 series. It reads from the database
+`GET /metrics` — not under `/api/v1`, no authentication, 12 metric families. It reads from the database
 on each scrape rather than from in-process counters, because the work it describes is done by
 the worker in a different process and an in-process counter would be wrong in a way that looks
 plausible.

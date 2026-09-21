@@ -97,7 +97,7 @@ which part is missing.
 | FR-052 | Run planning | met | `agents/routing.py`, LR-01..LR-10, every decision recorded |
 | FR-053 | Permissioned tool calls | met (Must) | `agents/tools/pipeline_tools.py` registers the real tools and every Spark submission and catalogue commit goes through `REGISTRY.call`: agent allowlist, argument schema, the `sandbox.run` policy action, and the run's hash chain. Verified on a full run - 6 mediated submissions and 6 mediated commits in `audit_logs`. `tests/unit/test_tool_mediation.py` proves a refusal at each gate stops the work |
 | FR-054 | Code generation | met | template-first, slots only |
-| FR-055 | Validation gates | met | nine gates; `tests/unit/test_codegen.py` |
+| FR-055 | Validation gates | **partly met** (Must) | **Seven of the nine run.** Gates 1-4 always did; gates 7, 8 and 9 were performing their checks - contract evaluation, artifact storage under a content hash, execution status - without recording any of them as gates, so `gate_results` showed four where the PRD names nine. They are now recorded. Gate 5 (the Scala fixture suite) and gate 6 (a sandbox dry run on a sample) do not run, and neither is claimed. `tests/unit/test_codegen.py`; EXP-8's `first_failed_gate` agrees, reporting only gates 2 and 4 |
 | FR-056 | Mediated execution | met | `sandbox/runner.py` with resource profiles and refusals |
 | FR-057 | Structured feedback | met | `JobReport` and `StructuredError` |
 | FR-058 | Bounded retries and budgets | met | `agents/llm/budget.py`; circuit breaker on repeated fingerprints |
@@ -133,7 +133,7 @@ which part is missing.
 | FR-077 | Experiment tracking | met (Must) | Runs, parameters, metrics and artifacts go to MLflow, and the `experiments` row - split spec, objective, MLflow experiment id - is written per run, whether or not MLflow was reachable |
 | FR-078 | Tamper-evident audit log | met | one hash chain per run under an advisory lock; tampering and concurrency both tested |
 | FR-079 | Authentication and RBAC | met | argon2, HS256, roles decided by the policy; 62 API tests, most of them refusals. `GET /settings` serves the accounts and their roles to an admin and nobody else, and a test asserts the whole payload carries no credential |
-| FR-080 | Monitoring and alerting | met | `alerts` with severity, acknowledgement and audit, and `GET /metrics` now serves 22 Prometheus series read from the database on each scrape. It was documented in `main.py` and served nowhere, with `prometheus-client` an unused dependency |
+| FR-080 | Monitoring and alerting | met | `alerts` with severity, acknowledgement and audit, and `GET /metrics` now serves 12 Prometheus metric families read from the database on each scrape. It was documented in `main.py` and served nowhere, with `prometheus-client` an unused dependency |
 | FR-081 | Drift detection | met | PSI with KS and chi-square; `tests/unit/test_drift.py` |
 | FR-082 | Cancel and resume | met | both endpoints, with ownership and state checks |
 | FR-083 | Memoisation and incremental reruns | met | `StageRunner._memo_key` over stage, inputs and config hash |

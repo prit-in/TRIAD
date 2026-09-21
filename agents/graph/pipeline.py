@@ -309,6 +309,15 @@ class ChurnPipeline:
         report.add(G.gate3_dependencies(artifact, G.build_file_hashes(), []))
         if report.passed:
             report.add(G.gate4_compile())
+        # Gate 8 records what `_store_artifact` already did: the source is in content-addressed
+        # storage under the hash the row carries, which is what `_replay_scala` checks against
+        # before reusing it. The check was being performed and never recorded as a gate, so a
+        # reader of `gate_results` saw four gates where the PRD names nine.
+        report.add(
+            G.gate8_store(
+                str(self.storage.code_dir(artifact.content_hash)), artifact.content_hash
+            )
+        )
         row = getattr(self, "_last_artifact_row", None)
         if row is not None:
             row.static_check_status = "passed" if report.passed else "failed"
