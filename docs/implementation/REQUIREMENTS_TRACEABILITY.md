@@ -6,8 +6,8 @@ reading the code and the tests rather than by reading the earlier status documen
 **The point of this document is the "not met" column.** A traceability matrix that maps every
 requirement to a tick is a matrix nobody checked.
 
-Verified on 18-09-2026 against commit `19c17f8`, with 373 Python tests, 21 Scala tests and
-9 smoke checks passing.
+Verified on 22-09-2026 against commit `2d0b1fd`, with 458 Python tests, 21 Scala tests and
+9 smoke checks passing, and with all ten experiments run.
 
 ## Summary
 
@@ -18,7 +18,7 @@ Verified on 18-09-2026 against commit `19c17f8`, with 373 Python tests, 21 Scala
 | Functional — Could | 3 | 1 | 0 | 2 |
 | Acceptance tests (AT) | 16 | 12 | 1 | 3 |
 | Agentic acceptance (ATC) | 18 | 13 | 1 | 4 |
-| Experiments (EXP) | 10 | 0 | 0 | 10 |
+| Experiments (EXP) | 10 | 10 run | — | 0 |
 
 No Must requirement is unimplemented. Five are partly met, and each one says below exactly
 which part is missing.
@@ -102,7 +102,7 @@ which part is missing.
 | FR-057 | Structured feedback | met | `JobReport` and `StructuredError` |
 | FR-058 | Bounded retries and budgets | met | `agents/llm/budget.py`; circuit breaker on repeated fingerprints |
 | FR-059 | Diagnosis and repair | met | `triad_core/errors.py` taxonomy and playbook |
-| FR-060 | Decision records | met | every stage writes one; `/pipelines/{id}/decisions` |
+| FR-060 | Decision records | met | every stage writes one; `/pipelines/{id}/decisions`. EXP-5 found the exception: a run stopped by the acceptance policy recorded no acceptance decision at all, so three escalations on MISCALIBRATED left a one-line reason and none of the numbers behind it. The decision is now written whatever it decided, with its rule ids, evidence and validation metrics, before the escalation branch |
 | FR-061 | Human escalation | met | escalation tickets, `ESCALATED` state, resume endpoint |
 | FR-062 | Fix memory | met (Could) | `fix_memory` table, `lookup_fix` / `remember_fix` |
 | FR-063 | Untrusted content handling | met | masking, fencing, injection flags; `tests/unit/test_injection.py` |
@@ -112,15 +112,15 @@ which part is missing.
 | ID | Requirement | State | Evidence |
 | --- | --- | --- | --- |
 | FR-064 | Metrics reporting | met | `metrics` table, `/models/{id}`, the dashboard |
-| FR-065 | Standard charts | **partly met** (Must) | The *data* now exists: `reports/<run_key>/evaluation.json` carries ROC, precision-recall, calibration bins and a lift/gain sweep, served at `GET /models/{ref}/versions/{id}/evaluation`. Before this the points were computed and discarded, so the charts could only have been drawn from invented numbers. The frontend does not yet draw them and has no charting code beyond a div-width bar |
+| FR-065 | Standard charts | met (Must) | `reports/<run_key>/evaluation.json` carries ROC, precision-recall, calibration bins and a lift/gain sweep, served at `GET /models/{ref}/versions/{id}/evaluation`, and `frontend/src/charts.tsx` draws them in plain SVG - ROC, PR, reliability diagram, lift and cumulative gain, confusion matrix, per-family and per-segment bars. Every point is read from the stored document; a version with no document says so rather than drawing empty axes |
 | AP-6 | Segment recall gap | **now enforced**, verified: run-2026-09-21-007 recorded **14 segment metric sets** where every previous run recorded none. It never compared anything: `churn.prepare` passed `segment_cols=["country"] if "country" in dataset.columns else None`, and the feature job emits only numeric aggregates, so every run evaluated an empty list. Customer attributes are joined at the hand-off for evaluation and kept out of the model's features. Two tests pin that the gate bites and does not over-fire |
-| FR-066 | Model comparison | **partly met** (Must) | Bootstrap intervals now reach the database - `metrics.ci_low`/`ci_high` were columns nothing filled, so "comparison with confidence intervals" had no intervals. The evaluation document carries every screened family and the champion delta. No side-by-side UI yet |
+| FR-066 | Model comparison | met (Must) | Bootstrap intervals reach the database - `metrics.ci_low`/`ci_high` were columns nothing filled, so "comparison with confidence intervals" had no intervals. The evaluation document carries every screened family and the champion delta, and the Model page compares any two versions side by side with both intervals and overlaid ROC/PR curves, marking the rows where the two intervals overlap |
 | FR-067 | Feature importance | met | in the report and on the predictions page, labelled as association. Now also persisted with its method in the evaluation document, instead of being recomputed each publish and dropped |
-| FR-068 | Data quality report | met | the profile document and `/datasets/{id}/versions/{n}/profile` |
+| FR-068 | Data quality report | met | the profile document, `/datasets/{id}/versions/{n}/profile` and the Dataset page. Building that page found the endpoint had never once succeeded: `dataset_versions.profile_uri` and `.quality_score` were NULL on all 130 rows, because the profiling stage returned them to a caller that used the score for the quality gate and dropped the rest, and the endpoint refuses when `profile_uri` is unset. `stage_profile` now writes both back; `tests/unit/test_ingest.py::TestTheProfileReachesTheVersionItDescribes` holds it |
 | FR-069 | Execution timeline | met | `/pipelines/{id}/logs`, redacted; the run page |
 | FR-070 | Agent decision log | met | `/pipelines/{id}/decisions`; the run page |
 | FR-071 | Business report with claim verification | met | **no digit reaches the report without a fact sheet entry**; `tests/unit/test_reports.py` |
-| FR-072 | Report export | **partly met** (Should) | HTML is served; PDF is not produced |
+| FR-072 | Report export | **partly met** (Should) | HTML is served, shown in a sandboxed frame on the Report page and downloadable from it; PDF is not produced, and the page says so where the PDF button would be rather than offering one that 404s |
 
 ### Orchestration and governance (FR-073 to FR-084)
 
@@ -132,7 +132,7 @@ which part is missing.
 | FR-076 | Registry aliases and rollback | met | aliases never stages (CR-14); rollback restores a recorded version only |
 | FR-077 | Experiment tracking | met (Must) | Runs, parameters, metrics and artifacts go to MLflow, and the `experiments` row - split spec, objective, MLflow experiment id - is written per run, whether or not MLflow was reachable |
 | FR-078 | Tamper-evident audit log | met | one hash chain per run under an advisory lock; tampering and concurrency both tested |
-| FR-079 | Authentication and RBAC | met | argon2, HS256, roles decided by the policy; 55 API tests, most of them refusals |
+| FR-079 | Authentication and RBAC | met | argon2, HS256, roles decided by the policy; 62 API tests, most of them refusals. `GET /settings` serves the accounts and their roles to an admin and nobody else, and a test asserts the whole payload carries no credential |
 | FR-080 | Monitoring and alerting | met | `alerts` with severity, acknowledgement and audit, and `GET /metrics` now serves 22 Prometheus series read from the database on each scrape. It was documented in `main.py` and served nowhere, with `prometheus-client` an unused dependency |
 | FR-081 | Drift detection | met | PSI with KS and chi-square; `tests/unit/test_drift.py` |
 | FR-082 | Cancel and resume | met | both endpoints, with ownership and state checks |
@@ -169,15 +169,28 @@ which part is missing.
 
 ## Experiments
 
-EXP-4, EXP-6, EXP-7, EXP-9 and EXP-10 have been **run**, with results in `experiments/` and a
-reading of each in `docs/implementation/EXPERIMENTS.md`. Four hypotheses held; EXP-6's did not,
-and its four findings - a Spark output hash that cannot be reproducible, an unclassified
-out-of-memory failure, `docker` absent from the dev container's PATH so jobs run through
-`LocalRunner`, and a dependency-download failure classified as a compile error - are open and
-recorded there. EXP-1, EXP-2, EXP-3, EXP-5 and EXP-8 are implemented and not yet run.
-EXP-2 and EXP-3 need data volumes or a cluster this
-environment cannot provide (ADR-0002); the others need configuration files that have not been
-written. Nothing is reported as a result of an experiment that did not run.
+**All ten have been run.** Results are in `experiments/<EXP-n>/latest.json` and a reading of each
+is in `docs/implementation/EXPERIMENTS.md`.
+
+| ID | Hypothesis | What it produced |
+| --- | --- | --- |
+| EXP-1 | **held** | P finishes with 0 manual steps beyond approval, 15 audit entries and 6 decision records, against baselines that produce none. The only like-for-like quality comparison - same features, same split - is a fifth trial, because P's 23 features and the baselines' 12 are not comparable |
+| EXP-2 | **did not hold** | No crossover at any size this machine can hold: pandas finished every rung and beat Spark on all of them. Reported as a failure to observe, not as evidence of absence |
+| EXP-3 | **did not hold** | 1.301x from one core to two, 0.789x from two to four, against a 1.6x threshold. The fixed cost is measured and subtracted, which is why the raw numbers flatter the result |
+| EXP-4 | **held** | Schema faults are refused at ingest; it also found FR-007's contract enforcement unreachable on the real path |
+| EXP-5 | **no verdict** | Row accounting balanced at every null rate and key nulls quarantined exactly as specified; the PR-AUC trend has no verdict because three of four conditions escalated on MISCALIBRATED and produced no PR-AUC |
+| EXP-6 | **did not hold** | Four findings, two still open: an out-of-memory failure classified `UNKNOWN`, and a coursier download failure classified `SCALA_COMPILE_ERROR` |
+| EXP-7 | **held** | Drift and degradation are detected and the retraining triggers fire |
+| EXP-8 | **no verdict** | 15 of 20 seeded faults caught before execution; 5 of 5 forbidden APIs refused at gate 2. Repair rate needs an LLM provider and is recorded as not measured |
+| EXP-9 | **held** | The behavioural leakage checks catch what the name list misses |
+| EXP-10 | **held** | 4 of 4 governance bypasses blocked; it also found the injection scanner reading past chat-template control tokens |
+
+Three experiments reported a result that was later deleted as false, and each is recorded in
+`EXPERIMENTS.md` with what it actually measured: EXP-8's "20 of 20" was 15 real detections and
+five jobs failing to compile on the experiment's own invalid Scala identifier; EXP-5's "held"
+was a monotone trend asserted from one data point; EXP-9's first run measured a generator in
+which a correct model and a leaking one are indistinguishable. Nothing is reported as the
+result of an experiment that did not run.
 
 ## Non-functional requirements
 
@@ -196,16 +209,18 @@ and the audit trail detects both tampering and its own concurrency bug.
 
 The gaps are concentrated in one place, and it is not a governance gap:
 
-1. **Presentation.** The chart *data* now exists and is served - ROC, precision-recall,
-   calibration bins, a lift sweep, bootstrap intervals, per-segment metrics and feature
-   importance, none of which was persisted before - and the frontend does not draw any of it.
-   It also has no modal, no confirmation before the destructive Cancel-run POST, no toast, no
-   tabs, no pagination control although the API pages, no date input, no search, no progress
-   indicator, and no aria attributes at all. FR-065, FR-066, FR-070, FR-072, FR-084 and the
-   WCAG target in PRD 26.2 are open here.
-2. **Autonomy at the edges.** Schedule and data-arrival triggers, the Spark optimisation loop,
+1. **Autonomy at the edges.** Schedule and data-arrival triggers, the Spark optimisation loop,
    caching decisions and the streaming connector are not built (FR-035, FR-037, FR-074 in part,
-   FR-008).
+   FR-008). This is where the remaining Should-level gaps are concentrated.
+2. **Two error classifications EXP-6 found are still wrong.** An out-of-memory failure is
+   classified `UNKNOWN`, so the remedy that exists for it never fires; a dependency-download
+   failure is classified `SCALA_COMPILE_ERROR`, and regenerating the code cannot fix a network
+   problem. Both are recorded in `EXPERIMENTS.md` with the evidence.
+3. **Presentation is no longer the gap it was.** All eight PRD pages exist, the charts are drawn
+   from stored evaluation documents in plain SVG, and the interface has tabs, a confirmation
+   dialog before the destructive Cancel-run POST, toasts, cursor pagination, search, a live SSE
+   stream and ARIA attributes throughout. What is still missing is narrow and named: PDF export
+   (FR-072) and alert delivery (FR-084).
 
 **FR-053 is now closed.** The tool registry was a real control with real tests that nothing was
 routed through; every Spark submission and catalogue commit now goes through it, and a full run

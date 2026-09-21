@@ -1,6 +1,6 @@
 # IMPLEMENTATION_STATUS
 
-Updated: 18-09-2026, end of session 2. **Read this file first when resuming.**
+Updated: 22-09-2026. **Read this file first when resuming.**
 
 ## Current position
 
@@ -19,11 +19,15 @@ number.
 | 5. Agent orchestration | real end-to-end run + ATC-01..05 | **PASSED** — `python -m agents.worker` executes queued runs |
 | 6. Evaluation and retraining | drift measured, RT-1..RT-9 evaluated | **PASSED** — drift reports and trigger decisions are rows |
 | 7. Dashboard and reporting | AT-03, AT-08, AT-15 | **PASSED** — 37 endpoints, five pages, verified in a browser |
-| 8. Testing and optimisation | success criteria audited | not started |
-| 9. Documentation and demo | three stable rehearsals | not started (two clean rehearsals so far) |
+| 8. Testing and optimisation | success criteria audited | **PASSED** — `REQUIREMENTS_TRACEABILITY.md`, and all ten experiments run |
+| 9. Documentation and demo | three stable rehearsals | **PASSED** — `run-2026-09-19-006`, `run-2026-09-21-007` and `run-2026-09-21-020` |
 
-Test totals: **319 Python tests**, **21 Scala tests**, **9 smoke checks** (1 skipped by
+Test totals: **458 Python tests**, **21 Scala tests**, **9 smoke checks** (1 skipped by
 design), **ruff clean**, and the frontend builds under TypeScript strict mode.
+
+All eight pages the PRD's section 26.1 names now exist. Dataset, Report and Settings were the
+three that did not, and building the first of them found that the profile endpoint behind it had
+never once succeeded.
 
 ## The loop, as it actually behaved
 
@@ -121,33 +125,50 @@ without the worker.
 
 ## Next exact step
 
-Phase 8: audit the PRD's success criteria and requirements against what exists, and write
-`REQUIREMENTS_TRACEABILITY.md`. The evidence is already there — 319 tests, the run records,
-the audit trail — so this is a matter of mapping it, and of being explicit about the
-requirements that are **not** met rather than quietly omitting them.
+Re-run EXP-5. Three of its four conditions escalated on MISCALIBRATED and the database held no
+acceptance decision for any of them, so whether that is the policy correctly refusing an
+uncalibratable model or a calibration chain giving up too early cannot be told from what was
+recorded. The decision record is now written on the escalation path with its evidence - the
+measured ECE, the Brier skill, and which remedies the chain tried - so a re-run can answer it.
+Nothing else in the project is waiting on an unanswered question.
 
 ## Not started
 
-- The dataset, report and settings pages (PRD 26.1 marks them lower priority than the five
-  that exist), and the API they would need: nothing exposes users, the active policy, budgets,
-  a dataset schema diff, an artifact's source text, an escalation ticket, or the approval
-  evidence bundle, although `Approval.evidence_uri` points at a file that is written.
-- The frontend interaction layer PRD section 26 assumes: no modal or dialog, no confirmation
-  before the destructive Cancel-run POST, no toast or in-app notification (FR-084), no tabs, no
-  tooltip component beyond one raw `title=` attribute, no pagination control although
-  `Page.next_cursor` is typed and the API pages, no date input, no search although FR-070 wants
-  searchable decision records, no progress indicator or budget meter, and no expandable
-  technical trace. Accessibility is untouched: no aria attributes, no focus-visible rules.
-- The event-stream client. `GET /pipelines/{id}/events` is served and nothing subscribes to it,
-  so "stage changes appear within 5 seconds" is not met.
-- FR-004 JDBC, FR-008 streaming connector, FR-022 anomaly detection, FR-024 feature
-  suggestions, FR-035 caching decisions, FR-037 the Spark optimisation loop, FR-040 typed
-  Datasets, FR-072 PDF export (HTML only).
-- EXP-1, EXP-2, EXP-3, EXP-5, EXP-8 are implemented and not yet run. EXP-4, EXP-6, EXP-7,
-  EXP-9 and EXP-10 have results in `experiments/`.
+- FR-004 JDBC ingestion, FR-008 streaming connector, FR-022 anomaly detection in cleaning,
+  FR-024 automated feature suggestions, FR-035 caching decisions, FR-037 the Spark optimisation
+  loop, FR-040 typed Datasets, FR-072 PDF export (HTML only), FR-084 alert delivery. All are
+  Should or Could; no Must is unimplemented.
+- Schedule and data-arrival triggers (FR-074 in part). `watch_folder` exists and nothing runs it
+  on a timer; manual and retraining triggers both work end to end.
+- Two error classifications EXP-6 found are still wrong: an out-of-memory failure is classified
+  `UNKNOWN` so its remedy never fires, and a coursier download failure is classified
+  `SCALA_COMPILE_ERROR`, which prescribes regenerating code that was never the problem.
 
 ## Done since the last revision of this document
 
+- **All ten experiments have been run**, and three of them reported a result that was then
+  deleted as false rather than kept: EXP-8's "20 of 20 faults detected" was fifteen real
+  detections and five jobs failing to compile on the experiment's own invalid Scala identifier;
+  EXP-5's "hypothesis held" was a monotone trend asserted from one surviving data point; EXP-9's
+  first run measured a generator in which a correct model and a leaking one are
+  indistinguishable. EXP-2 and EXP-3 had never run at all - both passed `valid_cutoffs` to a
+  `SplitSpec` whose field is `valid_cutoff`.
+- **The Dataset, Report and Settings pages exist**, with an admin-only `GET /settings` behind
+  the last of them serving the policy files, the budget ceilings, the redacted connection
+  targets and the accounts.
+- **`dataset_versions.profile_uri` and `.quality_score` are written.** They were NULL on all 130
+  rows, so `GET /datasets/{ref}/versions/{n}/profile` - the whole of FR-068's API surface -
+  refused every request it could ever be given. Verified on `run-2026-09-21-020`: the endpoint
+  now answers 200 and the page draws the profile.
+- **An escalating run records its acceptance decision.** It used to be written only on the paths
+  that continued, so a run stopped by the policy left a one-line reason and none of the numbers
+  behind it.
+- **The login blockage is fixed and measured as fixed.** During `run-2026-09-21-020`, with a
+  transaction idle for 12 minutes, eight consecutive logins returned 200 in 0.18-0.45s, and 17
+  probes across the run had a worst case of 2.0s. The failure being compared against was three
+  logins queued for 4:32, 3:08 and 1:47.
+- **Comparing any two model versions** (FR-066), with both bootstrap intervals and a note on
+  every row where they overlap.
 - **Optuna tuning** runs: `tune.py`, the `tuning:` block, finalists only.
 - **A fired trigger starts a run** (`start_retraining`).
 - **Replay mode (ATC-18)**: `scripts/replay_run.py` exists, `ChurnPipeline._replay_scala` reads
@@ -176,7 +197,7 @@ requirements that are **not** met rather than quietly omitting them.
 
 | Limit | Why | What lifting it would take |
 | --- | --- | --- |
-| **A run in progress blocks every login** | `churn.prepare` runs inside one transaction, and `audit.record` takes `pg_advisory_xact_lock` per chain. The run's ingest writes land in the **system** chain (`register_source` / `register_version` carry no run id), so the system-chain lock is held for the whole run. A login writes `auth.login` to that same chain and waits. Measured: one `idle in transaction` for 9m56s with three logins queued behind it at 4:32, 3:08 and 1:47, all released the instant the run finished | Shorter transaction boundaries in the pipeline, or run-scoping the ingest audit writes so a run never touches the system chain. The lock itself is correct and must stay held to commit - it is what stops two writers reading the same chain head and forking it |
+| **A long transaction touching a shared audit chain can block writers of that chain** (the observed case is **fixed**) | `audit.record` takes `pg_advisory_xact_lock` per chain, and the lock must stay held to commit - it is what stops two writers reading the same chain head and forking it. The observed failure was `churn.prepare` holding its ingest writes, which land in the **system** chain, for the length of a run: measured at one `idle in transaction` for 9m56s with three logins queued at 4:32, 3:08 and 1:47. `run_demo.py` now commits its ingest before the run begins, and the same situation was re-measured on `run-2026-09-21-020` - 12 minutes of open transaction, eight logins in 0.18-0.45s | The general shape remains possible anywhere a long transaction writes to the system chain, and the defence is transaction boundaries rather than a change to the lock |
 | One run of a pipeline at a time | Runs share `clean/`, `features/` and `labels/`, and committing supersedes what is there | Version those outputs per run: a storage-layout change, not a lock |
 | Chain verification does not detect a whole run's chain being removed | The trail is one chain per run, which is what makes concurrent writes correct | A periodic seal over the chain heads |
 | Drift on a single-cutoff scoring window | A month-of-year feature is constant within one month, so its PSI is enormous and says nothing about behaviour | Reported with that note rather than suppressed; the flag still fires, because a feature pinned by a broken source looks identical |
@@ -209,11 +230,14 @@ F-18) and `docs/implementation/DECISIONS.md` (DEC-01 to DEC-19).
 
 ```
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m pytest tests/unit -q
-  -> 415 passed
+  -> 458 passed
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m ruff check .
   -> All checks passed
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev     python scripts/run_demo.py --customers 400 --months 24
-  -> exit 0, run-2026-09-19-006; 412 audit entries across 34 chains, verified
+  -> exit 0, run-2026-09-21-020 in 818s; KEEP_CHAMPION, 14 segment metric sets,
+     1252 audit entries across 80 chains, verified; logins served throughout
+docker compose -f docker/compose.yaml exec -T frontend npm run build
+  -> built in 9.71s, 332 kB / 102 kB gzipped
 curl -s http://localhost:8010/metrics
   -> 200, 22 series read from the database
 docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m experiments.exp04_schema_errors
@@ -228,6 +252,5 @@ docker compose -f docker/compose.yaml --profile tools run --rm -T dev python -m 
   -> completed, hypothesis held: 4 of 4 bypass attempts blocked, chain verified
 ```
 
-Not yet re-run since the changes above: the Scala test suite, the smoke suite, the frontend
-build and `scripts/api_smoke.py`. They are listed here as *not re-verified* rather than carried
-over from an older revision.
+Not yet re-run since the changes above: the Scala test suite and `scripts/api_smoke.py`. They
+are listed here as *not re-verified* rather than carried over from an older revision.

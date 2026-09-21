@@ -17,7 +17,7 @@ carrying an estimate.
 | EXP-2 | Medium dataset: where a single node gives out | **partial** | **did not hold** | `experiments/EXP-2/latest.json` |
 | EXP-3 | Scaling with parallelism | **partial** | **did not hold** | `experiments/EXP-3/latest.json` |
 | EXP-4 | Schema errors | **partial** | **held** | `experiments/EXP-4/latest.json` |
-| EXP-5 | Missing values | **partial** | **held** | `experiments/EXP-5/latest.json` |
+| EXP-5 | Missing values | **partial** | **no verdict** | `experiments/EXP-5/latest.json` |
 | EXP-6 | Spark failures and recovery | **partial** | **did not hold** | `experiments/EXP-6/latest.json` |
 | EXP-7 | Model degradation | **partial** | **held** | `experiments/EXP-7/latest.json` |
 | EXP-8 | Scala compile failures | **partial** | **no verdict** | `experiments/EXP-8/latest.json` |
@@ -29,8 +29,10 @@ PRD specifies, and the limitation is recorded in the result. The harness refuses
 `not_run` result that names no limitation, and refuses a verdict on a hypothesis when no
 measurement was recorded.
 
-All ten have now been run. Three hypotheses did not hold and one has no verdict; those
-four sections are the ones worth reading first.
+All ten have now been run: **five hypotheses held, three did not, and two have no verdict**
+because the measurement they turn on could not be taken here — EXP-8's repair rate needs an LLM
+provider, and EXP-5's trend needs more than one condition to survive the acceptance policy. The
+five sections that are not a plain "held" are the ones worth reading first.
 
 ## What each experiment found
 
@@ -296,6 +298,47 @@ legal Scala identifier, so every job failed to compile and the harness read the 
 as the seeded fault being caught. Fifteen of the twenty detections were real; five were the
 experiment detecting its own bug. The suffix is now sanitised and the false result is gone from
 `experiments/`.
+
+### EXP-5, missing values — no verdict, partial
+
+| Non-key null rate | Key null rate | Quarantined | Row accounting | Outcome | Test PR-AUC |
+| --- | --- | --- | --- | --- | --- |
+| 0% | 0% | 0 of 8 078 | balanced | SELECTED | 0.7259 |
+| 5% | 1% | 72 of 8 078 (0.89%) | balanced | **ESCALATED, MISCALIBRATED** | not measured |
+| 20% | 1% | 72 of 8 078 (0.89%) | balanced | **ESCALATED, MISCALIBRATED** | not measured |
+| 50% | 1% | 72 of 8 078 (0.89%) | balanced | **ESCALATED, MISCALIBRATED** | not measured |
+
+The half of the hypothesis about rows **holds, and holds cleanly**. Row accounting balanced in
+every condition — `input = output + quarantined + removed_duplicates` — so no row was lost
+silently at any null rate. Key nulls quarantine and non-key nulls do not: the 72 quarantined
+rows are the 1% key-null injection and the number does not move between 5% and 50% non-key
+nulls, which is exactly the behaviour the rule describes. Cleaning affected 0.89% of rows
+against the `cleaning.execute` policy limit of 5%, so it ran under bounded autonomy with no
+approval request in any condition.
+
+The half about PR-AUC declining gradually **has no verdict, because three of the four
+conditions never produced a PR-AUC**. Every condition carrying nulls escalated on
+MISCALIBRATED after the full AP-5 remedy chain — isotonic, then sigmoid, then sigmoid with
+class weighting removed. The pipeline does not degrade gracefully as values go missing; it
+stops. That is the acceptance policy behaving as specified rather than a defect, and it means
+the trend the hypothesis asks about cannot be measured on this pipeline without changing the
+policy the experiment is supposed to observe.
+
+**The previous run of this experiment reported this hypothesis as held, and that was wrong in
+two separate ways.** It called a monotone decline from a single surviving data point, because
+`all()` over a one-element list is vacuously true; and on escalation it discarded the cleaning
+evidence it had already collected, so the quarantine and row-accounting measurements — the
+half that genuinely holds — were thrown away in the conditions that produced them. Both are
+fixed: the trend is reported as *not assessable* below two points, and an escalated condition
+now keeps every measurement it made before it stopped. The table above exists because of the
+second fix.
+
+**Left open by this result:** whether MISCALIBRATED at 5% non-key nulls is the acceptance
+policy correctly refusing an uncalibratable model, or a calibration chain that gives up too
+early. The evidence needed to tell those apart — the measured ECE at the point of refusal —
+was not in the database when this was written, because an escalating run recorded no
+acceptance decision. That gap is now closed, so the next run of EXP-5 can answer it; this one
+cannot, and it does not guess.
 
 ## Deviations from PRD section 33 that apply to every experiment
 
