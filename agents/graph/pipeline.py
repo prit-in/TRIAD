@@ -400,6 +400,31 @@ class ChurnPipeline:
         version.quality_score = outputs.get("quality_score")
         self.session.flush()
 
+    def _append_execution_gates(self, outcome: Any) -> None:
+        """Merge the post-execution gates onto the artifact row this stage generated.
+
+        `StageRunner` records gates 7 and 9 on its outcome, and an outcome is a return value:
+        it reaches an escalation ticket and otherwise goes out of scope. `code_artifacts.
+        gate_results` is where a gate result is meant to be readable afterwards - it is what
+        `GET /pipelines/{id}/artifacts` serves and what the run page draws - so the two gates
+        are appended there rather than left in an object nobody stores.
+        """
+        row = getattr(self, "_last_artifact_row", None)
+        if row is None:
+            return
+        recorded = dict(row.gate_results or {})
+        gates = list(recorded.get("gates", []))
+        seen = {g.get("gate") for g in gates}
+        for report in outcome.gate_reports or []:
+            for gate in report.get("gates", []):
+                if gate.get("gate") not in seen:
+                    gates.append(gate)
+                    seen.add(gate.get("gate"))
+        recorded["gates"] = sorted(gates, key=lambda g: g.get("gate", 0))
+        recorded["passed"] = all(g.get("passed") for g in gates)
+        row.gate_results = recorded
+        self.session.flush()
+
     def _contract(self, dataset: str) -> Contract | None:
         path = settings().repo_root / "pipelines" / "contracts" / f"{dataset}.yaml"
         return Contract.from_yaml(path) if path.exists() else None
@@ -587,6 +612,7 @@ class ChurnPipeline:
             )
         )
         self.result.stages.append(outcome.to_dict())
+        self._append_execution_gates(outcome)
 
         if outcome.ok and policy_action:
             verdict = self._check_stage_policy(policy_action, stage, outcome.outputs,

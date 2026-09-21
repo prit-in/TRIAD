@@ -263,6 +263,12 @@ class StageRunner:
         """
         from agents.codegen import gates as G
 
+        if contract_result is None:
+            # A stage with no contract to check gets neither gate. Recording gate 7 against a
+            # missing contract result reports a *failed* contract check, which would be a
+            # fabricated failure for a stage that was never asked to satisfy one - profiling
+            # and the Python hand-off are both in that position.
+            return
         report = G.GateReport(
             [G.gate7_contract(contract_result), G.gate9_execute(execution, contract_result)]
         )

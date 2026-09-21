@@ -13,15 +13,21 @@ Verified on 22-09-2026 against commit `2d0b1fd`, with 458 Python tests, 21 Scala
 
 | Category | Count | Met | Partly met | Not met |
 | --- | --- | --- | --- | --- |
-| Functional — Must | 65 | 60 | 5 | 0 |
-| Functional — Should | 16 | 8 | 3 | 5 |
+| Functional — Must | 65 | 63 | 2 | 0 |
+| Functional — Should | 16 | 7 | 3 | 6 |
 | Functional — Could | 3 | 1 | 0 | 2 |
 | Acceptance tests (AT) | 16 | 12 | 1 | 3 |
-| Agentic acceptance (ATC) | 18 | 13 | 1 | 4 |
+| Agentic acceptance (ATC) | 18 | 14 | 1 | 3 |
 | Experiments (EXP) | 10 | 10 run | — | 0 |
+| Documentation (section 58) | 12 | 12 | 0 | 0 |
 
-No Must requirement is unimplemented. Five are partly met, and each one says below exactly
-which part is missing.
+No Must requirement is unimplemented. Two are partly met — FR-055, where seven of the nine
+validation gates run, and FR-074, where manual and retraining triggers work and schedule and
+data-arrival triggers are not wired — and each says below exactly which part is missing.
+
+The Should column moved by one in each direction since the last revision: FR-065 and FR-066 are
+now met, and FR-055 moved from met to partly met after an audit found that five of the nine
+gates it claims were called by nothing at all.
 
 ## Functional requirements
 
