@@ -112,6 +112,8 @@ export const api = {
   evaluation: (modelRef: string, versionId: string) =>
     request<Evaluation>(`/models/${modelRef}/versions/${versionId}/evaluation`),
   experiments: () => request<ExperimentResult[]>("/experiments"),
+  auditLogs: (query = "") => request<AuditEntry[]>(`/audit-logs${query}`),
+  chainStatus: () => request<ChainStatus>("/audit-logs/verify"),
 };
 
 // --- what the API returns -------------------------------------------------------
@@ -138,6 +140,29 @@ export interface Evaluation {
   acceptance: Record<string, { passed: boolean; reason_codes: string[] }>;
   rules_applied: string[];
   feature_importance: { method: string; note: string; global: { feature: string; importance: number }[] } | null;
+}
+
+export interface AuditEntry {
+  id: number;
+  ts: string;
+  actor_type: string;
+  actor_id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  run_id: string | null;
+  outcome: string;
+  details: Record<string, unknown>;
+  entry_hash: string;
+}
+
+export interface ChainStatus {
+  ok: boolean;
+  entries_checked: number;
+  chains_checked: number;
+  broken_at: number | null;
+  broken_scope: string | null;
+  detail: string | null;
 }
 
 /** One case-study experiment as the harness wrote it (PRD section 33). */

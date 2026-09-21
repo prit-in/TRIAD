@@ -6,14 +6,18 @@ import { Models } from "./pages/Models";
 import { Predictions } from "./pages/Predictions";
 import { Approvals } from "./pages/Approvals";
 import { Experiments } from "./pages/Experiments";
+import { Monitoring } from "./pages/Monitoring";
+import { Audit } from "./pages/Audit";
 
-const PAGES = [
+const PAGES: { to: string; label: string; end: boolean; adminOnly?: boolean }[] = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/runs", label: "Runs", end: false },
   { to: "/models", label: "Models", end: false },
   { to: "/predictions", label: "Predictions", end: false },
   { to: "/approvals", label: "Approvals", end: false },
+  { to: "/monitoring", label: "Monitoring", end: false },
   { to: "/experiments", label: "Experiments", end: false },
+  { to: "/audit", label: "Audit", end: false, adminOnly: true },
 ];
 
 export function App() {
@@ -27,7 +31,9 @@ export function App() {
       <header>
         <span className="brand">TRIAD</span>
         <nav>
-          {PAGES.map((page) => (
+          {/* The audit trail is admin-only in the API. Offering the link to everyone else
+              means every non-admin click lands on a 403 they cannot act on. */}
+          {PAGES.filter((page) => !page.adminOnly || user.role === "admin").map((page) => (
             <NavLink key={page.to} to={page.to} end={page.end}>
               {page.label}
             </NavLink>
@@ -49,7 +55,9 @@ export function App() {
           <Route path="/models" element={<Models />} />
           <Route path="/predictions" element={<Predictions />} />
           <Route path="/approvals" element={<Approvals />} />
+          <Route path="/monitoring" element={<Monitoring />} />
           <Route path="/experiments" element={<Experiments />} />
+          <Route path="/audit" element={<Audit />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

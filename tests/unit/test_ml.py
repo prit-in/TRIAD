@@ -511,3 +511,68 @@ def test_the_trusted_type_list_covers_every_registered_family() -> None:
         "TRUSTED_MODEL_TYPES is short of what the registered families actually produce; "
         f"add: {missing}"
     )
+
+
+def test_ap6_refuses_a_model_whose_recall_differs_by_segment() -> None:
+    """The fairness gate has to be able to bite, and nothing proved that it could.
+
+    AP-6 caps the recall gap between segments. It was never refusing anything in a real run,
+    and for a structural reason rather than a threshold one: `churn.prepare` passed
+    `segment_cols=["country"] if "country" in dataset.columns else None`, the feature job emits
+    numeric aggregates and no customer attributes, so every run passed `None` and the gate
+    compared an empty list. The attributes are joined for evaluation now; this pins the other
+    half, that a genuine gap is actually refused.
+    """
+    rng = np.random.default_rng(7)
+    n = 800
+    country = np.where(rng.random(n) < 0.5, "IN", "GB")
+    y = (rng.random(n) < 0.35).astype(int)
+
+    # The model finds churners in one country and is close to blind in the other. Scores are
+    # built from the label on purpose: this is a fixture for the gate, not a model.
+    score = np.where(
+        country == "IN",
+        np.where(y == 1, rng.uniform(0.75, 0.99, n), rng.uniform(0.0, 0.25, n)),
+        np.where(y == 1, rng.uniform(0.0, 0.45, n), rng.uniform(0.0, 0.45, n)),
+    )
+    frame = pd.DataFrame({"country": country})
+
+    segments = segment_metrics(
+        frame, y, score, segment_cols=["country"], threshold=0.5,
+        min_rows=50, min_positives=30,
+    )
+    assert len(segments) == 2, "both countries have enough rows and positives to be compared"
+
+    gap = recall_gap(segments)
+    assert gap > 0.10, f"the fixture should produce a wide gap, got {gap}"
+
+    verdict = check_acceptance(
+        evaluate(y, score, split="valid", threshold=0.5),
+        dict(POLICY),
+        segments=segments,
+    )
+    assert "SEGMENT_RECALL_GAP" in verdict.reason_codes, verdict.reason_codes
+    assert not verdict.passed
+
+
+def test_ap6_passes_when_the_segments_agree() -> None:
+    """The counterpart: a gate that refused everything would pass the test above."""
+    rng = np.random.default_rng(11)
+    n = 800
+    country = np.where(rng.random(n) < 0.5, "IN", "GB")
+    y = (rng.random(n) < 0.35).astype(int)
+    # The same separation in both segments, so the recall gap is small.
+    score = np.where(y == 1, rng.uniform(0.7, 0.99, n), rng.uniform(0.0, 0.3, n))
+
+    segments = segment_metrics(
+        pd.DataFrame({"country": country}), y, score, segment_cols=["country"],
+        threshold=0.5, min_rows=50, min_positives=30,
+    )
+    assert recall_gap(segments) <= 0.10
+
+    verdict = check_acceptance(
+        evaluate(y, score, split="valid", threshold=0.5),
+        dict(POLICY),
+        segments=segments,
+    )
+    assert "SEGMENT_RECALL_GAP" not in verdict.reason_codes, verdict.reason_codes

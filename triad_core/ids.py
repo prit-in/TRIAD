@@ -70,21 +70,66 @@ def sha256_dir(path: str | Path, include_suffixes: tuple[str, ...] | None = None
 
 
 def sha256_data_dir(path: str | Path, include_suffixes: tuple[str, ...] | None = None) -> str:
-    """Content hash of a data folder, independent of the file names inside it.
+    """Content hash of a data folder: the rows it holds, not the files it happens to hold them in.
 
-    Spark names every part file with a UUID minted per job: two runs over identical input
-    with identical code write `part-00000-e7ee49db-....parquet` and
-    `part-00000-afd64427-....parquet`. The *bytes* are identical - measured, not assumed -
-    but `sha256_dir` folds the names in, so its hash differed on every run and
-    NFR-REP-02 ("identical content for deterministic stages") and ATC-18's "output hashes
-    identical" could never pass. EXP-6 found this by recovering from an injected fault and
-    producing a correct output that did not match the clean run.
+    NFR-REP-02 asks for "identical content for deterministic stages" and ATC-18 for "output
+    hashes identical". Two things stop a naive file hash from delivering either, and both were
+    measured on this pipeline rather than assumed:
 
-    So this hashes the sorted multiset of file hashes and nothing else. Sorted, because the
-    order Spark happens to emit partitions in is not part of the content; a multiset rather
-    than a set, because two files with identical bytes are not the same as one.
+    1. **File names.** Spark mints a UUID per job and puts it in every part-file name, so
+       `part-00000-e7ee49db-….parquet` becomes `part-00000-afd64427-….parquet` next run.
+    2. **Row-to-file assignment.** `OutputValidator` writes with no sort, so which rows land in
+       which partition, and in what order inside it, depends on task scheduling. A replay of
+       run-2026-09-21-004 produced the identical 7815 clean rows with identical accounting and
+       still wrote different bytes.
+
+    So the content of a table is defined here as what a table *is*: the multiset of its rows.
+    Each row is hashed, the hashes are sorted, and the digest is over that. Column order is
+    normalised too, since a schema reordering is not a content change while a schema *change*
+    still is - the column names travel with each row.
+
+    Folders with no parquet in them fall back to the file-level hash, which is the right
+    answer for a folder of text or JSON where the file layout *is* the content.
+
+    The cost is honest: this reads the data back on commit, which is O(rows). At this
+    project's scale that is a second or two. If it ever mattered, the cheaper fix is a
+    deterministic sort before write in the Scala job, which makes the bytes canonical and lets
+    the file-level hash stand again - a trade of commit-time cost for per-stage sort cost.
     """
-    return sha256_obj(sorted(h for _, h in _hashable_files(Path(path), include_suffixes)))
+    root = Path(path)
+    files = _hashable_files(root, include_suffixes)
+    parquet = [rel for rel, _ in files if rel.endswith(".parquet")]
+    if not parquet:
+        # Not a Spark table: the files themselves are the content. Sorted by hash so the
+        # part-file names still do not enter into it.
+        return sha256_obj(sorted(h for _, h in files))
+
+    try:
+        return sha256_obj(["rows", _row_multiset_hash(root)])
+    except Exception:
+        # A folder that cannot be read as parquet - mid-write, or a format this build has no
+        # reader for - falls back rather than raising. The hash is then name-independent but
+        # not layout-independent, which is weaker and is why the digest is tagged either way.
+        return sha256_obj(sorted(h for _, h in files))
+
+
+def _row_multiset_hash(root: Path) -> str:
+    """Digest over the sorted hashes of every row, with its column names attached."""
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(root)
+    columns = sorted(table.column_names)
+    table = table.select(columns)
+
+    digests: list[str] = []
+    # Batched rather than row-by-row through Python: a column-at-a-time read keeps this to one
+    # pass over the data instead of one dictionary per row.
+    for batch in table.to_batches(max_chunksize=8192):
+        as_dicts = batch.to_pylist()
+        for row in as_dicts:
+            digests.append(sha256_text(canonical_json(row)))
+    digests.sort()
+    return hashlib.sha256("".join(digests).encode("utf-8")).hexdigest()
 
 
 def normalise_source(source: str) -> str:

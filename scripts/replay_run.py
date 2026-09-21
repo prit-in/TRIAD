@@ -28,6 +28,7 @@ when any LLM call was made. A replay that cannot prove identity must not report 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import uuid
 from pathlib import Path
@@ -84,22 +85,45 @@ def _pick_run(session: Any, run_key: str | None) -> PipelineRun:
 def _stored_output_hashes(store: Any, run: PipelineRun) -> dict[str, str | None]:
     """The committed outputs' content hashes, from the manifests the original run wrote.
 
+    The paths come from the run's own `run_state.json` - `clean_uri`, `features_uri`,
+    `labels_uri` - and not from a guess at the catalogue layout. The first version of this
+    guessed `features_dir("churn", 1)` where the pipeline writes `churn_features`, so two of
+    the three outputs were never compared and were reported as "absent", which looked like
+    missing data rather than a broken check. Reading the URIs the run recorded cannot drift
+    away from what the pipeline does.
+
     Read *before* the replay, because a replay commits to the same folders.
     """
     out: dict[str, str | None] = {}
+    state_path = store.reports_dir(run.run_key) / "run_state.json"
+    if not state_path.exists():
+        return dict.fromkeys(OUTPUT_KINDS)
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return dict.fromkeys(OUTPUT_KINDS)
+
     for kind in OUTPUT_KINDS:
-        directory = {
-            "clean": store.clean_dir("transactions", 1),
-            "features": store.features_dir("churn", 1),
-            "labels": store.labels_dir("churn", 1),
-        }[kind]
-        try:
-            manifest = store.read_manifest(directory)
-            # Only count it if this run is the one that wrote it; another run's output would
-            # make the comparison meaningless.
-            out[kind] = manifest.content_hash if manifest.run_id == run.run_key else None
-        except Exception:
+        uri = state.get(f"{kind}_uri")
+        if not uri:
             out[kind] = None
+            continue
+        try:
+            manifest = store.read_manifest(store.path(uri))
+        except Exception as exc:
+            # Said out loud. A path that cannot be read is a broken check, and silently
+            # returning None made it indistinguishable from an output that was never written.
+            log("baseline", f"{kind}: cannot read the manifest at {uri}: {exc}", False)
+            out[kind] = None
+            continue
+        # Only count it if this run is the one that wrote it; another run's output would make
+        # the comparison meaningless.
+        if manifest.run_id != run.run_key:
+            log("baseline", f"{kind}: last written by {manifest.run_id}, not {run.run_key}",
+                False)
+            out[kind] = None
+            continue
+        out[kind] = manifest.content_hash
     return out
 
 

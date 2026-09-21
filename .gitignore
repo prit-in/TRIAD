@@ -74,3 +74,4 @@ frontend/dist/
 
 # Browser-automation scratch from verifying the dashboard
 .playwright-mcp/
+"*.tsbuildinfo" ; git commit -q -m "$(printf 'Stop tracking the TypeScript build cache\n\n`frontend/tsconfig.tsbuildinfo` is a build artifact that changes on every compile, so\nevery frontend commit carried a meaningless diff.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>')" 

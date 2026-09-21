@@ -35,6 +35,12 @@ Logger = Callable[[str, str, bool | None], None]
 STATE_FILE = "run_state.json"
 MODEL_NAME = "churn_classifier"
 
+# Customer attributes the segment checks group by (PRD 26.1: country, tenure, value tier).
+# Joined at the hand-off for evaluation only and excluded from the feature columns below, so
+# the model never trains on them. A segment check asks whether a model built from *behaviour*
+# treats groups differently; a model handed `country` as an input answers a different question.
+SEGMENT_ATTRIBUTES = ("country", "loyalty_tier", "acquisition_channel")
+
 
 def _noop(step: str, message: str, ok: bool | None = None) -> None:
     return None
@@ -304,6 +310,29 @@ def prepare(
         on=["customer_id", "snapshot_date"], how="inner",
     )
     say("handoff", f"joined {len(dataset)} labelled rows", True)
+
+    # Segment attributes, for evaluation only. Without them the fairness gate was structurally
+    # vacuous: `segment_cols` was `["country"] if "country" in dataset.columns else None`, the
+    # feature job emits 23 numeric columns and no customer attributes, so every run passed None
+    # and AP-6 - the segment recall gap - has never compared anything in any run.
+    segment_columns: list[str] = []
+    if "customers" in inputs:
+        try:
+            attributes = read_parquet(store.path(inputs["customers"]))
+            wanted = [c for c in SEGMENT_ATTRIBUTES if c in attributes.columns]
+            if wanted:
+                dataset = dataset.merge(
+                    attributes[["customer_id", *wanted]].drop_duplicates("customer_id"),
+                    on="customer_id", how="left",
+                )
+                segment_columns = wanted
+        except Exception as exc:   # a missing attribute table must not fail the run
+            say("segments", f"customer attributes unavailable: {type(exc).__name__}: {exc}",
+                False)
+    say("segments",
+        f"segment attributes joined for evaluation: {segment_columns or 'none available'}",
+        bool(segment_columns))
+
     if dataset.empty:
         pipeline.finish("ESCALATED", ok=False,
                         reason="features and labels produced no joined rows")
@@ -330,7 +359,9 @@ def prepare(
     # AP-8 is a comparison against the champion on the *same* test cutoff. Without the
     # champion's scores every run would silently behave as if it were the first one, and the
     # rule that a challenger must beat what is deployed would never actually apply.
-    num_cols, cat_cols = split_feature_types(split.train)
+    # The segment attributes are dropped here, not in the join: they must reach `split.test`
+    # for the per-segment metrics and must never reach the model.
+    num_cols, cat_cols = split_feature_types(split.train.drop(columns=segment_columns))
     feature_cols = num_cols + cat_cols
     champion_scores, champion_note = _champion_scores(split, feature_cols)
     if champion_note:
@@ -342,7 +373,7 @@ def prepare(
     selection = select_model(
         models, split, pipeline.config["acceptance_policy"],
         champion_scores=champion_scores,
-        segment_cols=["country"] if "country" in dataset.columns else None,
+        segment_cols=segment_columns or None,
         tuning=pipeline.config.get("tuning"),
         seed=seed,
     )
@@ -390,8 +421,7 @@ def prepare(
         test_scores = selection.selected.pipeline.predict_proba(
             split.test[num_cols + cat_cols]
         )[:, 1]
-        available = [c for c in ("country", "loyalty_tier", "acquisition_channel")
-                     if c in split.test.columns]
+        available = [c for c in segment_columns if c in split.test.columns]
         for metrics in _segment_metrics(
             split.test, split.test[_LABEL].to_numpy(), test_scores,
             segment_cols=available, threshold=threshold,

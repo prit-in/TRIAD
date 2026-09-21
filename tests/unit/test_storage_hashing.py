@@ -2,14 +2,20 @@
 
 EXP-6 found this the hard way. It injected a fault, watched the pipeline recover, and got a
 correct output - 8078 rows, row accounting balanced, byte-identical input and code - whose
-committed content hash did not match the clean run's. Spark mints a UUID per job and puts it
-in every part-file name, so `part-00000-e7ee49db-....parquet` becomes
-`part-00000-afd64427-....parquet` on the next run. The bytes are the same; the names are not.
-`sha256_dir` folded the names in, so the hash changed on every run and "identical content for
-deterministic stages" could never hold.
+committed content hash did not match the clean run's. There turned out to be two causes, and
+only the first was visible at the time:
 
-These tests pin both halves of the fix: the data hash ignores names, and the code hash still
-does not - a generated source file renaming itself *is* a difference and must stay one.
+1. **File names.** Spark mints a UUID per job and puts it in every part-file name, so
+   `part-00000-e7ee49db-….parquet` becomes `part-00000-afd64427-….parquet` next run.
+2. **Row-to-file assignment.** `OutputValidator` writes without sorting, so which rows land in
+   which part file, and in what order inside it, depends on task scheduling. Fixing (1) alone
+   was not enough: a replay of run-2026-09-21-004 reproduced the identical 7815 rows and still
+   wrote different bytes.
+
+So a table's content is defined as what a table is - the multiset of its rows - and the hash
+is over that. These tests pin both directions: it must ignore layout, and it must not ignore
+data. `sha256_dir` keeps its name-sensitive behaviour for code trees, where a generated source
+renaming itself *is* a difference.
 """
 
 from __future__ import annotations
@@ -101,3 +107,83 @@ def test_a_committed_folder_verifies_against_its_own_manifest(storage, tmp_path:
     ok, reason = storage.verify(committed)
     assert ok, reason
     assert storage.read_manifest(committed).content_hash
+
+
+# --- the layout-independent half ---------------------------------------------------
+#
+# The tests above use plain files, which exercise the fallback path: no parquet, so the
+# content is the files. These use real parquet, which is the path that matters, because a
+# Spark table's rows move between files from run to run.
+
+
+def _parquet(root: Path, rows: list[dict], chunks: int) -> Path:
+    """Write the same rows split across a given number of part files."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    root.mkdir(parents=True, exist_ok=True)
+    size = max(1, len(rows) // chunks)
+    for i in range(chunks):
+        slice_ = rows[i * size : (i + 1) * size] if i < chunks - 1 else rows[i * size :]
+        if not slice_:
+            continue
+        pq.write_table(
+            pa.Table.from_pylist(slice_),
+            root / f"part-{i:05d}-{'ab' * 8}-c000.parquet",
+        )
+    return root
+
+
+def test_the_same_rows_in_a_different_number_of_files_hash_the_same(tmp_path: Path) -> None:
+    """The defect the replay actually hit, once the file names were dealt with.
+
+    `OutputValidator` writes without sorting, so which rows land in which part file - and in
+    what order inside it - depends on task scheduling. A replay of run-2026-09-21-004 produced
+    the identical 7815 rows with identical accounting and still wrote different bytes.
+    """
+    rows = [{"customer_id": f"C-{i:05d}", "amount": float(i) * 1.5} for i in range(200)]
+    two = _parquet(tmp_path / "two", rows, chunks=2)
+    five = _parquet(tmp_path / "five", rows, chunks=5)
+
+    assert len(list(two.glob("*.parquet"))) == 2
+    assert len(list(five.glob("*.parquet"))) == 5
+    assert sha256_data_dir(two) == sha256_data_dir(five)
+
+
+def test_the_row_order_does_not_change_the_hash(tmp_path: Path) -> None:
+    """A table is a multiset of rows; the order they were written in is not content."""
+    rows = [{"customer_id": f"C-{i:05d}", "amount": float(i)} for i in range(50)]
+    forwards = _parquet(tmp_path / "f", rows, chunks=1)
+    backwards = _parquet(tmp_path / "b", list(reversed(rows)), chunks=1)
+    assert sha256_data_dir(forwards) == sha256_data_dir(backwards)
+
+
+def test_a_changed_value_still_changes_the_hash(tmp_path: Path) -> None:
+    """The counterpart. A hash blind to layout must not be blind to the data."""
+    rows = [{"customer_id": f"C-{i:05d}", "amount": float(i)} for i in range(50)]
+    original = _parquet(tmp_path / "o", rows, chunks=2)
+    edited = [*rows[:-1], {**rows[-1], "amount": rows[-1]["amount"] + 0.01}]
+    changed = _parquet(tmp_path / "c", edited, chunks=2)
+    assert sha256_data_dir(original) != sha256_data_dir(changed)
+
+
+def test_a_dropped_row_changes_the_hash(tmp_path: Path) -> None:
+    rows = [{"customer_id": f"C-{i:05d}", "amount": float(i)} for i in range(50)]
+    full = _parquet(tmp_path / "full", rows, chunks=2)
+    short = _parquet(tmp_path / "short", rows[:-1], chunks=2)
+    assert sha256_data_dir(full) != sha256_data_dir(short)
+
+
+def test_a_renamed_column_changes_the_hash(tmp_path: Path) -> None:
+    """Column names travel with each row, so a schema change is a content change."""
+    rows = [{"customer_id": "C-1", "amount": 1.0}]
+    original = _parquet(tmp_path / "a", rows, chunks=1)
+    renamed = _parquet(tmp_path / "b", [{"customer_id": "C-1", "value": 1.0}], chunks=1)
+    assert sha256_data_dir(original) != sha256_data_dir(renamed)
+
+
+def test_reordering_the_columns_does_not_change_the_hash(tmp_path: Path) -> None:
+    """But a schema *reordering* is not: the same columns holding the same values."""
+    original = _parquet(tmp_path / "a", [{"customer_id": "C-1", "amount": 1.0}], chunks=1)
+    reordered = _parquet(tmp_path / "b", [{"amount": 1.0, "customer_id": "C-1"}], chunks=1)
+    assert sha256_data_dir(original) == sha256_data_dir(reordered)
