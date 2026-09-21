@@ -147,3 +147,81 @@ def test_template_narrative_contains_only_fact_placeholders() -> None:
     # Every digit run in the template must belong to a placeholder, not free text.
     without_placeholders = re.sub(r"\{\{fact:[A-Za-z0-9_.]+\}\}", "", text)
     assert not re.search(r"\d", without_placeholders)
+
+
+# --- the model card (PRD 17.10) ------------------------------------------------
+
+
+def _card():
+    from python_ml.triad_ml.registry import ModelCard
+
+    return ModelCard(
+        model_name="churn_classifier",
+        version="14",
+        algorithm="random_forest",
+        intended_use="Ranks customers by churn probability so a retention list can be ordered.",
+        limits=["Not for pricing, credit, employment, insurance or housing decisions."],
+        churn_definition="no completed order in [T, T+90)",
+        horizon_days=90,
+        training_cutoffs=["2025-01-01", "2025-02-01"],
+        feature_set_version="fsv=1",
+        candidate_comparison=[
+            {"family": "random_forest", "valid_pr_auc": 0.717, "outcome": "selected"},
+            {"family": "logreg", "valid_pr_auc": 0.690, "outcome": "screened out"},
+        ],
+        metrics={"pr_auc": 0.7801, "roc_auc": 0.8227},
+        calibration={"method": "isotonic", "ece": 0.0511, "threshold": 0.42},
+        segment_results=[{"segment": "country=DE", "values": {"recall": 0.51}}],
+        top_drivers=[{"feature": "recency_days", "value": 0.31}],
+        driver_method="permutation importance",
+        known_limitations=["Test split is one cutoff; one cutoff is one season."],
+    )
+
+
+def test_a_model_card_carries_every_section_an_approver_is_promised() -> None:
+    """PRD 17.10 names the contents, and the governance policy names the card as evidence."""
+    markdown = _card().to_markdown()
+
+    for heading in (
+        "# Model card: churn_classifier version 14",
+        "## Intended use and limits",
+        "## Churn definition",
+        "## Candidate comparison",
+        "## Metrics",
+        "## Calibration",
+        "## Segment results",
+        "## Known limitations",
+    ):
+        assert heading in markdown, heading
+
+    # Both screened families, not only the winner: a comparison with one row is not one.
+    assert "random_forest" in markdown and "logreg" in markdown
+    # The method is named beside the drivers, because permutation importance and SHAP are not
+    # the same claim.
+    assert "permutation importance" in markdown
+    assert "associations, not causes" in markdown
+
+
+def test_the_pipeline_actually_writes_the_card_it_points_an_approver_at() -> None:
+    """`ModelCard` and `write_model_card` existed with no caller at all.
+
+    Meanwhile `model_versions.model_card_uri` was set to `reports/<run_key>/model_card.md` and
+    the governance policy lists `model_card` among the evidence required to promote a model, so
+    an approver following that link got a path to a file nothing had ever written. This asserts
+    the wiring rather than the rendering: the rendering was never the part that was missing.
+    """
+    from pathlib import Path as _Path
+
+    source = _Path("agents/graph/churn.py").read_text(encoding="utf-8")
+    assert "write_model_card(" in source
+    assert "model_card.md" in source
+
+
+def test_a_written_card_is_readable_markdown(tmp_path) -> None:
+    from python_ml.triad_ml.registry import write_model_card
+
+    path = write_model_card(_card(), tmp_path / "model_card.md")
+    assert path.is_file()
+    text = path.read_text(encoding="utf-8")
+    assert text.startswith("# Model card:")
+    assert "0.7801" in text

@@ -202,6 +202,7 @@ def prepare(
     reproduces what ran even if a template has changed since.
     """
     from python_ml.triad_ml.candidates import shortlist, split_feature_types
+    from python_ml.triad_ml.registry import ModelCard, write_model_card
     from python_ml.triad_ml.splits import apply_split, plan_split
     from python_ml.triad_ml.train import select_model, train_all
     from triad_core.governance import EvidenceBundle
@@ -549,6 +550,63 @@ def prepare(
     )
     say("evaluation", f"curves, intervals, {len(segment_metrics_out)} segment set(s) and "
                       f"importance written to {evaluation_path.name}", True)
+
+    # PRD 17.10: the model card. `ModelCard` and `write_model_card` were written, complete with
+    # a markdown renderer, and never called by anything - while `model_versions.model_card_uri`
+    # was set to `reports/<run_key>/model_card.md` and the governance policy names `model_card`
+    # as required evidence for `model.promote`. An approver following that link got nothing.
+    # Everything the card needs is already in hand at this point, which is why it is written
+    # here rather than at the approval, where the split and the candidates would have to be
+    # reconstructed.
+    card = ModelCard(
+        model_name=MODEL_NAME,
+        version=str(mlflow_version or "unregistered"),
+        algorithm=selection.selected.family,
+        intended_use=(
+            "Ranks customers by their probability of placing no order in the next "
+            f"{pipeline.config['label']['horizon_days']} days, so a retention list can be "
+            "ordered. It is an association, not a cause: nothing here shows that changing a "
+            "feature changes the outcome."
+        ),
+        limits=[
+            "Not for pricing, credit, employment, insurance or housing decisions.",
+            "A risk band is a bucket of a probability, not a statement about a person.",
+            "Trained and evaluated on synthetic data (ADR-0002); the metrics describe this "
+            "pipeline, not real retail churn.",
+        ],
+        churn_definition=pipeline.config["label"]["definition"].strip(),
+        horizon_days=int(pipeline.config["label"]["horizon_days"]),
+        training_cutoffs=list(spec.train_cutoffs),
+        feature_set_version="fsv=1",
+        candidate_comparison=[
+            {
+                "family": c["family"],
+                "valid_pr_auc": c["valid_pr_auc"],
+                "outcome": "selected" if c["selected"] else "screened out",
+            }
+            for c in evaluation["candidates"]
+        ],
+        metrics=jsonable(selection.test_metrics.to_dict().get("values", {})),
+        calibration=jsonable(
+            {
+                "method": selection.selected.calibration_method,
+                "ece": selection.selected.valid_metrics.get("ece"),
+                "brier_skill": selection.selected.valid_metrics.get("brier_skill"),
+                "threshold": threshold,
+            }
+        ),
+        segment_results=jsonable({"segments": segment_metrics_out})["segments"],
+        top_drivers=(evaluation["feature_importance"] or {}).get("global", [])[:10],
+        driver_method=(evaluation["feature_importance"] or {}).get("method", "not computed"),
+        known_limitations=[
+            f"Test split is the single cutoff {spec.test_cutoff}; one cutoff is one season.",
+            "Segments with too few positives are not reported rather than reported thinly.",
+            (evaluation["feature_importance"] or {}).get("note", ""),
+        ],
+    )
+    card_path = write_model_card(card, store.reports_dir(run.run_key) / "model_card.md")
+    say("model card", f"written to {card_path.name} for version "
+                      f"{mlflow_version or 'unregistered'}", True)
 
     # FR-077: the modelling experiment this run's candidates belong to, recorded in the
     # database and not only on the tracking server. Written whether or not MLflow was

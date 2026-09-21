@@ -18,10 +18,18 @@ import { Empty, Panel, Problem, SearchBox, Tabs, useLoad, when } from "../shared
 export function Audit() {
   const chain = useLoad<ChainStatus>(() => api.chainStatus());
   const [action, setAction] = useState("");
-  const entries = useLoad<AuditEntry[]>(
-    () => api.auditLogs(action ? `?limit=200&action=${encodeURIComponent(action)}` : "?limit=200"),
-    [action],
-  );
+  // `since` is a filter the API has accepted since it was written and nothing ever sent. A
+  // trail capped at 200 rows without one can only show the most recent activity, which is the
+  // opposite of what an investigation needs.
+  const [since, setSince] = useState("");
+  const entries = useLoad<AuditEntry[]>(() => {
+    const params = new URLSearchParams({ limit: "200" });
+    if (action) params.set("action", action);
+    // A date input gives a local calendar day; the column is a timestamp with a zone, so the
+    // day is anchored at its own midnight rather than sent as a bare date.
+    if (since) params.set("since", new Date(`${since}T00:00:00`).toISOString());
+    return api.auditLogs(`?${params.toString()}`);
+  }, [action, since]);
   const [query, setQuery] = useState("");
 
   const needle = query.trim().toLowerCase();
@@ -85,6 +93,16 @@ export function Audit() {
                 </option>
               ))}
             </select>{" "}
+            <label className="search">
+              <span className="sr-only">Entries on or after</span>
+              <input type="date" value={since} aria-label="Entries on or after"
+                     onChange={(e) => setSince(e.target.value)} />
+            </label>{" "}
+            {since && (
+              <button type="button" className="link" onClick={() => setSince("")}>
+                Clear date
+              </button>
+            )}{" "}
             <SearchBox label="Search the trail" value={query} onChange={setQuery}
                        placeholder="actor, resource, outcome…" />
           </>

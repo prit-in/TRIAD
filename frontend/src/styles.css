@@ -369,3 +369,5 @@ tr.selected > td { background: var(--row-hover, rgba(37,99,235,0.06)); }
 .compare > summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; }
 .compare-pickers { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
                    margin: 0.75rem 0; }
+
+.search input[type="date"] { min-width: 10rem; }
