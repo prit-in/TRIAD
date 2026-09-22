@@ -1,0 +1,132 @@
+{
+  "question": "Is MISCALIBRATED at 5% non-key nulls the acceptance policy correctly refusing an uncalibratable model, or a calibration chain that gives up too early?",
+  "answer": "Neither: at this validation size the AP-5 threshold is inside the ECE estimator's noise floor.",
+  "threshold": 0.05,
+  "prevalence": 0.2716,
+  "trials_per_cell": 20000,
+  "seed": 20260922,
+  "estimator": "expected_calibration_error, 10 equal-width bins, python_ml/triad_ml/evaluate.py",
+  "rows": [
+    {
+      "n_rows": 324,
+      "concentration": 2.0,
+      "median": 0.047548577437165035,
+      "p90": 0.06429324201099731,
+      "p99": 0.07938250743111955,
+      "share_above_threshold": 0.42105
+    },
+    {
+      "n_rows": 324,
+      "concentration": 4.0,
+      "median": 0.04856151752575563,
+      "p90": 0.0669096786359265,
+      "p99": 0.08394207040566498,
+      "share_above_threshold": 0.45825
+    },
+    {
+      "n_rows": 324,
+      "concentration": 8.0,
+      "median": 0.046328183668688336,
+      "p90": 0.06584257101114166,
+      "p99": 0.08371501209535441,
+      "share_above_threshold": 0.4038
+    },
+    {
+      "n_rows": 650,
+      "concentration": 2.0,
+      "median": 0.03357939784324696,
+      "p90": 0.04541015920710646,
+      "p99": 0.055791607070809164,
+      "share_above_threshold": 0.03935
+    },
+    {
+      "n_rows": 650,
+      "concentration": 4.0,
+      "median": 0.034211183279793486,
+      "p90": 0.04747190877222622,
+      "p99": 0.05901027272666773,
+      "share_above_threshold": 0.06505
+    },
+    {
+      "n_rows": 650,
+      "concentration": 8.0,
+      "median": 0.03288449396954422,
+      "p90": 0.04688106115099789,
+      "p99": 0.05973370338586585,
+      "share_above_threshold": 0.06005
+    },
+    {
+      "n_rows": 1300,
+      "concentration": 2.0,
+      "median": 0.02373808782866323,
+      "p90": 0.03204504271331798,
+      "p99": 0.0400433554059021,
+      "share_above_threshold": 0.00025
+    },
+    {
+      "n_rows": 1300,
+      "concentration": 4.0,
+      "median": 0.024310501286543912,
+      "p90": 0.03350936572945159,
+      "p99": 0.041925270211462536,
+      "share_above_threshold": 0.0006
+    },
+    {
+      "n_rows": 1300,
+      "concentration": 8.0,
+      "median": 0.023206286483341852,
+      "p90": 0.032971893808943664,
+      "p99": 0.04208934314944722,
+      "share_above_threshold": 0.0011
+    },
+    {
+      "n_rows": 2600,
+      "concentration": 2.0,
+      "median": 0.016782197067459405,
+      "p90": 0.022662612734575923,
+      "p99": 0.028128994049885298,
+      "share_above_threshold": 0.0
+    },
+    {
+      "n_rows": 2600,
+      "concentration": 4.0,
+      "median": 0.017261774542453583,
+      "p90": 0.023809064916900515,
+      "p99": 0.029452711186105398,
+      "share_above_threshold": 0.0
+    },
+    {
+      "n_rows": 2600,
+      "concentration": 8.0,
+      "median": 0.01647595119866858,
+      "p90": 0.02344356758428274,
+      "p99": 0.03007122011059433,
+      "share_above_threshold": 0.0
+    },
+    {
+      "n_rows": 5200,
+      "concentration": 2.0,
+      "median": 0.011865956010304053,
+      "p90": 0.016105516554996736,
+      "p99": 0.01996663216671412,
+      "share_above_threshold": 0.0
+    },
+    {
+      "n_rows": 5200,
+      "concentration": 4.0,
+      "median": 0.012236482072003695,
+      "p90": 0.016816948468420894,
+      "p99": 0.02102127250528616,
+      "share_above_threshold": 0.0
+    },
+    {
+      "n_rows": 5200,
+      "concentration": 8.0,
+      "median": 0.011696728109061033,
+      "p90": 0.016661064616654068,
+      "p99": 0.021170930046898424,
+      "share_above_threshold": 0.0
+    }
+  ],
+  "conclusion": "At EXP-5's validation size (n=324, prevalence 0.2716), a perfectly calibrated predictor fails AP-5 between 40% and 46% of the time depending on how spread out its scores are. The gate sits at the median of the estimator's sampling distribution under perfect calibration, so at this size it decides close to nothing: an ECE of 0.0554 is not evidence that a model is miscalibrated. The same run's dummy classifier - a constant at the base rate, calibrated by construction - measured 0.0511 and was itself flagged MISCALIBRATED, which is the same fact observed from inside the pipeline."
+}

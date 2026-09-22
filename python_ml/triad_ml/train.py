@@ -46,6 +46,7 @@ class TrainedModel:
     seed: int
     calibrated: bool = False
     calibration_method: str | None = None
+    calibration_note: str | None = None
     failed: bool = False
     error: str | None = None
 
@@ -164,6 +165,14 @@ def calibrate(
         return model
 
     chosen = method if len(y_cal) >= 500 else "sigmoid"
+    if chosen != method:
+        # Silently substituting one calibrator for another turns the remedy chain into a
+        # shorter chain that still reports its full length. EXP-5 escalated four times saying
+        # "after isotonic and sigmoid" when isotonic had never been fitted.
+        model.calibration_note = (
+            f"{method} requested; calibration slice has {len(y_cal)} rows, "
+            f"fewer than the 500 isotonic needs, so {chosen} was fitted instead"
+        )
     calibrated = CalibratedClassifierCV(FrozenEstimator(model.pipeline), method=chosen)
     calibrated.fit(x_cal, y_cal)
 
@@ -428,9 +437,21 @@ def select_model(
     if calibration_codes:
         return SelectionResult(
             "ESCALATE", best,
-            f"calibration rules still failing after isotonic and sigmoid: "
-            f"{', '.join(calibration_codes)}",
-            rules, evidence=post.evidence, rejected=rejected, verdicts=verdicts,
+            f"calibration rules still failing after "
+            f"{', '.join(remedies_tried)}: {', '.join(calibration_codes)}",
+            rules,
+            evidence={
+                **post.evidence,
+                "calibration": best.calibration_method,
+                "calibration_note": best.calibration_note,
+                "calibration_remedies_tried": remedies_tried,
+                "ece_after_calibration": best.valid_metrics.get("ece"),
+                "brier_skill_after_calibration": best.valid_metrics.get("brier_skill"),
+                "class_weighting": "removed"
+                if best.candidate.params.get("balance_classes") is False
+                else "balanced",
+            },
+            rejected=rejected, verdicts=verdicts,
         )
 
     # --- AP-6 segment checks --------------------------------------------------
@@ -459,6 +480,7 @@ def select_model(
         "valid_churn_rate": split.class_balance.get("valid"),
         "threshold": threshold,
         "calibration": best.calibration_method,
+        "calibration_note": best.calibration_note,
         "calibration_remedies_tried": remedies_tried,
         "class_weighting": "removed"
         if best.candidate.params.get("balance_classes") is False

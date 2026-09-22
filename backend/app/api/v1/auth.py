@@ -33,7 +33,7 @@ def create_token(payload: TokenRequest, session: DbSession) -> TokenResponse:
     password_ok = verify_password(payload.password, stored)
 
     if user is None or not password_ok:
-        audit.record(
+        audit.record_and_commit(
             session,
             actor_type="user",
             actor_id=payload.email.lower(),
@@ -46,7 +46,7 @@ def create_token(payload: TokenRequest, session: DbSession) -> TokenResponse:
         raise problems.unauthorised("Those credentials are not valid.")
 
     if not user.is_active:
-        audit.record(
+        audit.record_and_commit(
             session,
             actor_type="user",
             actor_id=str(user.id),

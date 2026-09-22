@@ -49,11 +49,25 @@ def _governance(session: DbSession) -> GovernanceService:
 
 
 def _metrics_for(session: DbSession, version: ModelVersion) -> dict[str, float]:
-    """Metrics are recorded against the run that produced the version (PRD 24.1)."""
+    """The version's headline test metrics: overall only, never a segment.
+
+    Metrics are recorded against the run that produced the version (PRD 24.1). Since the run
+    also records per-segment rows for AP-6 - same `metric_name`, same `split`, a non-null
+    `segment` - this query has to exclude them. Without the filter the dictionary comprehension
+    below kept whichever row the database returned last, so a model whose overall test PR-AUC
+    was 0.7801 was reported at 0.8568, the value for `loyalty_tier=bronze`, and the
+    segment-only keys `insufficient_data` and `positives` appeared beside the real metrics.
+    Per-segment numbers are served by the evaluation endpoint, which labels them.
+    """
     if version.run_id is None:
         return {}
     rows = session.execute(
-        select(Metric).where(Metric.ref_id == str(version.run_id), Metric.split == "test")
+        select(Metric).where(
+            Metric.ref_id == str(version.run_id),
+            Metric.scope == "run",
+            Metric.split == "test",
+            Metric.segment.is_(None),
+        )
     ).scalars().all()
     return {r.metric_name: r.metric_value for r in rows}
 

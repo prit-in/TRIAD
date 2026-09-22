@@ -208,7 +208,7 @@ class GovernanceService:
         decision = self.policy.check(policy_action)
         allowed_roles = set(decision.approvers) | set(decision.approvers_all_of)
         if allowed_roles and approver.role not in allowed_roles and approver.role != "admin":
-            audit.record(
+            audit.record_and_commit(
                 self.session,
                 actor_type="user",
                 actor_id=str(approver.id),
@@ -226,7 +226,7 @@ class GovernanceService:
 
         # Separation of duties (PRD 30.5): the approver must differ from the requester.
         if decision.separation_of_duties and _same_actor(approval.requested_by, approver):
-            audit.record(
+            audit.record_and_commit(
                 self.session,
                 actor_type="user",
                 actor_id=str(approver.id),
@@ -276,7 +276,7 @@ class GovernanceService:
             approval.decided_at = utcnow()
             approval.decision_note = "expired without a decision; counted as rejected"
             self.session.flush()
-            audit.record(
+            audit.record_and_commit(
                 self.session,
                 actor_type="system",
                 actor_id="governance",

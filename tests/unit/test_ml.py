@@ -628,3 +628,72 @@ def test_without_the_exclusion_they_would_be_features() -> None:
     })
     _, cat_cols = split_feature_types(frame)
     assert "country" in cat_cols
+
+
+# --- the AP-5 remedy chain has to report what it actually did (PRD 19.4) -------
+
+
+@pytest.mark.slow
+def test_calibrate_records_when_the_slice_is_too_small_for_the_calibrator_asked_for() -> None:
+    """A substituted calibrator must leave a trace, or the chain reports a length it never ran.
+
+    `calibrate` falls back to sigmoid when the calibration slice has fewer than 500 rows. That
+    fallback was silent: `calibration_method` recorded "sigmoid" and nothing recorded that
+    isotonic had been asked for and skipped. EXP-5 then escalated four times with the words
+    "after isotonic and sigmoid" in every one of them, and isotonic had never been fitted.
+    """
+    from python_ml.triad_ml.candidates import Candidate
+    from python_ml.triad_ml.train import calibrate, train_candidate
+
+    df = make_features(120)
+    split = apply_split(df, plan_split(sorted(df.snapshot_date.unique()), horizon_days=90))
+    assert len(split.calibration) < 500, "this test needs the small-slice branch"
+
+    model = train_candidate(
+        Candidate("logreg", "baseline", {}, "regression test"), split, seed=42
+    )
+    calibrated = calibrate(model, split, method="isotonic")
+
+    assert calibrated.calibration_method == "sigmoid"
+    assert calibrated.calibration_note is not None
+    assert "isotonic" in calibrated.calibration_note
+    assert str(len(split.calibration)) in calibrated.calibration_note
+
+
+@pytest.mark.slow
+def test_an_escalating_calibration_chain_keeps_the_remedies_it_tried() -> None:
+    """The one path where a person has to decide what to do next kept the least evidence.
+
+    `remedies_tried` was built on every path and read on only the successful one, so a run
+    stopped by AP-5 recorded the ECE that failed and not one of the attempts made to fix it.
+    The reason string named isotonic and sigmoid unconditionally, whether or not either ran.
+
+    The gate is made unreachable here rather than the model made bad, so the escalation is
+    guaranteed and the assertion is about the record, not about the model.
+    """
+    policy = dict(POLICY, AP5_max_ece_after_calibration=0.0)
+
+    df = make_features(200)
+    split = apply_split(df, plan_split(sorted(df.snapshot_date.unique()), horizon_days=90))
+    models = train_all(shortlist(n_rows=len(split.train), n_features=4), split, seed=42)
+
+    result = select_model(models, split, policy)
+
+    assert result.outcome == "ESCALATE"
+    assert "MISCALIBRATED" in result.reason
+    assert "AP-5_remedy_chain" in result.rules_applied
+
+    tried = result.evidence.get("calibration_remedies_tried")
+    assert tried, "an escalation must record the remedies the chain tried"
+    assert all(r.startswith("calibration:") for r in tried), tried
+
+    # The reason names what was tried, and nothing that was not.
+    for remedy in tried:
+        assert remedy in result.reason, (remedy, result.reason)
+    if not any("isotonic" in r for r in tried):
+        assert "isotonic" not in result.reason, result.reason
+
+    # And the numbers that decide whether the refusal was right.
+    assert result.evidence.get("ece_after_calibration") is not None
+    assert result.evidence.get("brier_skill_after_calibration") is not None
+    assert result.evidence.get("class_weighting") in ("balanced", "removed")

@@ -467,9 +467,17 @@ def check_acceptance(
         codes.append("BRIER_SKILL_TOO_LOW")
 
     # AP-5: calibration error.
+    #
+    # `ece_n_rows` is recorded because the threshold alone does not say whether a miss is real.
+    # The 10-bin ECE estimator has a sampling floor that grows as the split shrinks: measured
+    # over 20 000 draws of a perfectly calibrated predictor at n=324 and prevalence 0.27 - the
+    # size EXP-5 runs at - the median ECE is 0.046 to 0.049 and 40-46% of draws exceed 0.05.
+    # A reader of an escalation needs the row count to tell a miscalibrated model from a small
+    # validation split. See experiments/calibration_noise_floor.py, which reproduces it.
     checked.append("AP-5")
     ece = metrics.get("ece")
     evidence["ece"] = ece
+    evidence["ece_n_rows"] = metrics.n_rows
     if not np.isnan(ece) and ece > float(policy.get("AP5_max_ece_after_calibration", 0.05)):
         codes.append("MISCALIBRATED")
 

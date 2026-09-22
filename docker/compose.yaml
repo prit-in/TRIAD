@@ -61,7 +61,7 @@ services:
       - -lc
       - >-
         mlflow server --host 0.0.0.0 --port 5000 --workers 1
-        --allowed-hosts mlflow,mlflow:5000,localhost,localhost:5000,127.0.0.1,127.0.0.1:5500
+        --allowed-hosts mlflow,mlflow:5000,localhost,localhost:5000,localhost:5500,127.0.0.1,127.0.0.1:5000,127.0.0.1:5500
         --backend-store-uri postgresql+psycopg://triad:${POSTGRES_PASSWORD:-triad_dev_pw}@postgres:5432/mlflow
         --default-artifact-root /data/triad/mlartifacts
     depends_on:
