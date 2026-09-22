@@ -140,8 +140,8 @@ def test_an_approval_that_expires_during_a_decision_stays_expired(postgres_avail
 
     from triad_core.config import settings
     from triad_core.governance import GovernanceService, NothingPending
-    from triad_core.policy import PolicyEngine
     from triad_core.models import Approval, PipelineRun, User
+    from triad_core.policy import PolicyEngine
 
     suffix = uuid.uuid4().hex[:8]
     now = dt.datetime.now(dt.UTC)

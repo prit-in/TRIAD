@@ -9,6 +9,7 @@ the version that already holds it, rather than creating a second copy of the sam
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Response, UploadFile
 from sqlalchemy import select
@@ -21,7 +22,7 @@ from backend.app.schemas import (
     RegisterDatasetRequest,
 )
 from backend.app.security import DATA_ENGINEER, DATA_ROLES
-from triad_core.storage import storage
+from triad_core.storage import StorageError, storage
 
 router = APIRouter(tags=["datasets"])
 
@@ -142,20 +143,30 @@ def register_dataset(
     session: DbSession,
     user: CurrentUser,
 ) -> DatasetSummary:
-    from dataeng.ingest import DatasetRegistry
+    from dataeng.ingest import DatasetRegistry, IngestError
 
     store = storage()
     registry = DatasetRegistry(session, store)
     registry.register_source(
         payload.name, entity_type=payload.entity_type, source_type=payload.source_type,
     )
-    source = store.path(payload.source_uri)
+    try:
+        source = store.path(payload.source_uri)
+    except StorageError as exc:
+        # A path outside the data root is refused before `exists()` is consulted, so the
+        # response cannot be used to probe for files the caller may not read.
+        raise problems.unprocessable(str(exc)) from exc
     if not source.exists():
         raise problems.unprocessable(
             f"{payload.source_uri} does not exist in the platform's storage."
         )
 
-    result = registry.register_version(payload.name, source, actor=str(user.id))
+    try:
+        result = registry.register_version(payload.name, source, actor=str(user.id))
+    except IngestError as exc:
+        # A source that is not one readable file, or one a contract refuses: the caller
+        # sent it, so the caller is told. This used to reach them as a 500.
+        raise problems.unprocessable(str(exc)) from exc
     if result.version_id is None:
         # An identical checksum: the existing version already holds these bytes.
         response.status_code = 200
@@ -176,13 +187,25 @@ async def upload_version(
     user: CurrentUser,
     file: UploadFile,
 ) -> DatasetSummary:
-    from dataeng.ingest import DatasetRegistry
+    from dataeng.ingest import DatasetRegistry, IngestError
 
     dataset = _find(session, ref)
     store = storage()
     landing = store.root / "uploads" / dataset.name
     landing.mkdir(parents=True, exist_ok=True)
-    target = landing / (file.filename or "upload.bin")
+    # `file.filename` is taken from the request's Content-Disposition header and Starlette
+    # does not sanitise it. Joining it to `landing` gave a write primitive outside the data
+    # root: an upload named "../../../../tmp/x.csv" was accepted with 200 and its bytes landed
+    # in /tmp. Only the basename is used, and the result is checked for containment as well,
+    # because this is a trust boundary and one guard is not enough at one.
+    # `Path("..").name` is "..", not "", so the basename alone is not enough: it would make
+    # the target the parent of the landing folder. The containment check below would still
+    # refuse that, but a guard that names the case it is refusing is worth more than one that
+    # catches it by accident.
+    supplied = Path(file.filename or "").name
+    target = landing / (supplied if supplied not in ("", ".", "..") else "upload.bin")
+    if not target.resolve().is_relative_to(landing.resolve()):
+        raise problems.unprocessable("That filename is not usable as an upload target.")
 
     written = 0
     with target.open("wb") as handle:
@@ -198,9 +221,13 @@ async def upload_version(
                 )
             handle.write(chunk)
 
-    result = DatasetRegistry(session, store).register_version(
-        dataset.name, target, actor=str(user.id)
-    )
+    try:
+        result = DatasetRegistry(session, store).register_version(
+            dataset.name, target, actor=str(user.id)
+        )
+    except IngestError as exc:
+        target.unlink(missing_ok=True)
+        raise problems.unprocessable(str(exc)) from exc
     if result.version_id is None:
         response.status_code = 200
     return _summary(session, dataset)

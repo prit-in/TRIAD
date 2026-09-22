@@ -75,11 +75,25 @@ class Storage:
         return f"file://{(self.root / rel).as_posix()}"
 
     def path(self, uri: str | Path) -> Path:
+        """Resolve a URI to a path **inside the data root**, or refuse it.
+
+        The containment check is here rather than at the call sites because one of those call
+        sites takes the URI from an HTTP request body: `POST /api/v1/datasets` passed
+        `source_uri` straight through, and the only check downstream was `exists()`. An
+        absolute path, or a relative one containing `..`, therefore named any file the API
+        process could read - and `register_version` copied its bytes into the catalogue, where
+        the dataset endpoints serve them. Every other caller resolves a URI the platform
+        itself wrote, so none of them is affected by refusing the ones it did not.
+        """
         s = str(uri)
-        if s.startswith("file://"):
-            return Path(s[len("file://") :])
-        p = Path(s)
-        return p if p.is_absolute() else self.root / p
+        raw = Path(s[len("file://") :]) if s.startswith("file://") else Path(s)
+        resolved = (raw if raw.is_absolute() else self.root / raw).resolve()
+        root = self.root.resolve()
+        if resolved != root and not resolved.is_relative_to(root):
+            raise StorageError(
+                f"{uri} resolves outside the data root; storage URIs address {root} only"
+            )
+        return resolved
 
     # -- layout (PRD section 14.2) ---------------------------------------------
     def raw_dir(self, dataset: str, version_no: int) -> Path:

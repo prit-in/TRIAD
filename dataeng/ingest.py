@@ -101,6 +101,12 @@ def observe(path: str | Path, *, settle_check: bool = False) -> FileObservation:
     p = Path(path)
     if not p.exists():
         raise IngestError(f"file not found: {p}")
+    if not p.is_file():
+        # A directory used to get this far: `checksum` fell back to "" - so every directory
+        # looked like a duplicate of every other - and `copy_immutable` then raised
+        # IsADirectoryError, which reached the client as a 500. Every caller of
+        # `register_version` passes one file; the parameter is named `file_path`.
+        raise IngestError(f"not a file: {p}; a dataset version is registered from one file")
     st = p.stat()
     size1 = st.st_size
     stable = True
@@ -113,7 +119,7 @@ def observe(path: str | Path, *, settle_check: bool = False) -> FileObservation:
         path=p,
         size_bytes=size1,
         modified_at=dt.datetime.fromtimestamp(st.st_mtime, dt.UTC),
-        checksum=sha256_file(p) if p.is_file() else "",
+        checksum=sha256_file(p),
         fmt=detect_format(p),
         stable=stable,
     )
