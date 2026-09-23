@@ -18,11 +18,11 @@ number.
 | 4. Python ML | AT-06, AT-07 pass | **PASSED** |
 | 5. Agent orchestration | real end-to-end run + ATC-01..05 | **PASSED** — `python -m agents.worker` executes queued runs |
 | 6. Evaluation and retraining | drift measured, RT-1..RT-9 evaluated | **PASSED** — drift reports and trigger decisions are rows |
-| 7. Dashboard and reporting | AT-03, AT-08, AT-15 | **PASSED** — 37 endpoints, five pages, verified in a browser |
+| 7. Dashboard and reporting | AT-03, AT-08, AT-15 | **PASSED** — 40 endpoints, eleven pages, verified in a browser |
 | 8. Testing and optimisation | success criteria audited | **PASSED** — `REQUIREMENTS_TRACEABILITY.md`, and all ten experiments run |
 | 9. Documentation and demo | three stable rehearsals | **PASSED** — `run-2026-09-19-006`, `run-2026-09-21-007` and `run-2026-09-21-020` |
 
-Test totals: **470 unit tests**, **50 security tests**, **21 Scala tests**, **9 smoke checks**
+Test totals: **473 unit tests**, **84 security tests**, **21 Scala tests**, **9 smoke checks**
 (1 skipped by design), **ruff clean**, and the frontend builds under TypeScript strict mode.
 
 All eight pages the PRD's section 26.1 names now exist. Dataset, Report and Settings were the
@@ -114,10 +114,12 @@ without the worker.
   the PostgreSQL queue with leases, a reaper and race-safe run keys, the bounded stage loop
   with playbook repair and a circuit breaker, retraining triggers RT-1..RT-9 with the 19.3
   validity gate, the Monitor service, **the churn run as two phases**, and **the worker**.
-- **backend**: 37 endpoints under `/api/v1` — argon2 passwords, HS256 tokens with a start-up
+- **backend**: 40 endpoints under `/api/v1`, counted from the running OpenAPI document — argon2
+  passwords, HS256 tokens with a start-up
   check that refuses an unusable signing key, RFC 9457 Problem Details, cursor pagination,
   idempotent run creation, and role separation decided by the policy rather than by the route.
-- **frontend**: five pages (dashboard, runs, models, predictions, approvals) in React 19 +
+- **frontend**: eleven pages (dashboard, datasets, runs, models, predictions, reports,
+  approvals, monitoring, experiments, audit, settings) plus a run detail route, in React 19 +
   Vite + TypeScript strict. Every panel carries a provenance badge, a metric that was never
   recorded reads "not measured", and a Viewer is served aggregates by the server.
 - **sandbox**: the runner with container controls, secret refusal, run-scoped writable mounts,

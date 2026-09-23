@@ -17,7 +17,7 @@ carrying an estimate.
 | EXP-2 | Medium dataset: where a single node gives out | **partial** | **did not hold** | `experiments/EXP-2/latest.json` |
 | EXP-3 | Scaling with parallelism | **partial** | **did not hold** | `experiments/EXP-3/latest.json` |
 | EXP-4 | Schema errors | **partial** | **held** | `experiments/EXP-4/latest.json` |
-| EXP-5 | Missing values | **partial** | **no verdict** | `experiments/EXP-5/latest.json` |
+| EXP-5 | Missing values | **partial** | **no verdict on PR-AUC; the reason for that is now measured** | `experiments/EXP-5/latest.json`, `experiments/EXP-5/calibration_noise_floor.json` |
 | EXP-6 | Spark failures and recovery | **partial** | **did not hold** | `experiments/EXP-6/latest.json` |
 | EXP-7 | Model degradation | **partial** | **held** | `experiments/EXP-7/latest.json` |
 | EXP-8 | Scala compile failures | **partial** | **no verdict** | `experiments/EXP-8/latest.json` |
@@ -31,7 +31,8 @@ measurement was recorded.
 
 All ten have now been run: **five hypotheses held, three did not, and two have no verdict**
 because the measurement they turn on could not be taken here — EXP-8's repair rate needs an LLM
-provider, and EXP-5's trend needs more than one condition to survive the acceptance policy. The
+provider, and EXP-5's trend needs more than one condition to survive the acceptance policy — which
+at its validation size nothing could, for a reason that is now measured rather than guessed at. The
 five sections that are not a plain "held" are the ones worth reading first.
 
 ## What each experiment found
@@ -333,12 +334,62 @@ fixed: the trend is reported as *not assessable* below two points, and an escala
 now keeps every measurement it made before it stopped. The table above exists because of the
 second fix.
 
-**Left open by this result:** whether MISCALIBRATED at 5% non-key nulls is the acceptance
-policy correctly refusing an uncalibratable model, or a calibration chain that gives up too
-early. The evidence needed to tell those apart — the measured ECE at the point of refusal —
-was not in the database when this was written, because an escalating run recorded no
-acceptance decision. That gap is now closed, so the next run of EXP-5 can answer it; this one
-cannot, and it does not guess.
+#### The question this experiment left open, and its answer
+
+The previous revision of this section asked whether MISCALIBRATED at 5% non-key nulls was the
+acceptance policy correctly refusing an uncalibratable model, or a calibration chain that gave
+up too early. It is neither, and the evidence was already in the run's own artifact.
+
+**The gate is inside the estimator's noise floor at this validation size.** AP-5 requires
+ECE ≤ 0.05. `expected_calibration_error` is the standard 10-bin equal-width estimator, which is
+biased upward on small samples: each bin's observed rate is an average over few rows, so it
+differs from the bin's mean predicted probability by sampling noise alone, and the estimator
+sums those differences as though they were miscalibration. `experiments/calibration_noise_floor.py`
+measures the floor directly, with no model involved — a predictor whose scores *are* the
+probabilities its labels are drawn from is perfectly calibrated by construction, so drawing
+20 000 of them at each size gives the distribution of the estimator under perfect calibration:
+
+| Validation rows | Median ECE | p90 | P(ECE > 0.05) |
+| --- | --- | --- | --- |
+| **324** (EXP-5's size) | 0.046–0.049 | 0.064–0.067 | **40–46%** |
+| 650 | 0.033–0.034 | 0.045–0.048 | 4–7% |
+| 1 300 | 0.023–0.024 | 0.032–0.034 | ~0% |
+| 2 600 | 0.017 | 0.023 | 0% |
+| 5 200 | 0.012 | 0.017 | 0% |
+
+At n=324 the threshold sits at the *median* of that distribution: a perfectly calibrated model
+is refused about as often as it is accepted. The winning model's measured 0.0554 is therefore not
+evidence of miscalibration, and neither are 0.0737 and 0.0666 at the higher null rates.
+
+The run said the same thing from the inside, and it had said it all along. Its `dummy`
+classifier — a constant at the base rate, which is exactly calibrated in expectation — measured
+**ECE 0.0511** and was itself flagged `MISCALIBRATED`. A gate that a constant predictor cannot
+pass is not measuring the model.
+
+**The threshold is sound; the split was too small.** The floor falls to 4–7% by n=650 and to
+nothing by n=1 300, so 0.05 is a reasonable requirement wherever the validation split is a
+thousand rows or more — which the production configuration reaches and a 400-customer experiment
+does not. The threshold is therefore unchanged. AP-5 now records `ece_n_rows` beside the value,
+because a reader of an escalation cannot otherwise tell a miscalibrated model from a small split.
+
+**Two defects in the reporting were found in the course of answering it**, both of which had made
+the question harder than it was.
+
+- The escalation message read "calibration rules still failing after isotonic and sigmoid" in all
+  four conditions, and **isotonic was never fitted in any of them**. `calibrate` substitutes
+  sigmoid when the calibration slice has fewer than 500 rows, silently, and EXP-5's slice is
+  smaller than that; the remedy loop then skipped its own sigmoid step as redundant. So a chain
+  reported at three steps ran one calibrator and one variant of it. The substitution is now
+  recorded, and the message names the remedies actually tried.
+- `remedies_tried` was built on every path and read only on the successful one, so an escalation —
+  the single path where a person has to decide what to do next — recorded the ECE that failed and
+  none of the attempts made to fix it. It is now in the escalation's evidence, with the
+  calibration method, the note about any substitution, and whether class weighting was removed.
+
+Neither changes the verdict: the row-accounting half of the hypothesis holds, and the PR-AUC half
+still has no verdict on this pipeline, because the conditions carrying nulls still escalate. What
+has changed is that the escalation is now legible, and the reason for it is measured rather than
+speculated about.
 
 ## Deviations from PRD section 33 that apply to every experiment
 

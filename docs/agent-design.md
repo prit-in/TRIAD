@@ -160,6 +160,17 @@ An escalation writes a ticket carrying the evidence, the remedies that were trie
 remedy was computed but not applied — an `unapplied_remedies` list, so a person is not left
 guessing what the loop considered.
 
+That was true of the stage runner's tickets and false of the acceptance policy's escalations
+until recently: `remedies_tried` was built on every path through the AP-5 calibration chain and
+read only on the one that succeeded, so a run stopped by the policy recorded the calibration
+error that failed and none of the attempts to fix it. Worse, the message it recorded named a
+remedy that had not run — `calibrate` substitutes sigmoid for isotonic when the calibration
+slice is under 500 rows, and said nothing about doing so, so a chain reported as
+"isotonic, then sigmoid" had fitted one calibrator. Both are recorded now, and AP-5 also records
+the number of rows its calibration error was measured on: below roughly a thousand, a perfectly
+calibrated model fails the 0.05 threshold as often as it passes, which
+`experiments/calibration_noise_floor.py` measures and the EXP-5 write-up explains.
+
 ## Untrusted content
 
 Anything that came from data is fenced before it reaches a prompt, and four defences are tested
