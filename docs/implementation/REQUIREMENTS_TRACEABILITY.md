@@ -6,7 +6,7 @@ reading the code and the tests rather than by reading the earlier status documen
 **The point of this document is the "not met" column.** A traceability matrix that maps every
 requirement to a tick is a matrix nobody checked.
 
-Verified on 22-09-2026 against commit `2591623`, with 470 unit tests, 50 security tests,
+Verified on 23-09-2026 against commit `b46d8f5`, with 473 unit tests, 84 security tests,
 21 Scala tests and 9 smoke checks passing, and with all ten experiments run.
 
 ## Summary
@@ -108,7 +108,7 @@ gates it claims were called by nothing at all.
 | FR-057 | Structured feedback | met | `JobReport` and `StructuredError` |
 | FR-058 | Bounded retries and budgets | met | `agents/llm/budget.py`; circuit breaker on repeated fingerprints |
 | FR-059 | Diagnosis and repair | met | `triad_core/errors.py` taxonomy and playbook |
-| FR-060 | Decision records | met | every stage writes one; `/pipelines/{id}/decisions`. EXP-5 found the exception: a run stopped by the acceptance policy recorded no acceptance decision at all, so three escalations on MISCALIBRATED left a one-line reason and none of the numbers behind it. The decision is now written whatever it decided, with its rule ids, evidence and validation metrics, before the escalation branch |
+| FR-060 | Decision records | met | every stage writes one; `/pipelines/{id}/decisions`. EXP-5 found the first exception: a run stopped by the acceptance policy recorded no acceptance decision at all, so three escalations on MISCALIBRATED left a one-line reason and none of the numbers behind it. The decision is now written whatever it decided, with its rule ids, evidence and validation metrics, before the escalation branch. A dead-code audit found the second: `decision_records.alternatives` - "the options considered and why they were rejected" - was `[]` on all 286 rows, because `record_decision` had accepted the argument since it was written and no caller ever passed one. The acceptance decision now records every refused candidate with its rule and evidence; `DecisionView` carries them and the run detail page renders them. A routing decision still records none, which is correct: rules are matched in order and the first that applies wins, so there is no rejected option to name |
 | FR-061 | Human escalation | met | escalation tickets, `ESCALATED` state, resume endpoint |
 | FR-062 | Fix memory | met (Could) | `fix_memory` table, `lookup_fix` / `remember_fix` |
 | FR-063 | Untrusted content handling | met | masking, fencing, injection flags; `tests/unit/test_injection.py` |
