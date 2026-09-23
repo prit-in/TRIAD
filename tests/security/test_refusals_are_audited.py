@@ -23,11 +23,22 @@ import datetime as dt
 import uuid
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 
 from triad_core import audit
 from triad_core.db import session_scope
 from triad_core.models import AuditLog
+
+
+def _archive(session, condition) -> None:
+    """Delete audit rows the way the runbook says an administrator does.
+
+    `audit_logs` has a BEFORE UPDATE OR DELETE trigger that refuses both, for every role
+    including the owner the application connects as. A delete has to opt in on the session,
+    which is deliberate and session-scoped; there is no opt-in for an update at all.
+    """
+    session.execute(text("SET LOCAL triad.allow_audit_archival = 'on'"))
+    session.execute(delete(AuditLog).where(condition))
 
 
 @pytest.fixture()
@@ -36,7 +47,7 @@ def unique_action():
     action = f"test.refusal_{uuid.uuid4().hex[:12]}"
     yield action
     with session_scope() as session:
-        session.execute(delete(AuditLog).where(AuditLog.action == action))
+        _archive(session, AuditLog.action == action)
 
 
 def _rows(action: str) -> list[AuditLog]:
@@ -191,7 +202,82 @@ def test_an_approval_that_expires_during_a_decision_stays_expired(postgres_avail
             assert len(recorded) == 1, "the expiry left no audit entry"
     finally:
         with session_scope() as session:
-            session.execute(delete(AuditLog).where(AuditLog.run_id == run_id))
+            _archive(session, AuditLog.run_id == run_id)
             session.execute(delete(Approval).where(Approval.id == approval_id))
             session.execute(delete(User).where(User.id == approver_id))
             session.execute(delete(PipelineRun).where(PipelineRun.id == run_id))
+
+
+def test_the_audit_trail_refuses_an_update_from_every_role(postgres_available) -> None:
+    """PRD 24.4 asks for append-only. A GRANT to `triad_app` would not have delivered it.
+
+    The grant the PRD specifies now exists, but the application connects as `triad`, which owns
+    the table, and a GRANT constrains neither the owner nor a superuser. A BEFORE UPDATE OR
+    DELETE trigger constrains both. Before it, `UPDATE audit_logs SET details = '{}'` succeeded
+    as the application's own user, so the tamper-evident trail could be rewritten by anything
+    holding the application's credentials.
+    """
+    if not postgres_available:
+        pytest.skip("postgres service is not reachable")
+
+    from sqlalchemy.exc import DatabaseError
+
+    with session_scope() as session:
+        entry_id = session.execute(
+            select(AuditLog.id).order_by(AuditLog.id.desc()).limit(1)
+        ).scalar_one_or_none()
+    if entry_id is None:
+        pytest.skip("no audit entries to attempt to rewrite")
+
+    with pytest.raises(DatabaseError, match="append-only"):
+        with session_scope() as session:
+            session.execute(
+                text("UPDATE audit_logs SET outcome = 'tampered' WHERE id = :i"),
+                {"i": entry_id},
+            )
+            session.flush()
+
+    # There is no opt-in for an update: a row whose hash covers its own contents has no edit.
+    with pytest.raises(DatabaseError, match="append-only"):
+        with session_scope() as session:
+            session.execute(text("SET LOCAL triad.allow_audit_archival = 'on'"))
+            session.execute(
+                text("UPDATE audit_logs SET outcome = 'tampered' WHERE id = :i"),
+                {"i": entry_id},
+            )
+            session.flush()
+
+    with session_scope() as session:
+        still = session.get(AuditLog, entry_id)
+        assert still is not None and still.outcome != "tampered"
+
+
+def test_the_audit_trail_refuses_a_delete_unless_the_session_opts_in(
+    postgres_available, unique_action
+) -> None:
+    """Archival has to remain possible, or a retention limit cannot be met. It has to be asked
+    for explicitly, so it cannot happen by accident or by an ORM cascade."""
+    if not postgres_available:
+        pytest.skip("postgres service is not reachable")
+
+    from sqlalchemy.exc import DatabaseError
+
+    with session_scope() as session:
+        audit.record_and_commit(
+            session,
+            actor_type="user", actor_id="someone@triad.test", action=unique_action,
+            resource_type="user", resource_id="unknown", outcome="refused",
+        )
+    assert len(_rows(unique_action)) == 1
+
+    with pytest.raises(DatabaseError, match="append-only"):
+        with session_scope() as session:
+            session.execute(delete(AuditLog).where(AuditLog.action == unique_action))
+            session.flush()
+
+    assert len(_rows(unique_action)) == 1, "the refused delete removed the row anyway"
+
+    with session_scope() as session:
+        _archive(session, AuditLog.action == unique_action)
+
+    assert _rows(unique_action) == []

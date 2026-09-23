@@ -15,7 +15,7 @@ import json
 import uuid
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sse_starlette.sse import EventSourceResponse
 
 from agents.graph import queue as q
@@ -71,6 +71,19 @@ def _find_run(session: DbSession, run_ref: str) -> PipelineRun:
     return run
 
 
+def _stage_label(execution: Execution) -> str:
+    """What stage an execution belongs to, for the stage list and the log filter alike.
+
+    Migration `b1f2a3c4d5e6` added `executions.stage` so the stage would stop being inferred.
+    The stage list used it; the log endpoint did not - it labelled every execution line with
+    `execution.engine` and then filtered `?stage=` against that, so the declared filter could
+    never select an execution line. Asking for `?stage=profiling` returned nothing while the
+    stage list showed `profiling`. Rows written before the column existed have none, and the
+    engine is what is actually known about those, labelled as the engine rather than guessed at.
+    """
+    return execution.stage or f"({execution.engine})"
+
+
 def _stages(session: DbSession, run: PipelineRun) -> list[StageView]:
     """The stages of a run, from its queued tasks - or from what actually executed.
 
@@ -107,9 +120,7 @@ def _stages(session: DbSession, run: PipelineRun) -> list[StageView]:
             duration = round((execution.finished_at - execution.started_at).total_seconds(), 1)
         views.append(
             StageView(
-                # Rows written before `executions.stage` existed have none; the engine is what
-                # is actually known about them, and is labelled as that rather than guessed at.
-                name=execution.stage or f"({execution.engine})",
+                name=_stage_label(execution),
                 status=execution.status,
                 # An execution is one attempt by definition: the repair loop creates a new row
                 # per attempt, so counting them as 1 each is the truth, not a placeholder.
@@ -313,7 +324,12 @@ def list_runs(
         stmt = stmt.where(PipelineRun.pipeline_name == pipeline)
     before = decode_cursor(cursor)
     if before:
-        stmt = stmt.where(PipelineRun.started_at < before)
+        # Row-wise comparison on the same pair the ORDER BY uses. Seeking on `started_at`
+        # alone skipped every row sharing a timestamp with the previous page's last row, and
+        # `now()` gives every row inserted in one transaction the same timestamp.
+        stmt = stmt.where(
+            tuple_(PipelineRun.started_at, PipelineRun.id) < tuple_(*before)
+        )
 
     rows = session.execute(stmt.limit(size + 1)).scalars().all()
     built = page(rows, size, "started_at")
@@ -407,7 +423,7 @@ def run_logs(
         severity = "error" if execution.exit_code not in (0, None) else "info"
         masked, _ = mask(execution.command or "")
         lines.append(LogLine(
-            at=execution.started_at, stage=execution.engine, level=severity,
+            at=execution.started_at, stage=_stage_label(execution), level=severity,
             message=f"{execution.engine} exit={execution.exit_code} "
                     f"duration_ms={execution.duration_ms} :: {masked[:500]}",
         ))

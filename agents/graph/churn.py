@@ -411,6 +411,15 @@ def prepare(
         # A JSON column, and the acceptance evidence carries numpy scalars.
         evidence=jsonable(selection.evidence),
         policy_rules=selection.rules_applied,
+        # `decision_records.alternatives` is a NOT NULL column that was `[]` on all 286 rows:
+        # `record_decision` has taken the argument since it was written and no caller passed
+        # one, so "the options considered and why they were rejected" - the other half of
+        # FR-060 - was a column shape with nothing in it. The candidates the policy refused,
+        # each with its reason code and the evidence it was judged on, are what belongs there.
+        # Routing decisions still record none, and that is correct rather than an omission: the
+        # rules are matched in order and the first that applies wins, so there is no rejected
+        # option to name, only rules whose conditions were not met.
+        alternatives=jsonable(selection.rejected),
         outcome="escalated" if selection.outcome == "ESCALATE" else "applied",
     )
     # Validation metrics too, for the same reason: they are what the verdict was computed from.

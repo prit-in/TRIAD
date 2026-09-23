@@ -146,6 +146,22 @@ def create_run(
             # Rolling the savepoint back already discards the pending instance, so there is
             # nothing left to expunge.
             savepoint.rollback()
+            # Two unique constraints can raise here, and they need opposite answers. A run-key
+            # collision is retried with the next number, which is what this loop is for. An
+            # `idempotency_key` collision means a concurrent request created the run this call
+            # was asked for - so the answer is that run, not a retry. Retrying regenerated the
+            # run key and hit the same key again on every attempt, then raised QueueError,
+            # which reached the client as a 500: two clicks on "Start run" broke the guarantee
+            # the Idempotency-Key header exists to give. The pre-check above cannot close this
+            # window; only the constraint serialises the two requests.
+            if idempotency_key:
+                concurrent = session.execute(
+                    select(PipelineRun).where(
+                        PipelineRun.idempotency_key == idempotency_key
+                    )
+                ).scalar_one_or_none()
+                if concurrent is not None:
+                    return concurrent
             continue
         savepoint.commit()
         run = candidate

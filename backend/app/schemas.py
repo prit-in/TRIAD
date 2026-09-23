@@ -144,6 +144,10 @@ class DecisionView(ApiModel):
     summary: str | None = None
     policy_rule_ids: list[Any] = Field(default_factory=list)
     evidence_refs: dict[str, Any] = Field(default_factory=dict)
+    # The options that were considered and refused. Empty for a decision with no alternative -
+    # a routing rule match has one answer - and populated for an acceptance decision, where
+    # each entry carries the family, the rule that rejected it and the evidence.
+    alternatives: list[Any] = Field(default_factory=list)
     outcome: str
     created_at: dt.datetime | None = None
 

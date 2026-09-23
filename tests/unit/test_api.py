@@ -759,13 +759,20 @@ def test_a_cursor_decodes_to_a_datetime_not_a_string() -> None:
     and never read it.
     """
     import datetime as dt
+    import uuid as uuid_mod
 
     from backend.app.pagination import decode_cursor, encode_cursor
 
     moment = dt.datetime(2026, 9, 21, 19, 18, 29, 260008, tzinfo=dt.UTC)
-    decoded = decode_cursor(encode_cursor(moment))
-    assert isinstance(decoded, dt.datetime)
-    assert decoded == moment
+    row_id = uuid_mod.uuid4()
+    decoded = decode_cursor(encode_cursor(moment, row_id))
+    assert decoded is not None
+    when, tiebreak = decoded
+    assert isinstance(when, dt.datetime)
+    assert when == moment
+    # The id travels with it, because the timestamp alone is not unique: `now()` is the
+    # transaction timestamp, so two runs created in one transaction share it exactly.
+    assert tiebreak == row_id
 
 
 def test_a_cursor_that_is_not_ours_is_a_400_not_a_500() -> None:
@@ -778,6 +785,20 @@ def test_a_cursor_that_is_not_ours_is_a_400_not_a_500() -> None:
     junk = base64.urlsafe_b64encode(b"not-a-timestamp").decode("ascii")
     with pytest.raises(problems.Problem) as raised:
         decode_cursor(junk)
+    assert raised.value.status == 400
+
+    # A cursor of the old single-value shape no longer parses, and must still be a 400.
+    legacy = base64.urlsafe_b64encode(b"2026-09-21 19:18:29.260008+00:00").decode("ascii")
+    with pytest.raises(problems.Problem) as raised:
+        decode_cursor(legacy)
+    assert raised.value.status == 400
+
+    # A well-formed timestamp with a tie-break that is not a uuid is equally not ours.
+    bad_tiebreak = base64.urlsafe_b64encode(
+        b"2026-09-21 19:18:29.260008+00:00|not-a-uuid"
+    ).decode("ascii")
+    with pytest.raises(problems.Problem) as raised:
+        decode_cursor(bad_tiebreak)
     assert raised.value.status == 400
 
     with pytest.raises(problems.Problem) as raised:
@@ -849,3 +870,48 @@ def test_both_policy_files_are_read_the_way_their_own_engine_reads_them(client, 
     for policy in by_name.values():
         assert policy["sha256"] and len(policy["sha256"]) == 64
         assert policy["text"].strip()
+
+
+def test_paging_does_not_skip_runs_that_share_a_timestamp(client, users, db_session) -> None:
+    """The cursor seeks on (started_at, id), because started_at alone is not unique.
+
+    `started_at` is `server_default=func.now()` and PostgreSQL's `now()` is the transaction
+    timestamp, so every row one transaction inserts carries the identical value. With the
+    cursor encoding only the timestamp and the query filtering `started_at < cursor`, every
+    row tied with the previous page's last row was dropped - and a page missing rows looks
+    exactly like a page.
+
+    Six runs are created in one transaction, so all six share a timestamp, then walked two at
+    a time. All six must appear exactly once.
+    """
+    from triad_core.models import PipelineRun
+
+    made = []
+    for i in range(6):
+        run = PipelineRun(
+            run_key=f"run-tie-{i:03d}", pipeline_name="churn",
+            state="SUCCEEDED", trigger_type="manual", mode="full",
+        )
+        db_session.add(run)
+        made.append(run)
+    db_session.flush()
+
+    stamps = {r.started_at for r in made}
+    assert len(stamps) == 1, f"this test needs the tie it is about, got {stamps}"
+
+    headers = users["admin"]
+    seen: list[str] = []
+    cursor = None
+    for _ in range(12):   # a bound, so a broken cursor loops finitely rather than forever
+        url = "/api/v1/pipelines?limit=2" + (f"&cursor={cursor}" if cursor else "")
+        body = client.get(url, headers=headers).json()
+        seen.extend(item["run_key"] for item in body["items"])
+        cursor = body["next_cursor"]
+        if not cursor:
+            break
+
+    tied = [key for key in seen if key.startswith("run-tie-")]
+    assert sorted(tied) == [f"run-tie-{i:03d}" for i in range(6)], (
+        f"paging lost or repeated a tied row: {tied}"
+    )
+    assert len(seen) == len(set(seen)), f"paging repeated a row: {seen}"

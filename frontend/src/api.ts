@@ -324,8 +324,18 @@ export interface Decision {
   summary: string | null;
   policy_rule_ids: string[];
   evidence_refs: Record<string, unknown>;
+  /** The options refused, each with the rule that refused it. Empty where a decision had no
+   *  alternative: a routing rule match has one answer. */
+  alternatives: DecisionAlternative[];
   outcome: string;
   created_at: string | null;
+}
+
+export interface DecisionAlternative {
+  family?: string;
+  reason?: string;
+  rule?: string;
+  evidence?: Record<string, number | null>;
 }
 
 export interface Artifact {

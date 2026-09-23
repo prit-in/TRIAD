@@ -116,16 +116,38 @@ def list_predictions(
                              prediction_set, min_probability)
 
     if user.role == VIEWER:
-        rows = session.execute(stmt).scalars().all()
-        bands: dict[str, int] = {}
-        for row in rows:
-            bands[row.risk_band] = bands.get(row.risk_band, 0) + 1
-        mean = (
-            sum(r.churn_probability for r in rows) / len(rows) if rows else None
-        )
+        # Aggregated by the database, not in Python. This branch used to execute the row query
+        # with no LIMIT and build every matching Prediction as an ORM object just to count risk
+        # bands and average one column - and `predictions` holds one row per customer per score
+        # date per prediction set, so the cost grows with the table while `limit`, which the
+        # signature accepts and validates, was silently ignored here. Ignoring it is right for
+        # an aggregate; loading the table to compute one is not.
+        #
+        # Counting and summing rather than using avg() keeps the mean identical to what the
+        # Python loop produced, over the same rows.
+        filters = stmt.whereclause
+        banded = session.execute(
+            select(
+                Prediction.risk_band,
+                func.count().label("n"),
+                func.sum(Prediction.churn_probability).label("total"),
+            )
+            .where(filters)
+            .group_by(Prediction.risk_band)
+        ).all()
+        total_rows = sum(int(row.n) for row in banded)
+        probability_total = sum(float(row.total or 0.0) for row in banded)
+        score_dates = session.execute(
+            select(Prediction.score_date)
+            .where(filters)
+            .distinct()
+            .order_by(Prediction.score_date)
+        ).scalars().all()
         return PredictionAggregate(
-            rows=len(rows), by_risk_band=bands, mean_probability=mean,
-            score_dates=sorted({r.score_date for r in rows}),
+            rows=total_rows,
+            by_risk_band={row.risk_band: int(row.n) for row in banded},
+            mean_probability=(probability_total / total_rows) if total_rows else None,
+            score_dates=list(score_dates),
         )
 
     if user.role not in {*ROW_ROLES, ADMIN}:

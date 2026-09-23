@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import type { Artifact, Decision, LogLine, RunDetail } from "../api";
+import type {
+  Artifact,
+  Decision,
+  DecisionAlternative,
+  LogLine,
+  RunDetail,
+} from "../api";
 import {
   ConfirmButton,
   Empty,
@@ -243,6 +249,9 @@ export function RunDetailPage() {
                 {decision.policy_rule_ids.length > 0 && (
                   <span className="rules">{decision.policy_rule_ids.join(", ")}</span>
                 )}
+                {decision.alternatives.length > 0 && (
+                  <RejectedOptions options={decision.alternatives} />
+                )}
               </li>
             ))}
           </ul>
@@ -310,4 +319,60 @@ export function RunDetailPage() {
       </Panel>
     </>
   );
+}
+
+
+/** The options a decision refused, and why.
+ *
+ * `decision_records.alternatives` held `[]` on every row: the column existed, the argument that
+ * fills it existed, and nothing passed one - so the run detail page showed which model was
+ * chosen and never which were rejected. Reviewing a choice means seeing what it was chosen
+ * over, so this renders each refused candidate with the rule that refused it and the two
+ * numbers that decided it.
+ */
+function RejectedOptions({ options }: { options: DecisionAlternative[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="alternatives">
+      <button
+        type="button"
+        className="link-button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {open ? "Hide" : "Show"} {options.length} refused{" "}
+        {options.length === 1 ? "option" : "options"}
+      </button>
+      {open && (
+        <table>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Refused because</th>
+              <th>Rule</th>
+              <th>Validation PR-AUC</th>
+              <th>Calibration error</th>
+            </tr>
+          </thead>
+          <tbody>
+            {options.map((option, index) => (
+              <tr key={`${option.family ?? "option"}-${index}`}>
+                <td>{option.family ?? "—"}</td>
+                <td>{option.reason ?? "—"}</td>
+                <td className="rules">{option.rule ?? "—"}</td>
+                <td>{metric(option.evidence?.valid_pr_auc)}</td>
+                <td>{metric(option.evidence?.ece)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+/** A number the run recorded, or a statement that it did not record one. The project forbids
+ *  substituting a placeholder value for a measurement that was never taken. */
+function metric(value: number | null | undefined) {
+  return typeof value === "number" ? value.toFixed(4) : "not measured";
 }
