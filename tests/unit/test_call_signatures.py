@@ -116,10 +116,14 @@ def test_no_call_passes_a_keyword_its_callee_does_not_accept(parsed) -> None:
         # Where each bare name in this file came from, for modules this scan parsed.
         origin: dict[str, str] = {}
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-                if node.module in modules:
-                    for alias in node.names:
-                        origin[alias.asname or alias.name] = node.module
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module
+                and node.level == 0
+                and node.module in modules
+            ):
+                for alias in node.names:
+                    origin[alias.asname or alias.name] = node.module
         for name in modules.get(here, {}):
             origin.setdefault(name, here)
 
