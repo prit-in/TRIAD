@@ -288,7 +288,12 @@ def gate4_compile(
         4, "compile", False,
         output[-4000:],
         errors=[e.to_dict() for e in errors],
-        error_class=ErrorClass.SCALA_COMPILE_ERROR,
+        # Only a compile error when the compiler said so. This used to be set for every
+        # non-zero sbt exit, and the stage runner passes it to `classify` as a hint that
+        # skips pattern matching - so a dependency download failing inside sbt was diagnosed
+        # as a compile error, whatever the output said, and sent to code regeneration (EXP-6).
+        # With no parsed diagnostics the classifier reads the output itself.
+        error_class=ErrorClass.SCALA_COMPILE_ERROR if errors else None,
         duration_ms=duration,
     )
 

@@ -500,6 +500,15 @@ def _suggested_actions(diagnoses: list[dict[str, Any]], reason: str) -> list[str
         ErrorClass.INSUFFICIENT_DATA.value: [
             "Extend the data window: the gap rule cannot be relaxed without risking leakage",
         ],
+        ErrorClass.RESOURCE_CONFIG_INVALID.value: [
+            "Raise the setting Spark names in the evidence to at least the minimum it states",
+            "The agent may not change it: `spark.driver.memory` is outside the "
+            "spark.config_change allowlist in agents/policies/governance.yaml",
+        ],
+        ErrorClass.DEPENDENCY_RESOLUTION.value: [
+            "Check the toolchain's dependency cache and its network access to the repository",
+            "The generated code was not the cause; do not regenerate it",
+        ],
         ErrorClass.LEAKAGE_SUSPECTED.value: [
             "Review the feature catalogue entries flagged in the evidence",
             "Do not promote any model from this run until the leak is explained",

@@ -40,6 +40,10 @@ class ErrorClass(str, Enum):
     CONTRACT_VIOLATION = "CONTRACT_VIOLATION"
     ROW_ACCOUNTING_MISMATCH = "ROW_ACCOUNTING_MISMATCH"
     LEAKAGE_SUSPECTED = "LEAKAGE_SUSPECTED"
+    # Not in PRD section 20.2. Each was found by EXP-6 as a failure the taxonomy sent to the
+    # wrong remedy or to none; see docs/implementation/DECISIONS.md, DEC-20.
+    DEPENDENCY_RESOLUTION = "DEPENDENCY_RESOLUTION"
+    RESOURCE_CONFIG_INVALID = "RESOURCE_CONFIG_INVALID"
     UNKNOWN = "UNKNOWN"
 
 
@@ -124,14 +128,42 @@ PLAYBOOK: dict[ErrorClass, PlaybookEntry] = {
         note="a mismatch means rows vanished; never auto-continue"),
     ErrorClass.LEAKAGE_SUSPECTED: PlaybookEntry(
         ErrorClass.LEAKAGE_SUSPECTED, Remedy.NONE, 0, False, note="block selection and escalate"),
+    # A dependency the build could not fetch is an environment fault, never a code fault:
+    # regenerating correct code cannot make a download succeed. One resubmission covers a
+    # transient network or cache-lock failure; a repeat is environmental, and the circuit
+    # breaker escalates it on the second identical fingerprint.
+    ErrorClass.DEPENDENCY_RESOLUTION: PlaybookEntry(
+        ErrorClass.DEPENDENCY_RESOLUTION, Remedy.RESUBMIT, 1, True,
+        note="the build could not fetch a dependency; code is not regenerated"),
+    # Spark refused to start the job because a resource setting is below its own minimum.
+    # Raising it would fix the job, but `spark.driver.memory` is not on the
+    # `spark.config_change` allowlist, so the agent is not permitted to: the remedy is a
+    # person changing the setting, and the escalation names which one and to what.
+    ErrorClass.RESOURCE_CONFIG_INVALID: PlaybookEntry(
+        ErrorClass.RESOURCE_CONFIG_INVALID, Remedy.NONE, 0, False,
+        note="the setting is outside the agent's allowlist; a person must change it"),
     ErrorClass.UNKNOWN: PlaybookEntry(ErrorClass.UNKNOWN, Remedy.NONE, 1, True),
 }
 
 # Ordered: the first pattern that matches wins.
 _PATTERNS: list[tuple[ErrorClass, re.Pattern[str]]] = [
+    # These two come first because both appear inside text later patterns also match: every
+    # line of an sbt stack trace begins `[error]`, and Spark's low-memory refusal mentions memory.
+    (ErrorClass.RESOURCE_CONFIG_INVALID, re.compile(
+        r"INVALID_(DRIVER|EXECUTOR)_MEMORY|System memory \d+ must be at least \d+", re.I)),
+    (ErrorClass.DEPENDENCY_RESOLUTION, re.compile(
+        r"lmcoursier|coursier\.(error\.)?(ResolutionError|FetchError|DownloadError)"
+        r"|sbt\.librarymanagement\.ResolveException|unresolved dependenc(y|ies)"
+        r"|Error downloading [\w.:-]+", re.I)),
     (ErrorClass.MISSING_PACKAGE, re.compile(r"ModuleNotFoundError|ImportError: No module", re.I)),
+    # A scalac diagnostic names its source file straight after `[error]`, then a line number:
+    # `[error] /path/File.scala:42:17: type mismatch;`. sbt also prefixes every frame of a stack
+    # trace with `[error]` - `[error] \tat a.b.C.m(CacheUrl.scala:349)` - and the pattern this
+    # replaces, `\[error\][^\n]*\.scala`, matched those: a dependency download failing inside
+    # coursier was classified as a compile error and sent to code regeneration.
     (ErrorClass.SCALA_COMPILE_ERROR, re.compile(
-        r"\[error\][^\n]*\.scala|type mismatch;|not found: (value|type)|error: value .* is not a member", re.I)),
+        r"^\[error\]\s+[^\s(]+\.scala:\d+:|type mismatch;|not found: (value|type)"
+        r"|error: value .* is not a member", re.I | re.M)),
     (ErrorClass.INVALID_CAST_ANSI, re.compile(
         r"CAST_INVALID_INPUT|NUMERIC_VALUE_OUT_OF_RANGE|cannot be cast to|invalid input syntax", re.I)),
     (ErrorClass.UNRESOLVED_COLUMN, re.compile(

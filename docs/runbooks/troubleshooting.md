@@ -7,7 +7,7 @@ is known to produce.
 ## How a failure is classified
 
 A failing stage produces a `TRIAD_JOB_ERROR` with a structured payload — never a stack trace for
-someone to parse. The payload is classified into one of 25 error classes, and the **class**
+someone to parse. The payload is classified into one of 27 error classes, and the **class**
 selects the remedy from a fixed playbook. Nothing in that path reads free text.
 
 Each failure also gets a **fingerprint**. A fingerprint that repeats trips the circuit breaker
@@ -42,12 +42,16 @@ spending the whole attempt budget re-running the same failure.
 | `CONTRACT_VIOLATION` | regenerate code | 2 | yes | no |
 | `ROW_ACCOUNTING_MISMATCH` | none | 0 | **no** | no |
 | `LEAKAGE_SUSPECTED` | none | 0 | **no** | no |
+| `DEPENDENCY_RESOLUTION` | resubmit | 1 | yes | no |
+| `RESOURCE_CONFIG_INVALID` | none | 0 | **no** | no |
 | `UNKNOWN` | none | 1 | yes | no |
 
 The four with no remedy and no retry are the ones where a retry would be dishonest.
 `ROW_ACCOUNTING_MISMATCH` means rows went missing without being accounted for;
 `LEAKAGE_SUSPECTED` means the model may have seen the future. Neither is something re-running
 fixes, and both stop the run.
+
+The last two were added after EXP-6 measured them going wrong (DEC-20). A dependency the build could not download used to be classified as a Scala compile error, which prescribes regenerating code that was never the problem; it is now resubmitted once. A job Spark refuses to start because a memory setting is below Spark's own minimum used to be `UNKNOWN`. It is now named, and handed to a person rather than fixed, because `spark.driver.memory` is not on the agent's `spark.config_change` allowlist - the escalation says which setting and the minimum Spark asked for.
 
 ## Handling an escalation
 
