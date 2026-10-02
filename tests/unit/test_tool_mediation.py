@@ -256,8 +256,8 @@ def test_the_audit_sink_travels_with_the_call_not_the_registry(policy: PolicyEng
 
 
 def test_commit_output_publishes_through_the_registry(storage, tmp_path: Path) -> None:
-    staging = tmp_path / "staging"
-    staging.mkdir()
+    staging = storage.staging_dir("run-commit-tool", "clean")
+    staging.mkdir(parents=True)
     (staging / "part-0.parquet").write_bytes(b"not really parquet")
     target = Path(storage.root) / "clean" / "test_commit"
 
@@ -342,8 +342,8 @@ def test_a_tool_that_raises_becomes_a_structured_failure(storage, tmp_path: Path
 
 def test_the_manifest_written_matches_what_the_tool_was_given(storage, tmp_path: Path) -> None:
     """Guards the dict -> Manifest hop: a dropped field would silently lose provenance."""
-    staging = tmp_path / "s"
-    staging.mkdir()
+    staging = storage.staging_dir("run-manifest-hop", "features")
+    staging.mkdir(parents=True)
     (staging / "part-0.parquet").write_bytes(b"x")
     target = Path(storage.root) / "features" / "prov"
     REGISTRY.call(
@@ -371,3 +371,40 @@ def test_the_manifest_written_matches_what_the_tool_was_given(storage, tmp_path:
     assert written.run_id == "churn_v1_prov"
     assert written.row_count == 7
     assert written.schema == {"a": "int"}
+
+
+def test_commit_output_refuses_a_staging_folder_outside_the_data_root(
+    storage, tmp_path: Path
+) -> None:
+    """An agent cannot publish an arbitrary directory into the catalogue.
+
+    `staging` is an argument of an agent's tool call. `Storage.commit` resolves it through
+    `Storage.path`, which refuses anything outside the data root, so a tool call naming
+    `/etc` - or, as here, any directory the platform did not create under its own root - fails
+    before a byte is copied, and the target is never created.
+    """
+    outside = tmp_path / "not-the-data-root"
+    outside.mkdir()
+    (outside / "part-0.parquet").write_bytes(b"would be published")
+    target = Path(storage.root) / "clean" / "should_not_exist"
+
+    result = REGISTRY.call(
+        ToolCall(
+            tool="storage.commit_output",
+            agent="code_generation",
+            arguments={
+                "staging": str(outside),
+                "target": str(target),
+                "manifest": {
+                    "kind": "clean", "name": "clean", "version": "churn_v1_escape",
+                    "created_at": "2026-01-01T00:00:00+00:00", "row_count": 1,
+                    "schema": {"customer_id": "string"},
+                },
+            },
+        ),
+        store=storage,
+    )
+
+    assert not result.ok
+    assert "outside the data root" in (result.error or "")
+    assert not target.exists()

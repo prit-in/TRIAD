@@ -288,8 +288,16 @@ class TestApprovalWorkflow:
         assert verify_chain(self.session).ok
 
     def test_tampering_with_an_audit_entry_breaks_the_chain(self) -> None:
-        """TC-078: editing an entry must fail verification."""
-        from sqlalchemy import select
+        """TC-078: editing an entry must fail verification.
+
+        Since migration c7d3e9a15b42 an ordinary UPDATE of `audit_logs` is refused by a trigger,
+        so the edit can no longer be simulated by simply making it - which is the point of the
+        trigger. The attacker this test now models is the one the trigger cannot stop: a
+        superuser who switches triggers off for the session first. `session_replication_role =
+        replica` is how that is done in PostgreSQL, and it is local to this transaction, which
+        the fixture rolls back. What is asserted is unchanged: the edit is detected.
+        """
+        from sqlalchemy import select, text
 
         from triad_core.audit import verify_chain
         from triad_core.models import AuditLog
@@ -300,13 +308,35 @@ class TestApprovalWorkflow:
         ).scalars().first()
         assert entry is not None
 
+        self.session.execute(text("SET LOCAL session_replication_role = replica"))
         entry.details = {**entry.details, "tampered": True}
         self.session.flush()
+        self.session.execute(text("SET LOCAL session_replication_role = origin"))
 
         result = verify_chain(self.session)
         assert result.ok is False
         assert result.broken_at_id == entry.id
         assert "entry_hash" in (result.reason or "")
+
+
+    def test_an_audit_entry_cannot_be_edited_without_disabling_triggers(self) -> None:
+        """The first line of defence, before the chain has to detect anything."""
+        from sqlalchemy import select
+        from sqlalchemy.exc import DatabaseError
+
+        from triad_core.models import AuditLog
+
+        self._request("agent:y")
+        entry = self.session.execute(
+            select(AuditLog).where(AuditLog.run_id == self.run.id).order_by(AuditLog.id.desc())
+        ).scalars().first()
+        assert entry is not None
+
+        nested = self.session.begin_nested()
+        entry.details = {**entry.details, "tampered": True}
+        with pytest.raises(DatabaseError, match="append-only"):
+            self.session.flush()
+        nested.rollback()
 
 
 class TestAuditChainUnderConcurrency:

@@ -69,3 +69,9 @@ frontend/node_modules/
 
 # The TypeScript build cache changes on every compile
 *.tsbuildinfo
+
+# Faculty source materials: kept on disk, not in the repository. 4_Teams_Titles_Links.pdf lists
+# other teams' registration numbers and a personal phone number, and the rest are the faculty's
+# own documents; the repository may be published, so none of them are redistributed through it.
+# docs/faculty/FACULTY_MATERIALS_ANALYSIS.md carries every requirement they impose.
+docs/faculty/source/

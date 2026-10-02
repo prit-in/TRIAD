@@ -899,13 +899,13 @@ def test_paging_does_not_skip_runs_that_share_a_timestamp(client, users, db_sess
     stamps = {r.started_at for r in made}
     assert len(stamps) == 1, f"this test needs the tie it is about, got {stamps}"
 
-    headers = users["admin"]
+    headers = _auth(users["admin"])
     seen: list[str] = []
     cursor = None
     for _ in range(12):   # a bound, so a broken cursor loops finitely rather than forever
         url = "/api/v1/pipelines?limit=2" + (f"&cursor={cursor}" if cursor else "")
         body = client.get(url, headers=headers).json()
-        seen.extend(item["run_key"] for item in body["items"])
+        seen.extend(item["run_id"] for item in body["items"])
         cursor = body["next_cursor"]
         if not cursor:
             break

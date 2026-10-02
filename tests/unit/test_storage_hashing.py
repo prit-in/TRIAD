@@ -95,7 +95,10 @@ def test_a_committed_folder_verifies_against_its_own_manifest(storage, tmp_path:
     This is the one that would have caught the bug if the two had ever used different
     functions - which, for a while after the fix, they did.
     """
-    staging = _write(tmp_path / "staging", {
+    # Staged where production stages - under the root, through `staging_dir` - because
+    # `commit` refuses a staging folder outside it: that argument reaches `commit` from an
+    # agent's tool call, and an unconstrained one would publish any directory into the catalogue.
+    staging = _write(storage.staging_dir("run-hash-roundtrip", "clean"), {
         "part-00000-e7ee49db-c000.zstd.parquet": b"rows",
     })
     target = Path(storage.root) / "clean" / "hash_roundtrip"
