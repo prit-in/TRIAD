@@ -46,6 +46,7 @@ PUBLIC = {
 # the router, so removing the dependency breaks this test rather than going unnoticed.
 ADMIN_ONLY = {
     ("GET", "/api/v1/audit-logs"),
+    ("GET", "/api/v1/audit-logs/actions"),
     ("GET", "/api/v1/audit-logs/verify"),
     ("GET", "/api/v1/settings"),
 }

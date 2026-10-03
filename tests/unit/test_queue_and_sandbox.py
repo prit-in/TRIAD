@@ -77,14 +77,31 @@ def test_local_runner_reports_that_isolation_is_absent() -> None:
     assert "1" in result.stdout
 
 
-def test_local_runner_scrubs_the_environment() -> None:
+def test_local_runner_scrubs_the_environment(monkeypatch) -> None:
+    """The child sees none of the parent's secrets.
+
+    This used to check only `ANTHROPIC_API_KEY`, which the test environment never sets (no
+    provider is configured, ADR-0003), so it passed with no scrubbing at all - while the
+    variable that *is* set, the database URL with its password, would have leaked to every
+    sandboxed job. The parent is given real-looking secrets first, so their absence means
+    something.
+    """
+    canaries = {
+        "TRIAD_DB_URL": "postgresql+psycopg://triad:canary-password@postgres:5432/triad",
+        "ANTHROPIC_API_KEY": "sk-ant-canary",
+        "TRIAD_JWT_SECRET": "canary-jwt-secret",
+        "AWS_SECRET_ACCESS_KEY": "canary-aws",
+    }
+    for name, value in canaries.items():
+        monkeypatch.setenv(name, value)
+
+    probe = f"import os, json; print(json.dumps({{k: os.environ.get(k) for k in {sorted(canaries)!r}}}))"
     result = LocalRunner().run(
-        SandboxRequest(
-            run_key="r", stage="s", image="i",
-            command=["python", "-c", "import os;print(os.environ.get('ANTHROPIC_API_KEY','ABSENT'))"],
-        )
+        SandboxRequest(run_key="r", stage="s", image="i", command=["python", "-c", probe])
     )
-    assert "ABSENT" in result.stdout
+    assert result.ok, result.stderr
+    for name, value in canaries.items():
+        assert value not in result.stdout, f"{name} reached the sandboxed child"
 
 
 def test_sandbox_timeout_is_enforced() -> None:

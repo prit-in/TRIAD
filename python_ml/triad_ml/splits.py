@@ -60,6 +60,16 @@ class SplitData:
     # validation PR-AUC and escalated the run on MISCALIBRATED, because `train_candidate` and
     # `calibrate` derive their own feature list from `split.train`.
     evaluation_only_cols: tuple[str, ...] = ()
+    # Columns hygiene rule H4 dropped as degenerate *in training*. They stay in the frames, for
+    # the same reason the segment attributes do: the deployed champion was trained on its own
+    # feature set and may need a column this run's challenger may not use, and AP-8 scores the
+    # champion on these same frames.
+    hygiene_dropped_cols: tuple[str, ...] = ()
+
+    @property
+    def excluded_cols(self) -> tuple[str, ...]:
+        """Every column present in the frames that is not a model input."""
+        return (*self.evaluation_only_cols, *self.hygiene_dropped_cols)
 
     def summary(self) -> dict[str, Any]:
         return {

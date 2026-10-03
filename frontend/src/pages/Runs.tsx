@@ -100,6 +100,9 @@ export function Runs() {
   );
 }
 
+/** States a run cannot leave. FAILED is one: a failed task now fails its run (queue.fail). */
+const FINISHED_STATES = ["COMPLETED", "PUBLISHED", "CANCELLED", "ABORTED", "REJECTED_INPUT", "FAILED"];
+
 export function RunDetailPage() {
   const toast = useToast();
   const [decisionQuery, setDecisionQuery] = useState("");
@@ -113,7 +116,7 @@ export function RunDetailPage() {
   // this stream since it was written and nothing subscribed, so a run in flight only moved
   // when someone reloaded the page. Subscribed only while the run is unfinished: a finished
   // run has nothing further to say and the server closes the stream anyway.
-  const finished = ["COMPLETED", "PUBLISHED", "CANCELLED", "ABORTED", "REJECTED_INPUT"].includes(
+  const finished = FINISHED_STATES.includes(
     run.data?.state ?? "",
   );
   const liveStatus = useRunEvents(
@@ -145,7 +148,7 @@ export function RunDetailPage() {
         title={runId}
         provenance="Measured"
         actions={
-          run.data && !["COMPLETED", "PUBLISHED", "CANCELLED", "ABORTED"].includes(run.data.state) ? (
+          run.data && !FINISHED_STATES.includes(run.data.state) ? (
             // Cancelling is irreversible and used to fire on the first click, which for an
             // in-flight run is one misclick away from losing the work it has already done.
             <ConfirmButton
@@ -239,7 +242,9 @@ export function RunDetailPage() {
         {/* FR-070 asks for searchable decision records. The filter runs in the browser over
             the run's own records: the list is bounded by one run, and a server round trip per
             keystroke would be slower and no more correct. */}
-        {matchingDecisions.length > 0 ? (
+        {decisions.problem ? (
+          <Problem error={decisions.problem} />
+        ) : matchingDecisions.length > 0 ? (
           <ul className="decisions">
             {matchingDecisions.map((decision) => (
               <li key={decision.id}>
@@ -266,7 +271,9 @@ export function RunDetailPage() {
       </Panel>
 
       <Panel title="Generated code" provenance="Measured">
-        {artifacts.data && artifacts.data.length > 0 ? (
+        {artifacts.problem ? (
+          <Problem error={artifacts.problem} />
+        ) : artifacts.data && artifacts.data.length > 0 ? (
           <table>
             <thead>
               <tr>
@@ -303,7 +310,9 @@ export function RunDetailPage() {
       </Panel>
 
       <Panel title="Timeline" provenance="Measured, redacted">
-        {logs.data && logs.data.length > 0 ? (
+        {logs.problem ? (
+          <Problem error={logs.problem} />
+        ) : logs.data && logs.data.length > 0 ? (
           <ul className="logs">
             {logs.data.map((line, index) => (
               <li key={index} className={line.level}>

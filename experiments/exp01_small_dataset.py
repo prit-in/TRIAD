@@ -46,7 +46,7 @@ from typing import Any
 
 import pandas as pd
 
-from experiments.baselines import BASELINE_FEATURES
+from experiments.baselines import BASELINE_FEATURES, run_isolated
 from experiments.harness import Experiment
 
 CUSTOMERS = 400
@@ -315,17 +315,18 @@ def run() -> Experiment:
                                         for k, v in groups.items()})
 
         # --- B2 -----------------------------------------------------------------
+        # Each baseline runs in a process of its own, so the memory it reports is its own
+        # (experiments.baselines.run_isolated). B3 starts its own SparkSession there, and its
+        # JVM's peak is read before that session stops.
         b2_trial = exp.trial("B2_pandas_only")
-        b2_result = baseline_b2.run(source, groups, seed=SEED)
+        b2_result = run_isolated("experiments.baseline_b2:run",
+                                 root=source, cutoffs=groups, seed=SEED)
         _record_baseline(b2_trial, b2_result, baseline_b2.source_lines())
 
         # --- B3 -----------------------------------------------------------------
         b3_trial = exp.trial("B3_spark_no_agents")
-        spark = _spark("triad-exp01-b3")
-        try:
-            b3_result = baseline_b3.run(spark, source, groups, seed=SEED)
-        finally:
-            spark.stop()
+        b3_result = run_isolated("experiments.baseline_b3:run_with_own_session",
+                                 root=source, cutoffs=groups, seed=SEED)
         _record_baseline(b3_trial, b3_result, baseline_b3.source_lines())
 
         # --- the like-for-like quality comparison -------------------------------
@@ -398,6 +399,7 @@ def _record_baseline(trial: Any, result: Any, lines: int) -> None:
         ("human_actions_excluding_approval", result.human_actions, ""),
         ("approvals_required", 0, ""),
         ("peak_rss_mb", result.peak_rss_mb, "MB"),
+        ("jvm_peak_rss_mb", result.jvm_peak_rss_mb, "MB"),
         ("source_lines", lines, "lines"),
     ):
         trial.record(name, value, unit)

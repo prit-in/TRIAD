@@ -66,7 +66,11 @@ object OutputValidator {
       )
     }
 
-    if (rows == 0L) {
+    // A dry run reads the first N rows of each input, and a sample that holds no complete
+    // customer history can legitimately produce nothing. Its criterion is that the job runs
+    // to completion within its limit (PRD 21.1, gate 6), so emptiness fails only a real run;
+    // the schema and grain checks above apply to both.
+    if (rows == 0L && cfg.param("dry_run_rows").isEmpty) {
       throw new ContractViolation("contract check failed: output is empty")
     }
 

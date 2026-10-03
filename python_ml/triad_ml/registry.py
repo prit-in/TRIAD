@@ -134,9 +134,15 @@ class ModelRegistry:
             return None
         versions = self.client.search_model_versions(f"name='{register_as}'")
         latest = max(versions, key=lambda v: int(v.version))
+        # Hashed from what the store now holds, not from the object in memory, so the record
+        # describes the bytes a later load will read.
+        sha = artifact_hash(self.mlflow.artifacts.download_artifacts(
+            artifact_uri=f"models:/{register_as}/{latest.version}"
+        ))
+        self.client.set_model_version_tag(register_as, str(latest.version), "artifact_sha256", sha)
         return RegisteredVersion(
             name=register_as, version=str(latest.version), run_id=run_id,
-            model_uri=info.model_uri,
+            model_uri=info.model_uri, artifact_sha256=sha,
         )
 
     # -- aliases ---------------------------------------------------------------
@@ -190,9 +196,42 @@ class ModelRegistry:
             "rolled_back_at": utcnow().isoformat(),
         }
 
-    def load(self, name: str, alias: str = CHAMPION):
-        """Load by alias, verifying the recorded artifact hash first (PRD 29.1, ST-08)."""
-        return self.mlflow.sklearn.load_model(f"models:/{name}@{alias}")
+    def load(self, name: str, alias: str = CHAMPION, *, expected_sha256: str | None = None):
+        """Load by alias, refusing a model whose bytes are not the ones registered (ST-08).
+
+        The docstring said this verified the recorded hash; it called `load_model` and nothing
+        else. Now the artifact is downloaded once, hashed, compared, and that same local copy
+        is what gets loaded - verifying one copy and loading another would leave the gap open.
+
+        `expected_sha256` is the catalogue's record (`model_versions.artifact_sha256`), which
+        lives outside MLflow; the version tag is the fallback. With neither, the load is
+        refused: an unverifiable model is not loaded on trust.
+        """
+        mv = self.client.get_model_version_by_alias(name, alias)
+        return self._load_verified(name, str(mv.version), expected_sha256, f"{name}@{alias}")
+
+    def load_version(self, name: str, version: str, *, expected_sha256: str | None = None):
+        """Load one version by number, under the same verification as `load`."""
+        return self._load_verified(name, str(version), expected_sha256, f"{name} v{version}")
+
+    def _load_verified(self, name: str, version: str, expected_sha256: str | None, label: str):
+        mv = self.client.get_model_version(name, version)
+        expected = expected_sha256 or (mv.tags or {}).get("artifact_sha256")
+        if not expected:
+            raise ModelIntegrityError(
+                f"{label} (version {version}) has no recorded artifact hash; "
+                "refusing to load a model that cannot be verified"
+            )
+        # The version URI, not the alias one, so the bytes hashed here are the bytes hashed at
+        # registration whichever alias the caller came through.
+        local = self.mlflow.artifacts.download_artifacts(artifact_uri=f"models:/{name}/{version}")
+        actual = artifact_hash(local)
+        if actual != expected:
+            raise ModelIntegrityError(
+                f"{label} (version {version}) does not match its registered hash: "
+                f"expected {expected[:12]}..., found {actual[:12]}..."
+            )
+        return self.mlflow.sklearn.load_model(local)
 
     def version_tags(self, name: str, version: str) -> dict[str, str]:
         mv = self.client.get_model_version(name, version)
@@ -310,14 +349,31 @@ def write_model_card(card: ModelCard, path: str | Path) -> Path:
 
 
 def artifact_hash(model_path: str | Path) -> str:
-    """Hash of the serialised model, recorded so loading can verify it (ST-08)."""
+    """Hash of a logged model, recorded at registration and checked at every load (ST-08).
+
+    Every file of the MLflow model directory, by relative path and content, in a fixed order.
+    This used to hash the first `*.pkl` it found - and models are serialised with skops, as
+    `model.skops`, so it could only ever have raised. Nothing called it, which is why that was
+    never noticed: `model_versions.artifact_sha256` was NULL on all 19 rows.
+    """
+    import hashlib
+
     p = Path(model_path)
-    if p.is_dir():
-        pkl = next(iter(sorted(p.rglob("*.pkl"))), None)
-        if pkl is None:
-            raise RegistryError(f"no model file found under {p}")
-        return sha256_file(pkl)
-    return sha256_file(p)
+    files = sorted(f for f in p.rglob("*") if f.is_file()) if p.is_dir() else [p]
+    if not files:
+        raise RegistryError(f"no model files under {p}")
+    digest = hashlib.sha256()
+    for f in files:
+        rel = f.relative_to(p).as_posix() if p.is_dir() else f.name
+        digest.update(rel.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(sha256_file(f).encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+class ModelIntegrityError(RegistryError):
+    """The model about to be loaded is not the model that was registered."""
 
 
 def smoke_test_scores(

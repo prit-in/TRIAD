@@ -291,6 +291,11 @@ class ReportView(ApiModel):
     created_at: dt.datetime | None = None
 
 
+class AuditActionCount(ApiModel):
+    action: str
+    count: int
+
+
 class AuditEntryView(ApiModel):
     id: int
     ts: dt.datetime

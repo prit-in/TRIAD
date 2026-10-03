@@ -158,6 +158,16 @@ def run() -> Experiment:
         )
         setup.record("cutoffs", len(cutoffs))
 
+        # Pay the JVM launch once, before any measurement, and record it on its own. The first
+        # SparkSession in a process starts the JVM; every later one reuses it. This experiment
+        # used to measure the one-core arm's fixed cost on that first session - 8.57 s, the
+        # launch included - and subtract it from a *warm* run, while the other arms' fixed
+        # costs were warm (0.46 s, 0.24 s). Subtracting a cold start from a warm run understated
+        # one-core work, and reported a 1.301x speed-up from one core to two that the
+        # experiment's own raw timings put at about 1.74x.
+        setup.record("jvm_cold_start_s", round(_fixed_cost(1), 2), "s",
+                     note="the first session in the process, paid before any arm is measured")
+
         baseline_work: float | None = None
         baseline_wall = 0.0
         for cores in PARALLELISM:

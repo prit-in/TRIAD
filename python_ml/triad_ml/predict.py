@@ -143,6 +143,47 @@ class Explanations:
         }
 
 
+def _unwrap_calibration(model: Any) -> tuple[Any, bool]:
+    """The fitted pipeline inside calibration wrappers, and whether there were any.
+
+    A calibrated champion is a `CalibratedClassifierCV` around a `FrozenEstimator` around the
+    pipeline, so `explain` found no `named_steps`, SHAP could not read the wrapper, and the
+    permutation fallback returns global importance only: `predictions.top_reasons` was empty
+    on all 3 625 rows, high-risk customers included, which is the whole of FR-051.
+
+    Explaining the inner model is sound for the question FR-051 asks. Isotonic and sigmoid
+    calibration are monotone maps of the inner model's score, so which inputs pushed a
+    customer's score up or down, and in what order, is the same before and after them.
+    """
+    calibrated = False
+    for _ in range(4):
+        if hasattr(model, "calibrated_classifiers_"):
+            model = model.calibrated_classifiers_[0].estimator
+            calibrated = True
+        elif type(model).__name__ == "FrozenEstimator" and hasattr(model, "estimator"):
+            model = model.estimator
+        else:
+            break
+    return model, calibrated
+
+
+def _rows(matrix: Any) -> np.ndarray:
+    return np.asarray(matrix.toarray() if hasattr(matrix, "toarray") else matrix, dtype=float)
+
+
+def _top_contributions(
+    contributions: np.ndarray, names: list[str], k: int = 3
+) -> list[dict[str, Any]]:
+    top = np.argsort(-np.abs(contributions))[:k]
+    return [
+        {"feature": names[i] if i < len(names) else str(i),
+         "contribution": float(contributions[i]),
+         "direction": "raises" if contributions[i] > 0 else "lowers"}
+        for i in top
+        if contributions[i] != 0
+    ]
+
+
 def explain(
     model: Any,
     features: pd.DataFrame,
@@ -165,29 +206,43 @@ def explain(
         x = x.sample(n=sample, random_state=seed)
     ids = features.loc[x.index, id_col].astype(str).tolist() if id_col in features else []
 
-    estimator = model
+    base, calibrated = _unwrap_calibration(model)
+    of_base = " (of the uncalibrated model; calibration is a monotone map of its score)" \
+        if calibrated else ""
+
+    estimator = base
     transformed = x
     transformed_names = list(feature_cols)
-    if hasattr(model, "named_steps") and "prep" in getattr(model, "named_steps", {}):
-        prep = model.named_steps["prep"]
-        estimator = model.named_steps.get("clf", model)
+    if hasattr(base, "named_steps") and "prep" in getattr(base, "named_steps", {}):
+        prep = base.named_steps["prep"]
+        estimator = base.named_steps.get("clf", base)
         try:
             transformed = prep.transform(x)
             transformed_names = [str(n) for n in prep.get_feature_names_out()]
         except Exception:
             transformed, transformed_names = x, list(feature_cols)
 
-    # 1) linear coefficients
+    # 1) linear coefficients. For a linear model each input's share of the log-odds is
+    #    coefficient x transformed value, an exact additive decomposition - so per-customer
+    #    reasons cost nothing. This branch used to return the global coefficients only.
     if hasattr(estimator, "coef_"):
         coefs = np.ravel(estimator.coef_)
         order = np.argsort(-np.abs(coefs))[:top_k]
+        per_customer: dict[str, list[dict[str, Any]]] = {}
+        try:
+            contributions = _rows(transformed) * coefs
+            for row, ref in enumerate(ids):
+                per_customer[ref] = _top_contributions(contributions[row], transformed_names)
+        except Exception:
+            per_customer = {}
         return Explanations(
-            method="logistic regression coefficients (standardised inputs)",
+            method="logistic regression coefficients x standardised inputs" + of_base,
             global_importance=[
                 {"feature": transformed_names[i] if i < len(transformed_names) else str(i),
                  "value": float(coefs[i])}
                 for i in order
             ],
+            per_customer=per_customer,
         )
 
     # 2) SHAP for tree models
@@ -195,7 +250,7 @@ def explain(
         import shap
 
         explainer = shap.TreeExplainer(estimator)
-        values = explainer.shap_values(transformed)
+        values = explainer.shap_values(_rows(transformed))
         if isinstance(values, list):
             values = values[-1]
         values = np.asarray(values)
@@ -208,17 +263,11 @@ def explain(
              "value": float(mean_abs[i])}
             for i in order
         ]
-        per_customer: dict[str, list[dict[str, Any]]] = {}
-        for row, ref in enumerate(ids):
-            contributions = values[row]
-            top = np.argsort(-np.abs(contributions))[:3]
-            per_customer[ref] = [
-                {"feature": transformed_names[i] if i < len(transformed_names) else str(i),
-                 "contribution": float(contributions[i]),
-                 "direction": "raises" if contributions[i] > 0 else "lowers"}
-                for i in top
-            ]
-        return Explanations(method="SHAP (TreeExplainer)",
+        per_customer = {
+            ref: _top_contributions(values[row], transformed_names)
+            for row, ref in enumerate(ids)
+        }
+        return Explanations(method="SHAP (TreeExplainer)" + of_base,
                             global_importance=global_importance,
                             per_customer=per_customer)
     except Exception:

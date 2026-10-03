@@ -145,6 +145,7 @@ export const api = {
     request<Evaluation>(`/models/${modelRef}/versions/${versionId}/evaluation`),
   experiments: () => request<ExperimentResult[]>("/experiments"),
   auditLogs: (query = "") => request<AuditEntry[]>(`/audit-logs${query}`),
+  auditActions: () => request<AuditActionCount[]>("/audit-logs/actions"),
   chainStatus: () => request<ChainStatus>("/audit-logs/verify"),
   datasets: () => request<DatasetSummary[]>("/datasets"),
   datasetVersions: (ref: string) =>
@@ -187,6 +188,11 @@ export interface Evaluation {
     note: string;
     global: { feature: string; value: number }[];
   } | null;
+}
+
+export interface AuditActionCount {
+  action: string;
+  count: number;
 }
 
 export interface AuditEntry {

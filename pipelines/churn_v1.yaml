@@ -109,6 +109,18 @@ quality_gate:
   min_quality_score: 0.70
   max_cleaning_passes: 2
 
+triggers:                     # FR-074: what starts a run besides a person (agents/scheduler.py)
+  tick_every_seconds: 300     # how often the worker evaluates the schedule, drift and data triggers
+  watch:                      # data arrival: a file landing here registers a version and starts a run
+    - {dataset: transactions, folder: landing/transactions, pattern: "*.parquet"}
+
+validation:                   # PRD section 21.1, gates 5 and 6
+  fixture_tests: true         # gate 5: GeneratedJobsFixtureSpec on the generated object
+  dry_run: true               # gate 6: the job on a sample, in the sandbox, within its limit
+  dry_run_fraction: 0.01      # "(EX: 1% or 100,000 rows)": the sample is 1% of the input,
+  dry_run_min_rows: 1000      #   at least this many rows so a small input still exercises
+  dry_run_max_rows: 100000    #   every branch, and at most this many
+
 retraining:                   # PRD section 19; thresholds are examples, not laws
   cooldown_days: 7
   triggers: [RT-1, RT-2, RT-3, RT-4, RT-5, RT-6, RT-7, RT-8, RT-9]

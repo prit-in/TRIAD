@@ -106,6 +106,14 @@ class Worker:
         self.stopping = threading.Event()
         self._spark: Any = None
         self._last_reap = 0.0
+        self._last_schedule = 0.0
+        try:
+            from triad_core.config import load_yaml
+
+            self._triggers = load_yaml(cfg.pipeline_config_path).get("triggers") or {}
+        except Exception:
+            # No readable config means no automatic triggers, not a worker that cannot start.
+            self._triggers = {}
 
     # -- lifecycle -------------------------------------------------------------
     def install_signal_handlers(self) -> None:
@@ -150,6 +158,7 @@ class Worker:
         try:
             while not self.stopping.is_set():
                 self._reap_if_due()
+                self._schedule_if_due()
                 task = self._claim()
                 if task is None:
                     if max_tasks is not None and handled >= max_tasks:
@@ -170,6 +179,27 @@ class Worker:
         with session_scope() as session:
             return q.claim(session, owner=self.name, lease_seconds=self.lease_seconds)
 
+    def _schedule_if_due(self) -> None:
+        """FR-074: schedule, drift and data-arrival triggers, on the worker's own clock."""
+        every = float((self._triggers or {}).get("tick_every_seconds", 300))
+        now = time.monotonic()
+        if every <= 0 or now - self._last_schedule < every:
+            return
+        self._last_schedule = now
+        from agents.scheduler import Scheduler
+        from triad_core.config import load_yaml
+
+        try:
+            config = load_yaml(settings().pipeline_config_path)
+            with session_scope() as session:
+                outcome = Scheduler(config).tick(session)
+        except Exception:
+            # A failed tick must not stop the worker from running the tasks already queued.
+            log.exception("scheduler tick failed")
+            return
+        for key in outcome.retraining_queued + outcome.data_runs_queued:
+            log.info("trigger queued %s", key)
+
     def _reap_if_due(self) -> None:
         now = time.monotonic()
         if now - self._last_reap < REAP_EVERY_SECONDS:
@@ -177,8 +207,11 @@ class Worker:
         self._last_reap = now
         with session_scope() as session:
             reaped = q.reap_expired(session)
+            stranded = q.reap_stranded_runs(session)
         if reaped:
             log.warning("re-queued %d task(s) whose lease had expired", reaped)
+        if stranded:
+            log.warning("failed %d stranded run(s) that no task could advance", stranded)
 
     # -- one task --------------------------------------------------------------
     def handle(self, task: q.ClaimedTask) -> None:

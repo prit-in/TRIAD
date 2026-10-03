@@ -508,10 +508,18 @@ def test_an_export_is_audited_before_the_file_exists(client, users, db_session) 
     assert entry is not None and entry.details["rows"] == response.json()["rows"]
 
 
-def test_an_export_name_cannot_walk_out_of_its_directory(client, users) -> None:
-    response = client.get("/api/v1/exports/..%2F..%2Fetc%2Fpasswd",
-                          headers=_auth(users["business_analyst"]))
-    assert response.status_code in (400, 404)
+@pytest.mark.parametrize("name", ["..passwd", "..%5C..%5Cetc%5Cpasswd", "a..b.csv"])
+def test_an_export_name_cannot_walk_out_of_its_directory(client, users, name: str) -> None:
+    """The handler's own guard refuses it - asserted by its answer, not by any 4xx.
+
+    This used to request `..%2F..%2Fetc%2Fpasswd` and accept 400 *or 404*. Starlette decodes
+    `%2F` before routing, so that path had four segments and matched no route: the router
+    answered 404 before authentication or the handler ran, and the test passed with the guard
+    deleted. These names stay in one path segment, so they reach `download_export`.
+    """
+    response = client.get(f"/api/v1/exports/{name}", headers=_auth(users["business_analyst"]))
+    assert response.status_code == 400, response.text
+    assert "not an export name this API issued" in response.json()["detail"]
 
 
 def test_the_audit_chain_verifies_through_the_api(client, users) -> None:
@@ -915,3 +923,38 @@ def test_paging_does_not_skip_runs_that_share_a_timestamp(client, users, db_sess
         f"paging lost or repeated a tied row: {tied}"
     )
     assert len(seen) == len(set(seen)), f"paging repeated a row: {seen}"
+
+
+def test_an_upload_cannot_write_outside_its_landing_folder(
+    client, users, db_session, tmp_path, monkeypatch
+) -> None:
+    """ST-04, through the endpoint itself.
+
+    The first tests for this re-implemented the endpoint's basename expression and asserted on
+    the copy, so reverting the fix in datasets.py left all of them green. This one posts the
+    multipart upload a client would, with the filename that escaped before the fix, and looks
+    at where the bytes went.
+    """
+    import triad_core.storage as storage_module
+    from dataeng.ingest import DatasetRegistry
+
+    store = storage_module.Storage(tmp_path / "data")
+    monkeypatch.setattr(storage_module, "_default", store)
+    DatasetRegistry(db_session, store).register_source(
+        "upload_probe", entity_type="customer", source_type="csv"
+    )
+    db_session.flush()
+
+    # landing is <root>/uploads/upload_probe, so three levels up is tmp_path itself.
+    escaped = tmp_path / "escaped.csv"
+    response = client.post(
+        "/api/v1/datasets/upload_probe/upload",
+        headers=_auth(users["data_engineer"]),
+        files={"file": ("../../../escaped.csv", b"customer_id,country\nC1,IN\n", "text/csv")},
+    )
+
+    assert not escaped.exists(), "the upload was written outside the data root"
+    assert response.status_code in (200, 201, 422), response.text
+    landing = store.root / "uploads" / "upload_probe"
+    if response.status_code in (200, 201):
+        assert (landing / "escaped.csv").is_file(), "kept, under its basename, in the landing folder"

@@ -205,3 +205,67 @@ def run_hygiene(
         report.dropped.extend(corr_dropped)
 
     return report
+
+
+# --- what a training run applies (PRD 16.2) ------------------------------------------------
+#
+# `run_hygiene` above reports; these are what `churn.prepare` calls. They are split by *when*
+# each rule may run. H2, H3 and H7 judge a column by its name, so they run before the data is
+# split and they block training outright. H4 judges a column by its values, and the PRD is
+# specific that the judgement is made "in training": deciding it on all rows would let the
+# validation and test cutoffs vote on which features the model may see.
+#
+# Before these existed nothing that trains a model called any hygiene rule. `run_hygiene` had
+# tests and no production caller, and EXP-9 called `check_forbidden_features` to demonstrate
+# that it works - on its own data, in its own process.
+
+
+def load_catalog(path: str | Any) -> dict[str, dict[str, Any]]:
+    """The feature catalogue (`configs/feature_catalog.yaml`), keyed by feature name."""
+    from pathlib import Path
+
+    import yaml
+
+    data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    return {entry["name"]: entry for entry in data.get("features", [])}
+
+
+def catalog_version(path: str | Any | None = None) -> str:
+    """The feature catalogue's version, e.g. "fsv=2": what a model records it was trained on."""
+    from pathlib import Path
+
+    import yaml
+
+    source = Path(path) if path else Path(__file__).resolve().parents[2] / "configs" / "feature_catalog.yaml"
+    return str((yaml.safe_load(source.read_text(encoding="utf-8")) or {}).get("version", "fsv=1"))
+
+
+def check_feature_names(
+    feature_cols: list[str], catalog: dict[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """H2, H3 and H7. Any violation means the feature table may not be trained on.
+
+    H7 accepts only entries whose status is `implemented`: a column the catalogue marks
+    `unavailable` or `evaluation_only` turning up as a feature is itself the defect, exactly
+    like one with no entry at all.
+    """
+    violations = check_forbidden_features(feature_cols)
+    trainable = {name for name, e in catalog.items() if e.get("status") == "implemented"}
+    unlisted = sorted(c for c in feature_cols if c not in trainable)
+    if unlisted:
+        violations.append({
+            "rule": "H7",
+            "reason": "columns with no `implemented` catalogue entry may not be features",
+            "columns": unlisted,
+        })
+    return violations
+
+
+def degenerate_in_training(train: pd.DataFrame, feature_cols: list[str]) -> dict[str, str]:
+    """H4 on the training rows only: column -> why it was dropped."""
+    _, reasons = drop_degenerate_features(train, feature_cols)
+    dropped: dict[str, str] = {}
+    for reason in reasons:
+        name, _, why = reason.partition(": ")
+        dropped[name] = why
+    return dropped

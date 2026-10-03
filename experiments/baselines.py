@@ -70,6 +70,9 @@ class BaselineResult:
     human_actions: int = 0
     llm_calls: int = 0
     peak_rss_mb: float | None = None
+    # The Spark JVM's own peak resident set (VmHWM). Spark's memory lives in a separate
+    # process, so the Python process's figure never included it.
+    jvm_peak_rss_mb: float | None = None
     detail: str = ""
     per_stage_s: dict[str, float] | None = None
 
@@ -88,13 +91,20 @@ class BaselineResult:
             "human_actions": self.human_actions,
             "llm_calls": self.llm_calls,
             "peak_rss_mb": self.peak_rss_mb,
+            "jvm_peak_rss_mb": self.jvm_peak_rss_mb,
             "detail": self.detail,
             "per_stage_s": self.per_stage_s or {},
         }
 
 
 def peak_rss_mb() -> float | None:
-    """Peak resident set size of this process, in MB, or None where it cannot be read."""
+    """Peak resident set size of this process, in MB, or None where it cannot be read.
+
+    A high-water mark for the **whole life of the process**: it never goes down. Read inside a
+    long experiment it reports whatever was largest earlier - the data generator, or an earlier
+    arm - so it is only a measurement of one baseline when that baseline ran in a process of
+    its own. `run_isolated` gives it one.
+    """
     try:
         import resource
 
@@ -177,3 +187,43 @@ def fit_and_select(
         if len(np.unique(y_test)) > 1 else None,
         "test_brier": round(float(brier_score_loss(y_test, test_scores)), 4),
     }
+
+
+
+# --- measuring one baseline at a time ----------------------------------------------------------
+
+
+def jvm_peak_rss_mb(spark: Any) -> float | None:
+    """The Spark JVM's peak resident set (Linux VmHWM), read before the session stops."""
+    try:
+        pid = spark.sparkContext._gateway.proc.pid
+        with open(f"/proc/{pid}/status", encoding="ascii") as status:
+            for line in status:
+                if line.startswith("VmHWM:"):
+                    return round(int(line.split()[1]) / 1024.0, 1)
+    except Exception:
+        return None
+    return None
+
+
+def _call(target: str, kwargs: dict[str, Any]) -> Any:
+    import importlib
+
+    module, _, name = target.partition(":")
+    return getattr(importlib.import_module(module), name)(**kwargs)
+
+
+def run_isolated(target: str, /, **kwargs: Any) -> Any:
+    """Run `module:function(**kwargs)` in a freshly spawned interpreter and return its result.
+
+    EXP-1 and EXP-2 read `peak_rss_mb` in the experiment's own process, after the generator and
+    the other arms had run, so B3's figure was B2's high-water mark or the generator's, and
+    Spark's memory was not in it at all. A spawned process starts with nothing, so the mark it
+    reports is this baseline's own; the timings are taken inside the call, so the cost of
+    spawning is not in them.
+    """
+    import concurrent.futures as cf
+    import multiprocessing as mp
+
+    with cf.ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context("spawn")) as pool:
+        return pool.submit(_call, target, kwargs).result()

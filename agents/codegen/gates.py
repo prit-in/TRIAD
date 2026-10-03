@@ -324,8 +324,59 @@ def gate4_explain_sql(sql: str, spark: Any) -> GateResult:
 # --- gate 5: fixture tests -----------------------------------------------------
 
 
-def gate5_fixture_tests(*, timeout: int = 3600, sbt_home: str | None = None) -> GateResult:
+def fixture_key(objects: list[str]) -> str:
+    """Everything a gate-5 result depends on, as one hash.
+
+    The generated objects' sources, the `core` library their slots call, the fixtures, and the
+    build file. Keying on the generated source alone would be unsound: the slot calls
+    `ChurnTransforms`, and a change there changes what the same slot computes.
+    """
+    import hashlib
+
+    generated = SCALA_ROOT / "jobs" / "src" / "main" / "scala" / "triad" / "jobs" / "generated"
+    files = sorted(
+        [*(SCALA_ROOT / "core" / "src").rglob("*.scala"),
+         *(SCALA_ROOT / "jobs" / "src" / "test").rglob("*.scala"),
+         SCALA_ROOT / "build.sbt"]
+    ) + [generated / f"{name.rsplit('.', 1)[-1]}.scala" for name in sorted(objects)]
+    digest = hashlib.sha256()
+    for f in files:
+        digest.update(f.relative_to(SCALA_ROOT).as_posix().encode("utf-8"))
+        digest.update(f.read_bytes() if f.exists() else b"<missing>")
+    return digest.hexdigest()
+
+
+def gate5_fixture_tests(
+    objects: list[str],
+    *,
+    timeout: int = 1800,
+    sbt_home: str | None = None,
+    cache_dir: Path | None = None,
+) -> GateResult:
+    """Run the generated objects through `GeneratedJobsFixtureSpec` (PRD 21.1, gate 5).
+
+    Fixture tests on small, hand-checked data with a local SparkSession - for the generated
+    object itself, named in `TRIAD_GENERATED_OBJECTS`, not for the library it calls. This gate
+    used to run `sbt core/test`, which tests the building blocks a slot composes and cannot
+    see the composition, and nothing called it: seven of the nine gates ran.
+    """
+    import json
+    import os
+    import re
     import time
+
+    # FR-083's rule applied to a gate: the same code, library and fixtures give the same result,
+    # so a pass recorded under the same key is reused rather than repeated. In template-only
+    # mode the generated source is identical run after run, and the fixtures take minutes.
+    key = fixture_key(objects)
+    record = (cache_dir / f"{key}.json") if cache_dir is not None else None
+    if record is not None and record.exists():
+        stored = json.loads(record.read_text(encoding="utf-8"))
+        return GateResult(
+            5, "fixture_tests", True,
+            f"reused: these exact sources, library and fixtures passed {stored['tests']} fixture "
+            f"test(s) on {stored['at']} (key {key[:12]})",
+        )
 
     started = time.perf_counter()
     sbt = Path(sbt_home or "/opt/sbt") / "bin" / "sbt"
@@ -333,16 +384,40 @@ def gate5_fixture_tests(*, timeout: int = 3600, sbt_home: str | None = None) -> 
         return GateResult(5, "fixture_tests", False, "sbt is not available",
                           error_class=ErrorClass.UNKNOWN)
     proc = subprocess.run(
-        [str(sbt), "-batch", "core/test"],
+        [str(sbt), "-batch", "-Dsbt.color=false",
+         "jobs/testOnly triad.jobs.GeneratedJobsFixtureSpec"],
         cwd=SCALA_ROOT, capture_output=True, text=True, timeout=timeout,
+        env={**os.environ, "TRIAD_GENERATED_OBJECTS": ",".join(objects)},
     )
     duration = int((time.perf_counter() - started) * 1000)
-    if proc.returncode == 0:
-        return GateResult(5, "fixture_tests", True, "all fixture tests passed",
+    output = proc.stdout + proc.stderr
+
+    ran = re.search(r"Tests: succeeded (\d+), failed (\d+)", output)
+    succeeded, failed = (int(ran.group(1)), int(ran.group(2))) if ran else (0, 0)
+    if proc.returncode == 0 and succeeded > 0 and failed == 0:
+        if record is not None:
+            from triad_core.ids import utcnow
+
+            record.parent.mkdir(parents=True, exist_ok=True)
+            record.write_text(json.dumps({"tests": succeeded, "objects": objects,
+                                          "at": utcnow().isoformat()}), encoding="utf-8")
+        return GateResult(5, "fixture_tests", True,
+                          f"{succeeded} fixture test(s) passed for {', '.join(objects)} "
+                          f"(key {key[:12]})",
                           duration_ms=duration)
+    if proc.returncode == 0:
+        # Exit 0 with nothing run is not a pass: an ignored or empty suite proves nothing.
+        return GateResult(5, "fixture_tests", False,
+                          f"no fixture test ran for {', '.join(objects)}",
+                          error_class=ErrorClass.CONTRACT_VIOLATION, duration_ms=duration)
+    # A failed assertion is the generated code producing the wrong values on hand-checked
+    # data, which regeneration can fix. Anything else - a download, a JVM that would not start
+    # - is left to the classifier to read from the output, the lesson gate 4 taught (DEC-20).
+    tests_failed = failed > 0 or "*** FAILED ***" in output
     return GateResult(
-        5, "fixture_tests", False, (proc.stdout + proc.stderr)[-4000:],
-        error_class=ErrorClass.CONTRACT_VIOLATION, duration_ms=duration,
+        5, "fixture_tests", False, output[-4000:],
+        error_class=ErrorClass.CONTRACT_VIOLATION if tests_failed else None,
+        duration_ms=duration,
     )
 
 
@@ -350,11 +425,17 @@ def gate5_fixture_tests(*, timeout: int = 3600, sbt_home: str | None = None) -> 
 
 
 def gate6_dry_run(result: dict[str, Any]) -> GateResult:
+    """Record a sandbox dry run on a sample (PRD 21.1, gate 6): it must complete in its limit.
+
+    The error class is left to the classifier unless the run produced a structured job error,
+    for the same reason as gates 4 and 5: the output says what went wrong, the gate does not.
+    """
     ok = bool(result.get("ok"))
     return GateResult(
         6, "sandbox_dry_run", ok,
         result.get("detail", "dry run on a sample completed" if ok else "dry run failed"),
-        error_class=None if ok else ErrorClass.CONTRACT_VIOLATION,
+        error_class=None,
+        duration_ms=int(result.get("duration_ms") or 0),
     )
 
 

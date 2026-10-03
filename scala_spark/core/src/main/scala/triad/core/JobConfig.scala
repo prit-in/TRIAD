@@ -169,4 +169,17 @@ object Inputs {
 
   /** Test helper: build Inputs directly from DataFrames. */
   def of(pairs: (String, DataFrame)*): Inputs = new Inputs(pairs.toMap)
+
+  /**
+   * The first `maxRows` rows of every input, for a sandbox dry run (gate 6, PRD 21.1).
+   *
+   * Not a random sample, deliberately: computing a sampling fraction needs a full count of
+   * the input, which is a scan of the very data a dry run exists to avoid reading. The dry
+   * run's job is to fail fast on anything that fails at all - a cast that throws, a column
+   * that does not resolve, a plan that does not finish - not to estimate the full output.
+   */
+  def limited(in: Inputs, maxRows: Long): Inputs = {
+    val n = math.max(1L, math.min(maxRows, Int.MaxValue.toLong)).toInt
+    new Inputs(in.frames.map { case (name, df) => name -> df.limit(n) })
+  }
 }

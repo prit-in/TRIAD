@@ -16,6 +16,13 @@ export function Predictions() {
   const models = useLoad<ModelSummary[]>(() => api.models());
   const champion = models.data?.find((m) => m.champion)?.champion ?? null;
   const selected = version || champion?.id || "";
+  // The version whose scores are on screen. The caption used to read the champion's algorithm
+  // and feature set whatever was selected, so a challenger's random-forest scores were
+  // captioned "logreg".
+  const shownVersion =
+    (models.data ?? [])
+      .flatMap((m) => [m.champion, m.challenger])
+      .find((v) => v !== null && v.id === selected) ?? null;
 
   const scores = useLoad(
     () =>
@@ -65,11 +72,11 @@ export function Predictions() {
           </>
         }
       >
-        {champion && (
+        {shownVersion && (
           <p className="muted">
-            Showing {selected === champion.id ? "the champion" : "a selected version"}:{" "}
-            {champion.algorithm}, scored with feature set{" "}
-            {champion.feature_set_version ?? "unrecorded"}.
+            Showing {shownVersion.id === champion?.id ? "the champion" : "a selected version"}:{" "}
+            {shownVersion.algorithm}, scored with feature set{" "}
+            {shownVersion.feature_set_version ?? "unrecorded"}.
           </p>
         )}
         {/* A Viewer is served aggregates by the server, so this branch is not a UI choice:

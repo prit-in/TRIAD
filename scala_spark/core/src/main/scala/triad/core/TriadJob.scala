@@ -42,11 +42,18 @@ trait TriadJob {
     val started = System.nanoTime()
     var metrics = Map.empty[String, String]
 
+    // Gate 6 (PRD 21.1) submits the same job with `--param=dry_run_rows=N`: each input is
+    // cut to N rows before `transform` sees it, so the generated code runs end to end on a
+    // sample, in the sandbox, against the same profile time limit as the full run.
+    val dryRunRows = cfg.param("dry_run_rows").map(_.toLong)
+
     val result = Try {
-      val inputs = Inputs.read(spark, cfg)
+      val read = Inputs.read(spark, cfg)
+      val inputs = dryRunRows.map(n => Inputs.limited(read, n)).getOrElse(read)
       val out = transform(spark, inputs, cfg)
       val validated = OutputValidator.validate(out, requiredOutputColumns, outputGrain, cfg)
-      metrics = validated.metrics ++ jobMetrics
+      metrics = validated.metrics ++ jobMetrics ++
+        dryRunRows.map(n => Map("dry_run_rows" -> n.toString)).getOrElse(Map.empty)
       OutputWriter.writeStaging(validated.df, cfg)
       validated
     }

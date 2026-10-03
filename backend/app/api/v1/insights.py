@@ -20,6 +20,7 @@ from sqlalchemy import func, select
 from backend.app import problems
 from backend.app.deps import CurrentUser, DbSession, require_roles
 from backend.app.schemas import (
+    AuditActionCount,
     AuditEntryView,
     ChainStatus,
     DriftReportView,
@@ -302,9 +303,21 @@ def search_audit(
     actor_id: str | None = Query(default=None),
     run_id: uuid.UUID | None = Query(default=None),
     since: dt.datetime | None = Query(default=None),
+    until: dt.datetime | None = Query(default=None),
+    before_id: int | None = Query(default=None, ge=1),
     limit: int = Query(default=100, ge=1, le=500),
 ) -> list[AuditEntryView]:
+    """Newest first. `before_id` pages backwards; `since` and `until` bound a period.
+
+    The trail used to be reachable only from the newest end: `since` is a lower bound on a
+    newest-first query, so asking for "on or after 2026-09-18" returned the same 200 rows as
+    asking for nothing, and the 763 entries from 18 and 19 September could not be read.
+    """
     stmt = select(AuditLog).order_by(AuditLog.id.desc()).limit(limit)
+    if before_id is not None:
+        stmt = stmt.where(AuditLog.id < before_id)
+    if until:
+        stmt = stmt.where(AuditLog.ts < until)
     if action:
         stmt = stmt.where(AuditLog.action == action)
     if actor_id:
@@ -314,6 +327,22 @@ def search_audit(
     if since:
         stmt = stmt.where(AuditLog.ts >= since)
     return [AuditEntryView.model_validate(r) for r in session.execute(stmt).scalars()]
+
+
+@router.get(
+    "/audit-logs/actions",
+    response_model=list[AuditActionCount],
+    summary="Every action the trail holds, with how many entries each",
+    dependencies=[Depends(require_roles(ADMIN))],
+)
+def audit_actions(session: DbSession) -> list[AuditActionCount]:
+    """What the action filter offers. Built from the newest page alone, it offered 17 of the 30
+    actions the trail held - including none of the six `approval.self_approval_refused`
+    entries, the refusals an auditor most wants to find."""
+    rows = session.execute(
+        select(AuditLog.action, func.count()).group_by(AuditLog.action).order_by(AuditLog.action)
+    ).all()
+    return [AuditActionCount(action=action, count=int(count)) for action, count in rows]
 
 
 @router.get(

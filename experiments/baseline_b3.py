@@ -237,3 +237,35 @@ def source_lines() -> int:
         1 for line in Path(__file__).read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.strip().startswith("#")
     )
+
+
+
+def run_with_own_session(
+    root: Path,
+    cutoffs: dict[str, list[pd.Timestamp]],
+    *,
+    seed: int = 42,
+    cores: int = 2,
+    driver_memory: str = "1500m",
+) -> BaselineResult:
+    """B3 in a SparkSession of its own, for `run_isolated`: start, run, read the JVM's peak, stop."""
+    from pyspark.sql import SparkSession
+
+    from experiments.baselines import jvm_peak_rss_mb
+
+    spark = (
+        SparkSession.builder.appName("triad-b3-isolated")
+        .master(f"local[{cores}]")
+        .config("spark.sql.ansi.enabled", "true")
+        .config("spark.sql.session.timeZone", "UTC")
+        .config("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
+        .config("spark.ui.enabled", "false")
+        .config("spark.driver.memory", driver_memory)
+        .getOrCreate()
+    )
+    try:
+        result = run(spark, root, cutoffs, seed=seed)
+        result.jvm_peak_rss_mb = jvm_peak_rss_mb(spark)
+        return result
+    finally:
+        spark.stop()

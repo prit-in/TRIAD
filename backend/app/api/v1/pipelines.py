@@ -53,7 +53,7 @@ from triad_core.models import (
 router = APIRouter(tags=["pipelines"])
 
 STARTER_ROLES = (DATA_ENGINEER, DATA_SCIENTIST, ML_ENGINEER)
-FINISHED_STATES = {"COMPLETED", "PUBLISHED", "ABORTED", "CANCELLED", "REJECTED_INPUT"}
+FINISHED_STATES = {"COMPLETED", "PUBLISHED", "ABORTED", "CANCELLED", "REJECTED_INPUT", "FAILED"}
 
 
 def _find_run(session: DbSession, run_ref: str) -> PipelineRun:

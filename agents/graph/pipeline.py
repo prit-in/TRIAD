@@ -11,6 +11,9 @@ PySpark query or a Python trainer.
 from __future__ import annotations
 
 import json
+import math
+import shutil
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -156,7 +159,18 @@ class ChurnPipeline:
         )
 
     def _advance(self, state: str, *, stage: str | None = None, reason: str | None = None) -> None:
+        """Move the run to `state` and **commit**, so the transition is a checkpoint (FR-073).
+
+        The worker runs a whole phase inside one `session_scope`, and nothing in the pipeline
+        committed, so for the twelve-odd minutes of `churn.prepare` the API and the event
+        stream saw the run sitting in RECEIVED and then every stage at once; and a worker that
+        died at minute eleven rolled back every audit entry, decision record and execution of
+        the attempt while the files it had written stayed on disk. Committing here also
+        releases the run chain's advisory lock at each step instead of holding it for the
+        whole phase.
+        """
         q.set_state(self.session, self.run, state, stage=stage, error_summary=reason)
+        self.session.commit()
         self.result.state = state
 
     def _persist_budget(self) -> None:
@@ -290,9 +304,23 @@ class ChurnPipeline:
             language="scala",
         )
 
-    def _validate_scala(self, artifact: RenderedArtifact, template_id: str) -> G.GateReport:
+    def _validate_scala(
+        self,
+        artifact: RenderedArtifact,
+        template_id: str,
+        *,
+        dry_run: Callable[[], dict[str, Any]] | None = None,
+    ) -> G.GateReport:
+        """Gates 1-6 and 8, in order, each only when every earlier gate passed.
+
+        Gates 5 and 6 ran nowhere until FR-055 was audited: the functions existed, and the
+        PRD's own viva answer names all nine gates. Gate 5 runs the generated object through
+        hand-checked fixtures; gate 6 submits the same job on a sample, in the sandbox, against
+        the same time limit. Gates 7 and 9 are decided by the execution itself (stages.py).
+        """
         report = G.GateReport()
         template = self.templates[template_id]
+        checks = self.config.get("validation", {})
 
         report.add(
             G.gate1_structured_output(
@@ -309,6 +337,13 @@ class ChurnPipeline:
         report.add(G.gate3_dependencies(artifact, G.build_file_hashes(), []))
         if report.passed:
             report.add(G.gate4_compile())
+        if report.passed and checks.get("fixture_tests", True):
+            report.add(G.gate5_fixture_tests(
+                [f"triad.jobs.generated.{artifact.object_name}"],
+                cache_dir=self.storage.root / "cache" / "gate5",
+            ))
+        if report.passed and dry_run is not None and checks.get("dry_run", True):
+            report.add(G.gate6_dry_run(dry_run()))
         # Gate 8 records what `_store_artifact` already did: the source is in content-addressed
         # storage under the hash the row carries, which is what `_replay_scala` checks against
         # before reusing it. The check was being performed and never recorded as a gate, so a
@@ -512,8 +547,72 @@ class ChurnPipeline:
                 },
             }
 
+        def dry_run(artifact):
+            """Gate 6: the same job and arguments, on the first N rows of each input, writing
+            to a throwaway staging folder, through the same registry call as the real run."""
+            cfg = self.config.get("validation", {})
+            rows = int(min(
+                cfg.get("dry_run_max_rows", 100_000),
+                max(cfg.get("dry_run_min_rows", 1_000),
+                    math.ceil(cfg.get("dry_run_fraction", 0.01) * max(input_rows, 0))),
+            ))
+            scratch = self.storage.staging_dir(self.run.run_key, f"{stage}-dryrun")
+            dry_report = self.storage.sandbox_dir(self.run.run_key) / f"{stage}_dryrun_report.json"
+            replaced = ("--output=", "--staging=", "--report=", "--quarantine=")
+            job_args = [a for a in artifact["job_args"] if not a.startswith(replaced)] + [
+                f"--output=file://{scratch}",
+                f"--staging=file://{scratch}",
+                f"--report={dry_report}",
+                f"--param=dry_run_rows={rows}",
+            ]
+            if quarantine_dir is not None:
+                job_args.append(f"--quarantine=file://{scratch}-quarantine")
+            jar = _newest_jar(SCALA_ROOT / "jobs" / "target" / "scala-2.13")
+            core_jar = _newest_jar(SCALA_ROOT / "core" / "target" / "scala-2.13")
+            if jar is None or core_jar is None:
+                return {"ok": False, "detail": "no packaged JAR to dry-run"}
+            call = self._call_tool(
+                "spark.submit_job",
+                "code_generation",
+                {
+                    "run_key": self.run.run_key,
+                    "stage": f"{stage}-dryrun",
+                    "jar": str(jar),
+                    "core_jar": str(core_jar),
+                    "main_class": main_class
+                    or f"triad.jobs.generated.{artifact['artifact'].object_name}",
+                    "job_args": job_args,
+                    "master": self.config.get("spark_master", "local[2]"),
+                    "profile": artifact["resources"]["profile"],
+                    "driver_memory": artifact["resources"]["driver_memory"],
+                },
+                sandbox=self.sandbox,
+                policy_context={"profile": artifact["resources"]["profile"]},
+            )
+            try:
+                if not call.ok:
+                    return {"ok": False, "detail": f"{call.error_code}: {call.error}"}
+                result = call.value
+                status = None
+                if dry_report.exists():
+                    status = json.loads(dry_report.read_text(encoding="utf-8")).get("status")
+                ok = bool(result["ok"]) and status == "succeeded"
+                detail = (
+                    f"completed on a {rows}-row sample in {result['duration_ms']} ms"
+                    if ok
+                    else _structured_error(result["stdout"] + result["stderr"])
+                    or f"dry run ended with status {status!r}"
+                )
+                return {"ok": ok, "detail": detail, "duration_ms": result["duration_ms"]}
+            finally:
+                # The sample's output proves only that the job ran; it is not kept.
+                for leftover in (scratch, Path(f"{scratch}-quarantine")):
+                    shutil.rmtree(leftover, ignore_errors=True)
+
         def validate(artifact):
-            return self._validate_scala(artifact["artifact"], template_id)
+            return self._validate_scala(
+                artifact["artifact"], template_id, dry_run=lambda: dry_run(artifact)
+            )
 
         def execute(artifact):
             jar = _newest_jar(SCALA_ROOT / "jobs" / "target" / "scala-2.13")
@@ -727,6 +826,7 @@ class ChurnPipeline:
             outcome=state,
             details={"ok": ok, "reason": reason[:500], "budget": self.budget.to_dict()},
         )
+        self.session.commit()
         return self.result
 
 

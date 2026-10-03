@@ -19,12 +19,14 @@ import datetime as dt
 import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from agents.graph.pipeline import ChurnPipeline
 from agents.monitoring import MonitoringService, jsonable
+from python_ml.triad_ml.hygiene import catalog_version
 from triad_core.config import settings
 from triad_core.ids import utcnow
 from triad_core.models import Experiment, ModelVersion, PipelineRun
@@ -40,6 +42,16 @@ MODEL_NAME = "churn_classifier"
 # the model never trains on them. A segment check asks whether a model built from *behaviour*
 # treats groups differently; a model handed `country` as an input answers a different question.
 SEGMENT_ATTRIBUTES = ("country", "loyalty_tier", "acquisition_channel")
+
+# Feature sources beyond transactions, passed to the feature job when the run has them.
+FEATURE_SOURCES = ("products", "returns", "web_sessions", "support_tickets")
+
+FEATURE_CATALOG = Path(__file__).resolve().parents[2] / "configs" / "feature_catalog.yaml"
+
+
+# The version every model records it was trained on. It was the literal "fsv=1" in three
+# places, so RT-7 (a catalogue change makes the champion stale) could never fire.
+FEATURE_SET_VERSION = catalog_version(FEATURE_CATALOG)
 
 
 def _noop(step: str, message: str, ok: bool | None = None) -> None:
@@ -137,7 +149,9 @@ def _lock_pipeline(session: Session, pipeline_name: str) -> None:
     )
 
 
-def _champion_scores(split: Any, feature_cols: list[str]) -> tuple[Any, str]:
+def _champion_scores(
+    split: Any, feature_cols: list[str], *, expected_sha256: str | None = None
+) -> tuple[Any, str]:
     """The deployed champion's probabilities on this run's test cutoff.
 
     Three outcomes, kept distinct on purpose:
@@ -161,7 +175,7 @@ def _champion_scores(split: Any, feature_cols: list[str]) -> tuple[Any, str]:
         return None, "no champion yet: this challenger is compared against the floor only"
 
     try:
-        champion = registry.load(MODEL_NAME, "champion")
+        champion = registry.load(MODEL_NAME, "champion", expected_sha256=expected_sha256)
         return champion.predict_proba(split.test[feature_cols])[:, 1], (
             f"champion v{current.version} scored on the same test cutoff"
         )
@@ -170,6 +184,24 @@ def _champion_scores(split: Any, feature_cols: list[str]) -> tuple[Any, str]:
             f"could not score champion v{current.version} on this test set ({exc}); "
             "AP-8 cannot be evaluated, so the promotion is not proposed"
         )
+
+
+def _champion_hash(session: Session) -> str | None:
+    """The catalogue's record of the champion's artifact hash, for a verified load (ST-08).
+
+    It is read from PostgreSQL, not from MLflow, so the expectation and the artifact do not
+    live in the same store: rewriting a model in the artifact store cannot also rewrite the
+    hash it is checked against.
+    """
+    from sqlalchemy import select
+
+    from triad_core.models import Model
+
+    model = session.execute(select(Model).where(Model.name == MODEL_NAME)).scalars().first()
+    if model is None or model.champion_version_id is None:
+        return None
+    version = session.get(ModelVersion, model.champion_version_id)
+    return version.artifact_sha256 if version is not None else None
 
 
 def _month_start_on_or_after(day: dt.date) -> dt.date:
@@ -204,7 +236,7 @@ def prepare(
     from python_ml.triad_ml.candidates import shortlist, split_feature_types
     from python_ml.triad_ml.registry import ModelCard, write_model_card
     from python_ml.triad_ml.splits import apply_split, plan_split
-    from python_ml.triad_ml.train import select_model, train_all
+    from python_ml.triad_ml.train import LABEL, select_model, train_all
     from triad_core.governance import EvidenceBundle
     from triad_core.parquet_io import estimate_in_memory_bytes, read_parquet
 
@@ -268,10 +300,16 @@ def prepare(
                 f"data ends {window['data_end']}", True)
 
     # -- features and labels ----------------------------------------------------
+    # Optional sources are passed only when they exist: an empty URI is not "absent", it is a
+    # path Spark fails to read. Which groups computed is recorded from the job's own metrics.
+    feature_inputs = {"transactions": clean_out["uri"]}
+    for source in FEATURE_SOURCES:
+        if inputs.get(source):
+            feature_inputs[source] = inputs[source]
     features_out = pipeline.stage_scala_job(
         stage="features",
         template_id="FeatureJob",
-        inputs={"transactions": clean_out["uri"], "products": inputs.get("products", "")},
+        inputs=feature_inputs,
         output_dir=store.features_dir("churn_features", 1),
         params={"max_window_days": 365, **window},
         partition_by=["snapshot_date"],
@@ -283,6 +321,13 @@ def prepare(
         return PhaseResult(False, "ESCALATED", "feature job failed",
                            {"escalation": pipeline.result.escalation})
     say("features", f"{features_out.get('row_count')} customer-snapshot rows", True)
+    availability = {
+        key.removeprefix("feature_group_"): value
+        for key, value in (features_out.get("job_metrics") or {}).items()
+        if key.startswith("feature_group_")
+    }
+    say("features", "groups: " + ", ".join(f"{k} {v}" for k, v in sorted(availability.items())),
+        True)
 
     labels_out = pipeline.stage_scala_job(
         stage="labels",
@@ -340,6 +385,33 @@ def prepare(
         return PhaseResult(False, "ESCALATED",
                            "features and labels produced no joined rows")
 
+    # -- feature hygiene (PRD 16.2) ----------------------------------------------
+    # Nothing that trains a model used to apply any hygiene rule: `run_hygiene` had tests and
+    # no production caller. Names are judged here, before the split, and stop the run.
+    from python_ml.triad_ml.hygiene import (
+        check_feature_names,
+        degenerate_in_training,
+        load_catalog,
+    )
+
+    candidate_features = [
+        c for c in dataset.columns
+        if c not in {"customer_id", "snapshot_date", LABEL, *segment_columns}
+    ]
+    violations = check_feature_names(candidate_features, load_catalog(FEATURE_CATALOG))
+    if violations:
+        reason = "feature hygiene refused the feature table: " + "; ".join(
+            f"{v['rule']} {v.get('column') or v.get('columns')}" for v in violations
+        )
+        pipeline.runner.record_decision(
+            agent="model_selection", decision_type="hygiene",
+            decision="block training", summary=reason[:500],
+            evidence=jsonable({"violations": violations, "availability": availability}),
+            policy_rules=sorted({v["rule"] for v in violations}), outcome="escalated",
+        )
+        pipeline.finish("ESCALATED", ok=False, reason=reason)
+        return PhaseResult(False, "ESCALATED", reason, {"hygiene": violations})
+
     # -- train and select -------------------------------------------------------
     pipeline._advance("TRAINING", stage="train")
     spec = plan_split(sorted(dataset.snapshot_date.unique()), horizon_days=90)
@@ -347,6 +419,20 @@ def prepare(
     # The segment attributes stay in the frames - `segment_metrics` groups by them - and the
     # split carries the fact that they are not features, so every training call excludes them.
     split.evaluation_only_cols = tuple(segment_columns)
+    dropped = degenerate_in_training(split.train, candidate_features)
+    split.hygiene_dropped_cols = tuple(sorted(dropped))
+    pipeline.runner.record_decision(
+        agent="model_selection", decision_type="hygiene",
+        decision=f"train on {len(candidate_features) - len(dropped)} features; "
+                 f"{len(dropped)} dropped by H4",
+        summary="H2, H3 and H7 passed on the feature names; H4 judged on the training rows only",
+        evidence=jsonable({"dropped": dropped, "availability": availability,
+                           "features": len(candidate_features)}),
+        policy_rules=["H2", "H3", "H4", "H7"],
+        alternatives=[{"feature": name, "reason": why} for name, why in sorted(dropped.items())],
+    )
+    say("hygiene", f"{len(candidate_features) - len(dropped)} features kept"
+                   + (f"; H4 dropped {', '.join(sorted(dropped))}" if dropped else ""), True)
     say("split", f"train {len(split.train)} / valid {len(split.valid)} / "
                  f"test {len(split.test)}; churn rate "
                  f"{split.class_balance.get('valid', float('nan')):.3f}", True)
@@ -363,11 +449,11 @@ def prepare(
     # AP-8 is a comparison against the champion on the *same* test cutoff. Without the
     # champion's scores every run would silently behave as if it were the first one, and the
     # rule that a challenger must beat what is deployed would never actually apply.
-    num_cols, cat_cols = split_feature_types(
-        split.train, exclude=split.evaluation_only_cols
-    )
+    num_cols, cat_cols = split_feature_types(split.train, exclude=split.excluded_cols)
     feature_cols = num_cols + cat_cols
-    champion_scores, champion_note = _champion_scores(split, feature_cols)
+    champion_scores, champion_note = _champion_scores(
+        split, feature_cols, expected_sha256=_champion_hash(session)
+    )
     if champion_note:
         say("compare", champion_note, champion_scores is not None)
     if champion_scores is None and champion_note.startswith("could not"):
@@ -477,6 +563,7 @@ def prepare(
     say("segments", f"{len(segment_metrics_out)} segment metric set(s) recorded", True)
     mlflow_version: str | None = None
     mlflow_experiment_id: str | None = None
+    artifact_sha256: str | None = None
     registry_error = ""
     try:
         from python_ml.triad_ml.registry import ModelRegistry
@@ -490,11 +577,12 @@ def prepare(
                     **selection.selected.candidate.params},
             metrics=dict(selection.test_metrics.values or {}),
             input_example=split.valid[num_cols + cat_cols].head(2),
-            tags={"run_key": run.run_key, "feature_set_version": "fsv=1",
+            tags={"run_key": run.run_key, "feature_set_version": FEATURE_SET_VERSION,
                   "split": json.dumps(spec.to_dict())},
             register_as=MODEL_NAME,
         )
         mlflow_version = registered.version if registered else None
+        artifact_sha256 = registered.artifact_sha256 if registered else None
         if mlflow_version:
             registry.set_challenger(MODEL_NAME, mlflow_version)
             say("registry", f"registered {MODEL_NAME} v{mlflow_version} as challenger", True)
@@ -645,9 +733,13 @@ def prepare(
     model_version = monitor.register_model_version(
         catalogue_model, run=run, algorithm=selection.selected.family,
         mlflow_version=mlflow_version, params=selection.selected.candidate.params,
-        feature_set_version="fsv=1", training_data_ref=features_out["uri"],
+        feature_set_version=FEATURE_SET_VERSION, training_data_ref=features_out["uri"],
         threshold=threshold,
         governance_status="challenger" if mlflow_version else "candidate",
+        # Both were computed and then left out of the row: the card was written to disk and
+        # `model_card_uri` stayed NULL on all 19 versions; no hash was ever recorded at all.
+        model_card_uri=str(card_path),
+        artifact_sha256=artifact_sha256,
     )
 
     # The reference is the training feature distribution plus the score distribution the model
@@ -801,7 +893,8 @@ def publish(
                            promoted_by=approval.decided_by if approval else None)
         pipeline._advance("DEPLOYED", stage="deploy")
 
-        champion = registry.load(state["model_name"], "champion")
+        champion = registry.load(state["model_name"], "champion",
+                                 expected_sha256=model_version.artifact_sha256)
         sample = split.test.head(200)
         scores = champion.predict_proba(sample[feature_cols])[:, 1]
         if force_smoke_failure:
@@ -815,6 +908,17 @@ def publish(
             if previous:
                 registry.rollback(state["model_name"], previous_version=previous,
                                   reason="post-deployment smoke test failed")
+                # The catalogue follows the alias. Only MLflow used to be rolled back, so the
+                # withdrawn version stayed `champion` here - and, being the newest, was what
+                # the API and the Models page reported as the champion.
+                restored = session.execute(
+                    select(ModelVersion).where(
+                        ModelVersion.model_id == model_version.model_id,
+                        ModelVersion.mlflow_version == str(previous),
+                    )
+                ).scalars().first()
+                if restored is not None:
+                    monitor.set_status(restored, "champion")
                 say("rollback", f"champion restored to v{previous}", True)
             else:
                 say("rollback", "no previous champion to restore; alerting instead", False)
@@ -839,14 +943,16 @@ def publish(
         say("deploy", "rejected: the champion is unchanged and shadow scores archived", True)
 
     # -- score ------------------------------------------------------------------
-    model = registry.load(state["model_name"], "champion") if promoted else None
+    model = (
+        registry.load(state["model_name"], "champion", expected_sha256=_champion_hash(session))
+        if promoted else None
+    )
     if model is None:
         # Nothing was promoted, so the scores are explicitly shadow. Loading the challenger
         # by version keeps them traceable to the artifact that produced them.
         model = (
-            registry.mlflow.sklearn.load_model(
-                f"models:/{state['model_name']}/{mlflow_version}"
-            )
+            registry.load_version(state["model_name"], mlflow_version,
+                                  expected_sha256=model_version.artifact_sha256)
             if mlflow_version
             else None
         )
@@ -861,11 +967,14 @@ def publish(
         return PhaseResult(False, "ESCALATED", reason)
 
     set_type = OFFICIAL if promoted else SHADOW
-    explanations = explain(model, split.test, feature_cols)
+    # Every scored customer, not the default sample of 200: FR-051 asks for reasons on each
+    # high-risk customer, and a sample decides at random which of them get one.
+    explanations = explain(model, split.test, feature_cols, sample=len(split.test))
     predictions = score(
         model, split.test, feature_cols=feature_cols,
         model_name=state["model_name"], model_version=str(mlflow_version or "unregistered"),
-        feature_set_version="fsv=1", set_type=set_type, threshold=state["threshold"],
+        feature_set_version=FEATURE_SET_VERSION, set_type=set_type,
+        threshold=state["threshold"],
         reasons=dict(explanations.per_customer),
     )
     summary = predictions.summary()
@@ -900,7 +1009,11 @@ def publish(
     retrain = monitor.evaluate_retraining(
         MonitoringState(
             drift=drift.result,
-            labelled_rows_at_training=len(split.train),
+            # RT-5 asks whether enough *new* labelled data exists since training. Here, minutes
+            # after training on this very data, there is none: the validation and test rows were
+            # held out by the split, not added since. Passing len(split.train) and len(dataset)
+            # made every run report RT-5 fired on its own held-out rows.
+            labelled_rows_at_training=len(dataset),
             labelled_rows_now=len(dataset),
             last_trained_at=run.started_at,
             feature_catalog_version="fsv=1",

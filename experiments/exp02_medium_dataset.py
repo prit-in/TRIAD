@@ -38,6 +38,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from experiments.baselines import run_isolated
 from experiments.harness import Experiment
 
 MONTHS = 24
@@ -115,7 +116,6 @@ def _bytes_on_disk(root: Path) -> int:
 
 def run() -> Experiment:
     from datasets.synthetic.generator import GeneratorConfig, SyntheticGenerator
-    from experiments import baseline_b2, baseline_b3
     from triad_core.storage import storage
 
     store = storage()
@@ -172,7 +172,10 @@ def run() -> Experiment:
             trial.record("customers", customers)
             trial.record("bytes_on_disk", _bytes_on_disk(source), "bytes")
 
-            b2 = baseline_b2.run(source, groups, seed=SEED)
+            # Each baseline in a process of its own: a high-water mark read in this process
+            # would carry the generator's peak and every earlier size's.
+            b2 = run_isolated("experiments.baseline_b2:run",
+                              root=source, cutoffs=groups, seed=SEED)
             trial.record("b2_completed", b2.ok)
             trial.record("b2_wall_clock_s", round(b2.wall_clock_s, 1), "s")
             trial.record("b2_peak_rss_mb", b2.peak_rss_mb, "MB")
@@ -180,14 +183,14 @@ def run() -> Experiment:
             trial.record("b2_test_pr_auc", b2.test_pr_auc)
             trial.observations["b2"] = b2.to_dict()
 
-            spark = _spark(f"triad-exp02-{customers}")
-            try:
-                b3 = baseline_b3.run(spark, source, groups, seed=SEED)
-            finally:
-                spark.stop()
+            b3 = run_isolated("experiments.baseline_b3:run_with_own_session",
+                              root=source, cutoffs=groups, seed=SEED)
             trial.record("b3_completed", b3.ok)
             trial.record("b3_wall_clock_s", round(b3.wall_clock_s, 1), "s")
-            trial.record("b3_peak_rss_mb", b3.peak_rss_mb, "MB")
+            trial.record("b3_peak_rss_mb", b3.peak_rss_mb, "MB",
+                         note="the Python driver process only")
+            trial.record("b3_jvm_peak_rss_mb", b3.jvm_peak_rss_mb, "MB",
+                         note="the Spark JVM's own peak (VmHWM)")
             trial.record("b3_rows_trained", b3.rows_trained)
             trial.record("b3_test_pr_auc", b3.test_pr_auc)
             trial.observations["b3"] = b3.to_dict()

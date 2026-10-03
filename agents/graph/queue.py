@@ -298,6 +298,72 @@ def fail(
         task.finished_at = utcnow()
     session.flush()
 
+    # A task that will never run again takes its run with it. This only updated the task, so
+    # a run whose phase raised stayed in whatever state it had reached - RECEIVED, for one run
+    # observed - with no error, refused by `resume` (only ESCALATED resumes) and never closing
+    # its event stream.
+    if task.status in ("failed", "escalated"):
+        run = session.get(PipelineRun, task.run_id)
+        if run is not None and run.state not in TERMINAL_RUN_STATES | {"ESCALATED"}:
+            set_state(
+                session, run, "ESCALATED" if task.status == "escalated" else "FAILED",
+                error_summary=f"task {task.task_type} {task.status}: {error_class} "
+                              f"(fingerprint {fingerprint[:12]})",
+            )
+
+
+# States a run cannot leave, and the ones a run waits in for a person rather than a task.
+TERMINAL_RUN_STATES = frozenset(
+    {"COMPLETED", "ABORTED", "PUBLISHED", "REJECTED_INPUT", "CANCELLED", "FAILED"}
+)
+AWAITING_A_PERSON = frozenset({"APPROVAL_REQUIRED", "ESCALATED"})
+LIVE_TASK_STATUSES = ("queued", "leased", "running")
+
+
+def reap_stranded_runs(
+    session: Session,
+    *,
+    now: dt.datetime | None = None,
+    default_ceiling_minutes: float = 240.0,
+    grace_minutes: float = 60.0,
+) -> int:
+    """Fail runs no task can ever advance, once they are past their own wall-clock ceiling.
+
+    A run is stranded when it is not finished, is not waiting for a person, has no queued,
+    leased or running task, and started longer ago than its budget allows any run to take.
+    The ceiling is the run's own `max_wall_clock_minutes`, so a run executing in-process
+    without a task - `scripts/run_demo.py` does that - is never touched while it could still
+    legitimately be running. Thirteen runs from 2026-09-18 had sat in RECEIVED ever since.
+    """
+    now = now or utcnow()
+    candidates = session.execute(
+        select(PipelineRun).where(
+            PipelineRun.state.not_in(TERMINAL_RUN_STATES | AWAITING_A_PERSON)
+        )
+    ).scalars().all()
+    reaped = 0
+    for run in candidates:
+        limits = (run.budget_json or {}).get("limits", {})
+        ceiling = float(limits.get("max_wall_clock_minutes") or default_ceiling_minutes)
+        if run.started_at is None or now - run.started_at < dt.timedelta(
+            minutes=ceiling + grace_minutes
+        ):
+            continue
+        live = session.execute(
+            select(AgentTask.id).where(
+                AgentTask.run_id == run.id, AgentTask.status.in_(LIVE_TASK_STATUSES)
+            ).limit(1)
+        ).first()
+        if live is not None:
+            continue
+        set_state(
+            session, run, "FAILED", actor="reaper",
+            error_summary=f"stranded: no live task and past its {ceiling:.0f}-minute ceiling "
+                          f"(last state {run.state})",
+        )
+        reaped += 1
+    return reaped
+
 
 def reap_expired(session: Session, *, limit: int = 100) -> int:
     """Re-queue tasks whose lease expired; a crashed worker must not strand a run (AT-11)."""
@@ -333,14 +399,19 @@ def set_state(
     session: Session, run: PipelineRun, state: str, *, stage: str | None = None,
     error_summary: str | None = None, actor: str = "orchestrator",
 ) -> None:
-    """Commit a state transition and its audit entry together (FR-073)."""
+    """Record a state transition and its audit entry in the same transaction (FR-073).
+
+    This flushes; the caller's commit makes the transition and its audit entry visible
+    together. `ChurnPipeline._advance` commits at every transition - before it did, this
+    docstring claimed a commit that nothing performed.
+    """
     previous = run.state
     run.state = state
     if stage is not None:
         run.current_stage = stage
     if error_summary is not None:
         run.error_summary = error_summary
-    if state in ("COMPLETED", "ABORTED", "PUBLISHED", "REJECTED_INPUT", "CANCELLED"):
+    if state in TERMINAL_RUN_STATES:
         run.finished_at = utcnow()
     session.flush()
 

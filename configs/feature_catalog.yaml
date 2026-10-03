@@ -1,0 +1,139 @@
+# The churn feature catalogue (PRD section 16.1), one entry per column the feature table carries.
+#
+# Hygiene rule H7 is "every feature has a catalogue entry with a leakage tag and an owner", and
+# `churn.prepare` now refuses to train on a column that is not listed here. Until it did, this
+# file did not exist and `run_hygiene` - the only code that checked H7 - was called by tests
+# and by nothing that trains a model.
+#
+# status:
+#   implemented      computed by triad.core.ChurnTransforms and present when its source exists
+#   unavailable      the PRD defines it; this data cannot support it without leaking (reason)
+#   evaluation_only  present in the data, deliberately not a model input (reason)
+#
+# `prd: false` marks a supporting column the table carries that the PRD's 42 do not name.
+version: "fsv=2"
+owner_default: data_science
+
+features:
+  # --- RFM -------------------------------------------------------------------------------
+  - {name: recency_days, group: rfm, status: implemented, source: [transactions],
+     definition: "Days from the last completed order to T",
+     leakage_guard: "Order days before T only; returns are not orders"}
+  - {name: frequency_30d, group: rfm, status: implemented, source: [transactions],
+     definition: "Distinct completed orders in the 30 days before T", leakage_guard: "Window ends the day before T"}
+  - {name: frequency_90d, group: rfm, status: implemented, source: [transactions],
+     definition: "Distinct completed orders in the 90 days before T", leakage_guard: "Window ends the day before T"}
+  - {name: frequency_180d, group: rfm, status: implemented, source: [transactions],
+     definition: "Distinct completed orders in the 180 days before T", leakage_guard: "Window ends the day before T"}
+  - {name: frequency_365d, group: rfm, status: implemented, source: [transactions],
+     definition: "Distinct completed orders in the 365 days before T", leakage_guard: "Window ends the day before T"}
+  - {name: monetary_90d, group: rfm, status: implemented, source: [transactions],
+     definition: "Net revenue (quantity x price - discount) in the 90 days before T", leakage_guard: "Same"}
+  - {name: monetary_365d, group: rfm, status: implemented, source: [transactions],
+     definition: "Net revenue in the 365 days before T", leakage_guard: "Same"}
+
+  # --- Purchase behaviour -------------------------------------------------------------------
+  - {name: aov_365d, group: purchase, status: implemented, source: [transactions],
+     definition: "monetary_365d / frequency_365d", leakage_guard: "Inherits inputs' guard"}
+  - {name: items_per_order_365d, group: purchase, status: implemented, source: [transactions],
+     definition: "Units bought per order", leakage_guard: "Inherits inputs' guard"}
+  - {name: order_count_lifetime, group: purchase, status: implemented, source: [transactions],
+     definition: "All completed orders before T",
+     leakage_guard: "Running total read at the last order day before T"}
+  - {name: clv_proxy_lifetime, group: purchase, status: implemented, source: [transactions],
+     definition: "Cumulative net revenue before T (historical value, not predicted value)",
+     leakage_guard: "Running total read at the last order day before T"}
+  - {name: return_count_365d, group: purchase, status: implemented, source: [returns, transactions],
+     definition: "Returned lines in the window: returns-table rows and cancellation lines",
+     leakage_guard: "Dated by the return; a return on or after T is excluded even for an earlier order"}
+  - {name: return_rate_365d, group: purchase, status: implemented, source: [returns, transactions],
+     definition: "Returned units / bought units", leakage_guard: "Same"}
+  - {name: discount_share_365d, group: purchase, status: implemented, source: [transactions],
+     definition: "Share of order lines with a discount", leakage_guard: "Window ends before T"}
+  - {name: promo_order_share_365d, group: purchase, status: implemented, source: [transactions],
+     definition: "Share of orders using a promotion code (distinct orders, not lines)",
+     leakage_guard: "Window ends before T"}
+  - {name: category_count_365d, group: purchase, status: implemented, source: [transactions, products],
+     definition: "Distinct top-level categories bought", leakage_guard: "Window ends before T"}
+  - {name: preferred_payment_method, group: purchase, status: implemented, source: [transactions],
+     definition: "Most used payment method; ties broken by name", leakage_guard: "Window ends before T"}
+
+  # --- Customer service ---------------------------------------------------------------------
+  - {name: tickets_90d, group: customer_service, status: implemented, source: [support_tickets],
+     definition: "Tickets created in the 90 days before T", leakage_guard: "Created before T"}
+  - {name: tickets_365d, group: customer_service, status: implemented, source: [support_tickets],
+     definition: "Tickets created in the 365 days before T", leakage_guard: "Created before T"}
+  - {name: complaint_tickets_90d, group: customer_service, status: implemented, source: [support_tickets],
+     definition: "Tickets in delivery, refund or quality categories", leakage_guard: "Created before T"}
+  - {name: open_tickets_at_cutoff, group: customer_service, status: implemented, source: [support_tickets],
+     definition: "Tickets created before T and not resolved before T",
+     leakage_guard: "A resolution after T still counts as open"}
+  - {name: avg_resolution_hours_365d, group: customer_service, status: implemented, source: [support_tickets],
+     definition: "Mean hours to resolve", leakage_guard: "Tickets resolved before T only"}
+  - {name: avg_csat_365d, group: customer_service, status: implemented, source: [support_tickets],
+     definition: "Mean satisfaction score",
+     leakage_guard: "A score is recorded at resolution, so tickets resolved before T only"}
+
+  # --- Engagement -------------------------------------------------------------------------------
+  - {name: sessions_30d, group: engagement, status: implemented, source: [web_sessions],
+     definition: "Sessions started in the 30 days before T", leakage_guard: "Session start before T"}
+  - {name: sessions_90d, group: engagement, status: implemented, source: [web_sessions],
+     definition: "Sessions started in the 90 days before T", leakage_guard: "Session start before T"}
+  - {name: days_since_last_session, group: engagement, status: implemented, source: [web_sessions],
+     definition: "Days from the last session to T", leakage_guard: "Session start before T"}
+  - {name: product_views_90d, group: engagement, status: implemented, source: [web_sessions],
+     definition: "Product page views", leakage_guard: "Session start before T"}
+  - {name: add_to_cart_90d, group: engagement, status: implemented, source: [web_sessions],
+     definition: "Add-to-cart events", leakage_guard: "Session start before T"}
+  - {name: cart_conversion_90d, group: engagement, status: implemented, source: [web_sessions, transactions],
+     definition: "Orders / add-to-cart events", leakage_guard: "Inherits guards"}
+  - {name: app_session_share_90d, group: engagement, status: implemented, source: [web_sessions],
+     definition: "App sessions / all sessions", leakage_guard: "Session start before T"}
+  - {name: avg_session_minutes_90d, group: engagement, status: implemented, source: [web_sessions],
+     definition: "Mean session length", leakage_guard: "Sessions ending before T only"}
+
+  # --- Temporal -----------------------------------------------------------------------------------
+  - {name: tenure_days, group: temporal, status: implemented, source: [transactions],
+     definition: "Days from the first completed order to T (lifetime, not windowed)",
+     leakage_guard: "First order precedes T"}
+  - {name: inter_purchase_mean_days_365d, group: temporal, status: implemented, source: [transactions],
+     definition: "Mean gap between consecutive order days", leakage_guard: "Gaps ending before T only"}
+  - {name: inter_purchase_std_days_365d, group: temporal, status: implemented, source: [transactions],
+     definition: "Sample standard deviation of those gaps", leakage_guard: "Same"}
+  - {name: overdue_ratio, group: temporal, status: implemented, source: [transactions],
+     definition: "recency_days / inter_purchase_mean_days_365d", leakage_guard: "Inherits guards"}
+  - {name: trend_90_vs_prior_90, group: temporal, status: implemented, source: [transactions],
+     definition: "Orders in the last 90 days minus orders in days 91 to 180", leakage_guard: "Window ends before T"}
+  - {name: snapshot_month, group: temporal, status: implemented, source: [snapshot_calendar],
+     definition: "Calendar month of T", leakage_guard: "Known at T"}
+  - {name: holiday_season_buyer, group: temporal, status: implemented, source: [transactions],
+     definition: "Any order in October to December within the year before T", leakage_guard: "Same"}
+
+  # --- Profile ------------------------------------------------------------------------------------
+  - {name: acquisition_channel, group: profile, status: evaluation_only, source: [customers],
+     definition: "How the customer first arrived", leakage_guard: "Static attribute",
+     reason: "Joined as an AP-6 segment attribute and kept out of the model inputs (DEC-21)"}
+  - {name: country, group: profile, status: evaluation_only, source: [customers],
+     definition: "Customer country", leakage_guard: "Static attribute",
+     reason: "Joined as an AP-6 segment attribute and kept out of the model inputs (DEC-21)"}
+  - {name: loyalty_tier_at_cutoff, group: profile, status: unavailable, source: [customers],
+     definition: "Tier valid on T", leakage_guard: "Validity-range join",
+     reason: "The customers table holds only the current tier; ASM-11 excludes current-only tiers, which would leak a later state into earlier cutoffs"}
+  - {name: marketing_opt_in_at_cutoff, group: profile, status: unavailable, source: [customers],
+     definition: "Consent flag valid on T", leakage_guard: "Validity-range join",
+     reason: "Same: current-only, no dated history"}
+
+  # --- Supporting columns the table carries, not among the PRD's 42 ----------------------------
+  - {name: units_365d, group: purchase, status: implemented, prd: false, source: [transactions],
+     definition: "Units bought in the window", leakage_guard: "Window ends before T"}
+  - {name: lines_365d, group: purchase, status: implemented, prd: false, source: [transactions],
+     definition: "Order lines in the window", leakage_guard: "Window ends before T"}
+  - {name: discounted_lines_365d, group: purchase, status: implemented, prd: false, source: [transactions],
+     definition: "Discounted order lines in the window", leakage_guard: "Window ends before T"}
+  - {name: promo_orders_365d, group: purchase, status: implemented, prd: false, source: [transactions],
+     definition: "Distinct orders with a promotion code in the window", leakage_guard: "Window ends before T"}
+  - {name: promo_lines_365d, group: purchase, status: implemented, prd: false, source: [transactions],
+     definition: "Order lines carrying a promotion code in the window (kept for models trained on fsv=1)",
+     leakage_guard: "Window ends before T"}
+  - {name: returned_units_365d, group: purchase, status: implemented, prd: false, source: [returns, transactions],
+     definition: "Units returned in the window", leakage_guard: "Dated by the return"}

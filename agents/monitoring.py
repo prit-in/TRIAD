@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import select
 
 from agents.retraining import MonitoringState, RetrainingDecision, RetrainingPolicy
+from python_ml.triad_ml.hygiene import catalog_version
 from triad_core import audit
 from triad_core.governance import GovernanceService
 from triad_core.ids import utcnow
@@ -106,6 +107,7 @@ class MonitoringService:
         threshold: float | None = None,
         governance_status: str = "candidate",
         model_card_uri: str | None = None,
+        artifact_sha256: str | None = None,
     ) -> ModelVersion:
         """Mirror an MLflow registration into the catalogue.
 
@@ -123,6 +125,7 @@ class MonitoringService:
             threshold=float(threshold) if threshold is not None else None,
             governance_status=governance_status,
             model_card_uri=model_card_uri,
+            artifact_sha256=artifact_sha256,
         )
         self.session.add(version)
         self.session.flush()
@@ -146,13 +149,40 @@ class MonitoringService:
 
         previous = version.governance_status
         version.governance_status = status
+        superseded: list[ModelVersion] = []
         if status == "champion":
             version.promoted_at = utcnow()
             version.promoted_by = promoted_by
             model = self.session.get(Model, version.model_id)
             if model is not None:
                 model.champion_version_id = version.id
+            # One champion per model. This set the new one and left the old one marked
+            # `champion` too, so four versions of churn_classifier carried the status at once,
+            # and after a smoke-test rollback the withdrawn version still did. The API's
+            # rollback endpoint archived the others; this path, which publish uses, did not.
+            superseded = list(self.session.execute(
+                select(ModelVersion).where(
+                    ModelVersion.model_id == version.model_id,
+                    ModelVersion.governance_status == "champion",
+                    ModelVersion.id != version.id,
+                )
+            ).scalars())
+            for old in superseded:
+                old.governance_status = "archived"
         self.session.flush()
+        for old in superseded:
+            audit.record(
+                self.session,
+                actor_type="system",
+                actor_id="monitoring",
+                action="model_version.status_changed",
+                resource_type="model_version",
+                resource_id=str(old.id),
+                run_id=old.run_id,
+                outcome="archived",
+                details={"from": "champion", "to": "archived",
+                         "superseded_by": str(version.id)},
+            )
         audit.record(
             self.session,
             actor_type="system",
@@ -435,12 +465,19 @@ class MonitoringService:
         return MonitoringState(
             drift=drift,
             last_trained_at=version.created_at,
-            feature_catalog_version=self.config.get("feature_set_version", "fsv=1"),
+            # The catalogue's own version. This read a config key nothing sets and defaulted to
+            # "fsv=1", so a catalogue change could never make RT-7 fire against a champion.
+            feature_catalog_version=self.config.get("feature_set_version") or catalog_version(),
             model_feature_catalog_version=version.feature_set_version,
         )
 
     def start_retraining(
-        self, decision: RetrainingDecision, *, source: PipelineRun, pipeline: str | None = None
+        self,
+        decision: RetrainingDecision,
+        *,
+        source: PipelineRun,
+        pipeline: str | None = None,
+        trigger_type: str = "retrain",
     ) -> PipelineRun | None:
         """Queue a retraining run for a decision that fired and passed the validity gate.
 
@@ -458,11 +495,15 @@ class MonitoringService:
         cooldown = dt.timedelta(days=float(self.policy.config["cooldown_days"]))
         since = utcnow() - cooldown
 
+        # Every retraining run has a parent, whatever its trigger type says caused it; a manual
+        # run or a data-arrival run does not. Keyed on the type alone, a `drift` or `schedule`
+        # retrain would not count as an attempt and the next tick would start another.
         recent = self.session.execute(
             select(PipelineRun)
             .where(
                 PipelineRun.pipeline_name == name,
-                PipelineRun.trigger_type == "retrain",
+                PipelineRun.parent_run_id.is_not(None),
+                PipelineRun.trigger_type.in_(("retrain", "drift", "schedule", "data")),
                 PipelineRun.started_at >= since,
             )
             .order_by(PipelineRun.started_at.desc())
@@ -481,7 +522,7 @@ class MonitoringService:
         run = q.create_run(
             self.session,
             pipeline_name=name,
-            trigger_type="retrain",
+            trigger_type=trigger_type,
             triggered_by="system",
             config={"retraining": decision.to_dict(), "parent_run": source.run_key},
             input_versions=dict(source.input_versions or {}),

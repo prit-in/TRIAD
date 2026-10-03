@@ -444,22 +444,41 @@ def test_selection_without_tuning_is_unchanged() -> None:
 
 
 @pytest.mark.slow
-def test_a_tuned_model_still_has_to_pass_the_hard_constraints() -> None:
-    """A search is not a licence to return a model too large or too slow to deploy."""
+def test_a_tuned_model_still_has_to_pass_the_hard_constraints(monkeypatch) -> None:
+    """A search is not a licence to return a model too large to deploy.
+
+    The first version of this test set AP-7 so tight that every family failed at screening,
+    so tuning never ran and its only assertions sat behind an `if` that was always false: it
+    passed with the tuned-model re-check deleted. Here screening passes under the normal
+    policy and the tuning step hands back a model far over the size limit, so the re-check is
+    the only thing that can stop it.
+    """
+    import copy
+
+    from python_ml.triad_ml import tune
+
     df = make_features(400)
     split = apply_split(df, plan_split(sorted(df.snapshot_date.unique()), horizon_days=90))
     models = train_all(shortlist(n_rows=len(split.train), n_features=4), split, seed=42)
 
-    # AP-7 set so tight that nothing can pass it; the tuned models must be rejected by name.
-    strict = {**POLICY, "AP7_max_model_size_mb": 0.0000001}
+    def oversized(finalists, split, *, config, seed):
+        heavy = copy.copy(finalists[0])
+        heavy.model_size_mb = 10_000.0          # AP7_max_model_size_mb is 200
+        record = {"family": heavy.family, "improved": True, "trials_run": 1,
+                  "trials_requested": 1, "seconds": 0.0, "best_value": 1.0,
+                  "baseline_value": 0.0, "stopped_because": ""}
+        return [heavy], [record]
+
+    monkeypatch.setattr(tune, "tune_finalists", oversized)
     result = select_model(
-        models, split, strict, seed=42,
-        tuning={"enabled": True, "n_trials": 3, "timeout_seconds": 60, "finalists": 1},
+        models, split, POLICY, seed=42,
+        tuning={"enabled": True, "n_trials": 1, "timeout_seconds": 10, "finalists": 1},
     )
+
     tuned_rejections = [r for r in result.rejected if "(tuned)" in r["family"]]
-    if result.evidence.get("tuning") and any(r["improved"] for r in result.evidence["tuning"]):
-        assert tuned_rejections, "a tuned model that improved must still face AP-7"
-        assert all("MODEL_TOO_LARGE" in r["reason"] for r in tuned_rejections)
+    assert tuned_rejections, "an oversized tuned model must be rejected, not selected"
+    assert all("MODEL_TOO_LARGE" in r["reason"] for r in tuned_rejections)
+    assert result.selected is None or result.selected.model_size_mb < 200
 
 
 def test_the_trusted_type_list_covers_every_registered_family() -> None:

@@ -92,7 +92,12 @@ def _versions(session: DbSession, model: Model) -> list[ModelVersion]:
 
 def _summary(session: DbSession, model: Model) -> ModelSummary:
     versions = _versions(session, model)
-    champion = next((v for v in versions if v.governance_status == "champion"), None)
+    # The pointer is the authority (docs/database-schema.md: "the only place an alias lives in
+    # this database"). Reading "the newest version with status champion" reported a stale or
+    # withdrawn version whenever the statuses disagreed with it, and they did.
+    champion = next((v for v in versions if v.id == model.champion_version_id), None) or next(
+        (v for v in versions if v.governance_status == "champion"), None
+    )
     challenger = next((v for v in versions if v.governance_status == "challenger"), None)
     return ModelSummary(
         id=model.id, name=model.name, task_type=model.task_type,

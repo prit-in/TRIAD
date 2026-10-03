@@ -1,0 +1,153 @@
+"""FR-074: "Data, schedule, drift and manual triggers - each trigger type starts a run in tests."
+
+Until agents/scheduler.py only the manual trigger ever started a run. RT-1..RT-9 were evaluated
+once, straight after training, where the cooldown blocks every decision by construction; the
+monitor's own evaluation path for a deployed champion had no caller; and `watch_folder` was run
+by nothing. Each test here starts a run through `Scheduler.tick`, the call the worker makes.
+(The manual trigger is covered by tests/unit/test_api.py through POST /pipelines/run.)
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import uuid
+from pathlib import Path
+
+import pytest
+from sqlalchemy import select
+
+from agents.scheduler import Scheduler, trigger_type_for
+from python_ml.triad_ml.hygiene import catalog_version
+from triad_core.config import load_yaml, settings
+from triad_core.ids import utcnow
+
+
+@pytest.fixture()
+def config() -> dict:
+    return load_yaml(settings().pipeline_config_path)
+
+
+def _champion(session, *, trained_days_ago: int, pipeline: str):
+    """A model whose champion was trained `trained_days_ago` days ago, by a run of `pipeline`."""
+    from triad_core.models import Model, ModelVersion, PipelineRun
+
+    run = PipelineRun(run_key=f"run-trig-{uuid.uuid4().hex[:10]}", pipeline_name=pipeline,
+                      state="PUBLISHED", trigger_type="manual", mode="full",
+                      input_versions={"transactions": "file:///data/triad/raw/transactions/v=1"})
+    name = f"trig-{uuid.uuid4().hex[:8]}"
+    model = Model(name=name, mlflow_registered_name=name, target_definition="t")
+    session.add_all([run, model])
+    session.flush()
+    version = ModelVersion(model_id=model.id, run_id=run.id, mlflow_version="1",
+                           algorithm="logreg", params_json={}, governance_status="champion",
+                           feature_set_version=catalog_version())
+    session.add(version)
+    session.flush()
+    version.created_at = utcnow() - dt.timedelta(days=trained_days_ago)
+    model.champion_version_id = version.id
+    session.flush()
+    return run, version
+
+
+def _runs_started_from(session, source) -> list:
+    from triad_core.models import PipelineRun
+
+    return list(session.execute(
+        select(PipelineRun).where(PipelineRun.parent_run_id == source.id)
+    ).scalars())
+
+
+def test_trigger_types_name_their_cause() -> None:
+    assert trigger_type_for(["RT-2"]) == "drift"
+    assert trigger_type_for(["RT-6", "RT-3"]) == "drift"
+    assert trigger_type_for(["RT-5"]) == "data"
+    assert trigger_type_for(["RT-6"]) == "schedule"
+    assert trigger_type_for(["RT-7"]) == "retrain"
+
+
+def test_the_schedule_trigger_starts_a_run(db_session, config) -> None:
+    """RT-6: thirty days since training, nothing else wrong."""
+    source, _ = _champion(db_session, trained_days_ago=40,
+                         pipeline=f"churn-sched-{uuid.uuid4().hex[:6]}")
+
+    Scheduler(config).tick(db_session)
+
+    started = _runs_started_from(db_session, source)
+    assert [r.trigger_type for r in started] == ["schedule"]
+    assert started[0].state == "RECEIVED", "queued for the worker, not run in the tick"
+
+
+def test_the_drift_trigger_starts_a_run(db_session, config) -> None:
+    """RT-2: a feature's PSI over the threshold, past the cooldown, before the schedule."""
+    from triad_core.models import DriftReport
+
+    source, version = _champion(db_session, trained_days_ago=10,
+                                pipeline=f"churn-drift-{uuid.uuid4().hex[:6]}")
+    db_session.add(DriftReport(
+        model_version_id=version.id, reference_ref="ref", current_ref="cur",
+        psi_json={"features": [{"feature": "recency_days", "psi": 0.42, "flagged": True,
+                                "kind": "numeric", "test": "ks"}],
+                  "thresholds": {"psi_feature_threshold": 0.25}, "n_rows": 500},
+        flagged_features=["recency_days"],
+    ))
+    db_session.flush()
+
+    Scheduler(config).tick(db_session)
+
+    assert [r.trigger_type for r in _runs_started_from(db_session, source)] == ["drift"]
+
+
+def test_a_trigger_inside_the_cooldown_starts_nothing(db_session, config) -> None:
+    """The validity gate still applies: a champion trained two days ago is not retrained."""
+    source, _ = _champion(db_session, trained_days_ago=2,
+                          pipeline=f"churn-cool-{uuid.uuid4().hex[:6]}")
+    Scheduler(config).tick(db_session)
+    assert _runs_started_from(db_session, source) == []
+
+
+def test_a_second_tick_does_not_start_a_second_run(db_session, config) -> None:
+    """The guard on recent attempts: one fired trigger is one run, not one per tick."""
+    source, _ = _champion(db_session, trained_days_ago=40,
+                          pipeline=f"churn-twice-{uuid.uuid4().hex[:6]}")
+    scheduler = Scheduler(config)
+    scheduler.tick(db_session)
+    scheduler.tick(db_session)
+    assert len(_runs_started_from(db_session, source)) == 1
+
+
+@pytest.mark.slow
+def test_the_data_trigger_starts_a_run(db_session, config, tmp_path) -> None:
+    """New data landing in a watched folder registers a version and starts a run on it."""
+    from dataeng.ingest import DatasetRegistry
+    from datasets.synthetic.generator import GeneratorConfig, SyntheticGenerator
+    from triad_core.models import PipelineRun
+    from triad_core.storage import Storage
+
+    store = Storage(tmp_path / "data")
+    pipeline = f"churn-data-{uuid.uuid4().hex[:6]}"
+    tables = SyntheticGenerator(
+        GeneratorConfig(customers=30, months=6, seed=5, start_date="2025-01-01")
+    ).write(tmp_path / "generated")
+
+    landing = store.root / "landing" / "transactions"
+    landing.mkdir(parents=True)
+    source = sorted(Path(tables["transactions"]).glob("*.parquet"))[0]
+    (landing / source.name).write_bytes(source.read_bytes())
+
+    DatasetRegistry(db_session, store).register_source(
+        "transactions", entity_type="transaction", source_type="parquet"
+    )
+    db_session.flush()
+
+    cfg = {**config, "pipeline": pipeline,
+           "triggers": {"watch": [{"dataset": "transactions",
+                                   "folder": "landing/transactions", "pattern": "*.parquet"}]}}
+    outcome = Scheduler(cfg, store=store).tick(db_session)
+
+    assert outcome.files_registered >= 1 or outcome.data_runs_queued, outcome
+    runs = list(db_session.execute(
+        select(PipelineRun).where(PipelineRun.pipeline_name == pipeline)
+    ).scalars())
+    assert [r.trigger_type for r in runs] == ["data"]
+    assert runs[0].input_versions.get("transactions", "").startswith("file://")
+    assert tables, "the generator wrote its tables"

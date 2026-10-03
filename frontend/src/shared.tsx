@@ -229,16 +229,28 @@ export function ConfirmButton({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
+  // A refused action used to leave the dialog open with the button reset and nothing said:
+  // `onConfirm` ran in try/finally with no catch, so a 403 or a 409 became an unhandled
+  // rejection in the console and silence on the screen.
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <>
       <button type="button" className={className} disabled={disabled}
-              onClick={() => ref.current?.showModal()}>
+              onClick={() => {
+                setError(null);
+                ref.current?.showModal();
+              }}>
         {label}
       </button>
       <dialog ref={ref} className="confirm">
         <h2>{title}</h2>
         <p>{question}</p>
+        {error && (
+          <p className="problem" role="alert">
+            <strong>Not done.</strong> {error}
+          </p>
+        )}
         <div className="confirm-actions">
           <button type="button" className="secondary" onClick={() => ref.current?.close()}>
             Keep it
@@ -248,9 +260,12 @@ export function ConfirmButton({
             disabled={busy}
             onClick={async () => {
               setBusy(true);
+              setError(null);
               try {
                 await onConfirm();
                 ref.current?.close();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : String(e));
               } finally {
                 setBusy(false);
               }

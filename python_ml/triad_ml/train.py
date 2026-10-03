@@ -98,7 +98,7 @@ def train_candidate(
     """Train one candidate. A failure is captured, not raised: UC-09 drops the candidate
     if at least two others survive."""
     num_cols, cat_cols = split_feature_types(
-        split.train, label_col=label_col, exclude=split.evaluation_only_cols
+        split.train, label_col=label_col, exclude=split.excluded_cols
     )
     x_train = split.train[num_cols + cat_cols]
     y_train = split.train[label_col].to_numpy().astype(int)
@@ -156,7 +156,7 @@ def calibrate(
         return model
 
     num_cols, cat_cols = split_feature_types(
-        split.train, label_col=label_col, exclude=split.evaluation_only_cols
+        split.train, label_col=label_col, exclude=split.excluded_cols
     )
     x_cal = split.calibration[num_cols + cat_cols]
     y_cal = split.calibration[label_col].to_numpy().astype(int)
@@ -251,7 +251,7 @@ def select_model(
         )
 
     num_cols, cat_cols = split_feature_types(
-        split.train, label_col=label_col, exclude=split.evaluation_only_cols
+        split.train, label_col=label_col, exclude=split.excluded_cols
     )
     y_valid = split.valid[label_col].to_numpy().astype(int)
     x_valid = split.valid[num_cols + cat_cols]

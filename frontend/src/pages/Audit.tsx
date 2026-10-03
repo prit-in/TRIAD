@@ -12,24 +12,31 @@
 
 import { useState } from "react";
 import { api } from "../api";
-import type { AuditEntry, ChainStatus } from "../api";
+import type { AuditActionCount, AuditEntry, ChainStatus } from "../api";
 import { Empty, Panel, Problem, SearchBox, Tabs, useLoad, when } from "../shared";
+
+/** The outcomes the backend writes when it refuses something. One set, used twice. */
+const REFUSAL_OUTCOMES = new Set(["refused", "rejected", "denied"]);
 
 export function Audit() {
   const chain = useLoad<ChainStatus>(() => api.chainStatus());
   const [action, setAction] = useState("");
-  // `since` is a filter the API has accepted since it was written and nothing ever sent. A
-  // trail capped at 200 rows without one can only show the most recent activity, which is the
-  // opposite of what an investigation needs.
+  // A date bounds the page to that day and later; paging backwards is `olderThan`. An earlier
+  // version of this comment claimed the date alone reached past the 200-row cap. It did not:
+  // on a newest-first query a lower bound still returns the newest 200, so the older trail
+  // was unreachable whatever date was chosen.
   const [since, setSince] = useState("");
+  const [olderThan, setOlderThan] = useState<number | null>(null);
   const entries = useLoad<AuditEntry[]>(() => {
     const params = new URLSearchParams({ limit: "200" });
     if (action) params.set("action", action);
     // A date input gives a local calendar day; the column is a timestamp with a zone, so the
     // day is anchored at its own midnight rather than sent as a bare date.
     if (since) params.set("since", new Date(`${since}T00:00:00`).toISOString());
+    if (olderThan !== null) params.set("before_id", String(olderThan));
     return api.auditLogs(`?${params.toString()}`);
-  }, [action, since]);
+  }, [action, since, olderThan]);
+  const allActions = useLoad<AuditActionCount[]>(() => api.auditActions());
   const [query, setQuery] = useState("");
 
   const needle = query.trim().toLowerCase();
@@ -42,9 +49,9 @@ export function Audit() {
         .includes(needle),
   );
 
-  // The distinct actions present, so the filter offers what is actually there rather than a
-  // hardcoded list that drifts from the code.
-  const actions = [...new Set((entries.data ?? []).map((e) => e.action))].sort();
+  // Every action in the trail, from the server. Taken from the current page, the filter could
+  // only offer what had happened recently.
+  const oldestShown = entries.data?.length ? entries.data[entries.data.length - 1]?.id : null;
 
   return (
     <>
@@ -87,9 +94,9 @@ export function Audit() {
           <>
             <select value={action} onChange={(e) => setAction(e.target.value)}>
               <option value="">every action</option>
-              {actions.map((a) => (
-                <option key={a} value={a}>
-                  {a}
+              {(allActions.data ?? []).map((a) => (
+                <option key={a.action} value={a.action}>
+                  {a.action} ({a.count})
                 </option>
               ))}
             </select>{" "}
@@ -101,6 +108,16 @@ export function Audit() {
             {since && (
               <button type="button" className="link" onClick={() => setSince("")}>
                 Clear date
+              </button>
+            )}{" "}
+            {olderThan !== null && (
+              <button type="button" className="link" onClick={() => setOlderThan(null)}>
+                Newest
+              </button>
+            )}{" "}
+            {oldestShown != null && (entries.data?.length ?? 0) >= 200 && (
+              <button type="button" className="link" onClick={() => setOlderThan(oldestShown)}>
+                Older entries
               </button>
             )}{" "}
             <SearchBox label="Search the trail" value={query} onChange={setQuery}
@@ -146,7 +163,7 @@ export function Audit() {
                             <span
                               className={`pill ${
                                 entry.outcome === "ok" ? "good"
-                                : ["denied", "refused", "rejected"].includes(entry.outcome) ? "bad"
+                                : REFUSAL_OUTCOMES.has(entry.outcome) ? "bad"
                                 : "busy"
                               }`}
                             >
@@ -164,7 +181,10 @@ export function Audit() {
               id: "refusals",
               label: "Refusals",
               content: (() => {
-                const refused = shown.filter((e) => e.outcome !== "ok");
+                // A refusal is an outcome that says so. "Anything but ok" listed 115 entries
+                // that were not refusals at all - 60 of them successful logins - beside the 6
+                // that were.
+                const refused = shown.filter((e) => REFUSAL_OUTCOMES.has(e.outcome));
                 return refused.length === 0 ? (
                   <p className="muted">
                     Nothing was refused in these {shown.length} entries. Every governance
