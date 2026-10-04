@@ -505,6 +505,12 @@ class ChurnPipeline:
 
         staging = self.storage.staging_dir(self.run.run_key, stage)
         report_path = self.storage.sandbox_dir(self.run.run_key) / f"{stage}_report.json"
+        # Rejected rows are written inside the run's own folder, like the output, and moved into
+        # `quarantine_dir` by the platform. Spark's overwrite deletes the folder it writes to, and
+        # a job in a container cannot delete the folder its writable mount is attached to: given
+        # the quarantine partition itself as a mount, the first containerised clean job failed
+        # with "Unable to clear output directory" (run-2026-10-04-001).
+        job_quarantine = self.storage.sandbox_dir(self.run.run_key) / "quarantine" / stage
 
         def generate(stage_inputs, history):
             artifact = self._generate_scala(template_id)
@@ -519,7 +525,7 @@ class ChurnPipeline:
                 # Without this the job refuses to run rather than drop rejected rows
                 # (OutputWriter.writeQuarantine); a stage that rejects rows must say where
                 # they go (FR-018).
-                job_args.append(f"--quarantine=file://{quarantine_dir}")
+                job_args.append(f"--quarantine=file://{job_quarantine}")
             for name, uri in inputs.items():
                 job_args.append(f"--input={name}:{uri}")
             for key, value in params.items():
@@ -712,6 +718,14 @@ class ChurnPipeline:
         )
         self.result.stages.append(outcome.to_dict())
         self._append_execution_gates(outcome)
+
+        # Before the policy check, so a stage held for rejecting too many rows leaves those rows
+        # where the person deciding will look for them.
+        if outcome.ok and quarantine_dir is not None and job_quarantine.exists():
+            if quarantine_dir.exists():
+                shutil.rmtree(quarantine_dir)
+            quarantine_dir.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(job_quarantine), str(quarantine_dir))
 
         if outcome.ok and policy_action:
             verdict = self._check_stage_policy(policy_action, stage, outcome.outputs,

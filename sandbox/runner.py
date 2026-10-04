@@ -6,23 +6,32 @@ there is a single place where isolation is enforced and audited.
 
 Controls applied to every run (PRD 22.2):
   non-root user, all capabilities dropped, no privilege escalation, read-only root
-  filesystem, tmpfs scratch with a size cap, CPU/memory/pids limits, a hard timeout, an
-  internal network with no route off the host, and no secrets in the environment.
+  filesystem, tmpfs scratch with a size cap, CPU/memory/pids limits, a hard timeout, no
+  network at all for a local-mode Spark job (an internal one for a cluster job), only the
+  job's own inputs and JARs mounted read-only, only run-scoped folders writable, and no
+  secrets in the environment.
 
-`LocalRunner` is the fallback used when the docker socket is not available to this process
-(the dev container deliberately has no socket). It applies the limits it can — working
-directory, timeout, environment scrubbing — and records honestly that container isolation
-was not in force, so no run can silently claim protection it did not have.
+Three runners, one chosen by `get_runner`:
+
+  RemoteRunner   the orchestrator's: hands each request to the sandbox-runner service
+                 (sandbox/service.py), the only process with the docker socket (DD-04).
+                 Fails closed when the service cannot be reached.
+  DockerRunner   the service's: starts the container through the Docker SDK.
+  LocalRunner    the fallback when neither is configured. It applies what it can - working
+                 directory, timeout, environment scrubbing - and records that container
+                 isolation was not in force, so no run can claim protection it did not have.
 """
 
 from __future__ import annotations
 
+import json
 import os
-import shutil
 import subprocess
 import time
+import urllib.error
+import urllib.request
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -40,8 +49,16 @@ HOST_LIMITS = {"cpus": 4.0, "memory_gb": 3.0}
 
 SECRET_ENV_PREFIXES = (
     "ANTHROPIC", "OPENAI", "GEMINI", "GOOGLE", "AWS", "AZURE", "TRIAD_JWT", "POSTGRES",
-    "TRIAD_DB", "MLFLOW_TRACKING", "KAGGLE", "GITHUB",
+    "TRIAD_DB", "MLFLOW_TRACKING", "KAGGLE", "GITHUB", "TRIAD_SANDBOX_TOKEN",
 )
+
+# `triad` in triad-base. Writable mounts are handed to this user before a job starts.
+SANDBOX_USER = (1000, 1000)
+
+# The only paths a job may be given. Anything else this runner can see - the docker socket
+# above all - must never become a mount, whatever a request asks for.
+DATA_ROOT = os.environ.get("TRIAD_DATA_ROOT", "/data/triad")
+SHAREABLE_ROOTS = (DATA_ROOT, "/workspace")
 
 
 SANDBOX_NETWORK_SUFFIX = "triad-sandbox-net"
@@ -71,7 +88,7 @@ class SandboxRequest:
         # `internal_only` in the policy file is a real constraint, so it is checked where
         # every path has to pass: a job that names any other network could reach off the
         # host. The one permitted name is the compose network declared `internal: true`.
-        if not self.network.endswith(SANDBOX_NETWORK_SUFFIX):
+        if self.network != "none" and not self.network.endswith(SANDBOX_NETWORK_SUFFIX):
             raise SandboxError(
                 f"sandbox network {self.network!r} is not the internal sandbox network "
                 f"(must end with {SANDBOX_NETWORK_SUFFIX!r}); jobs never reach off the host"
@@ -122,10 +139,11 @@ class SandboxResult:
 
 
 def docker_available() -> bool:
-    if shutil.which("docker") is None:
-        return False
+    """Whether this process can reach a Docker engine. Only sandbox-runner has the socket."""
     try:
-        return subprocess.run(["docker", "info"], capture_output=True, timeout=20).returncode == 0
+        import docker
+
+        return bool(docker.from_env(timeout=10).ping())
     except Exception:
         return False
 
@@ -146,67 +164,160 @@ def _scrubbed_env(extra: dict[str, str]) -> dict[str, str]:
 
 
 class DockerRunner:
-    """Starts one `--rm` container per execution with the PRD's controls."""
+    """Starts one container per execution with the PRD's controls, through the Docker SDK.
+
+    The image ships the SDK and no CLI. This used to shell out to `docker run`, which no
+    container here could execute, and its result omitted two required fields - it had never
+    once run. Paths in a request are paths *this* container sees; `mount` turns each into the
+    volume or bind mount it lives on, so the job sees the same path and nothing more.
+    """
 
     isolation = "container"
 
+    def __init__(self, client: Any = None, own_mounts: list[dict[str, Any]] | None = None) -> None:
+        if client is None:
+            import docker
+
+            client = docker.from_env(timeout=60)
+        self.client = client
+        if own_mounts is None:
+            import socket
+
+            own_mounts = client.containers.get(socket.gethostname()).attrs.get("Mounts", [])
+        self.own_mounts = sorted(own_mounts, key=lambda m: len(m["Destination"]), reverse=True)
+
+    def mount(self, path: str, target: str, *, read_only: bool) -> Any:
+        from docker.types import Mount
+
+        for p in (path, target):
+            if os.path.normpath(p) != p or not any(
+                p == root or p.startswith(root + "/") for root in SHAREABLE_ROOTS
+            ):
+                raise SandboxError(f"{p} is outside what a job may be given")
+        for m in self.own_mounts:
+            dest = m["Destination"].rstrip("/")
+            if path != dest and not path.startswith(dest + "/"):
+                continue
+            rel = path[len(dest):].strip("/")
+            if m["Type"] == "volume":
+                return Mount(target, m["Name"], type="volume", read_only=read_only,
+                             subpath=rel or None)
+            if m["Type"] == "bind":
+                source = f"{m['Source'].rstrip('/')}/{rel}" if rel else m["Source"]
+                return Mount(target, source, type="bind", read_only=read_only)
+        raise SandboxError(f"{path} is on no volume or bind mount this runner shares")
+
     def run(self, request: SandboxRequest) -> SandboxResult:
+        import requests
+
         request.validate()
         profile = RESOURCE_PROFILES[request.profile]
         cpus = min(float(profile["cpus"]), HOST_LIMITS["cpus"])
         mem_gb = min(float(profile["memory"].rstrip("g")), HOST_LIMITS["memory_gb"])
 
-        name = f"triad-sbx-{request.run_key}-{request.stage}-{uuid.uuid4().hex[:6]}"[:60]
-        args = [
-            "docker", "run", "--rm", "--name", name,
-            "--user", "1000:1000",
-            "--cap-drop", "ALL",
-            "--security-opt", "no-new-privileges",
-            "--read-only",
-            "--tmpfs", f"/tmp:rw,size={profile['scratch']},exec",
-            "--cpus", str(cpus),
-            "--memory", f"{mem_gb}g",
-            "--pids-limit", str(profile["pids"]),
-            "--network", request.network,
-            "--workdir", request.workdir,
-        ]
-        for host, target in request.mounts_ro.items():
-            args += ["-v", f"{host}:{target}:ro"]
-        for host, target in request.mounts_rw.items():
-            args += ["-v", f"{host}:{target}:rw"]
-        for k, v in _scrubbed_env(request.env).items():
-            args += ["-e", f"{k}={v}"]
-        args += [request.image, *request.command]
+        mounts = [self.mount(s, t, read_only=True) for s, t in request.mounts_ro.items()]
+        for source, target in request.mounts_rw.items():
+            _hand_to_sandbox_user(source)
+            mounts.append(self.mount(source, target, read_only=False))
 
+        name = f"triad-sbx-{request.run_key}-{request.stage}-{uuid.uuid4().hex[:6]}"[:60]
         started = time.perf_counter()
+        container = self.client.containers.run(
+            request.image, request.command, name=name, detach=True,
+            user=f"{SANDBOX_USER[0]}:{SANDBOX_USER[1]}",
+            cap_drop=["ALL"], security_opt=["no-new-privileges"],
+            read_only=True, tmpfs={"/tmp": f"rw,size={profile['scratch']},exec"},
+            nano_cpus=int(cpus * 1e9), mem_limit=f"{mem_gb}g", pids_limit=int(profile["pids"]),
+            network_mode=request.network, working_dir=request.workdir,
+            mounts=mounts, environment=_scrubbed_env(request.env),
+        )
         timed_out = False
         try:
-            proc = subprocess.run(
-                args, capture_output=True, text=True, timeout=profile["timeout_s"]
-            )
-            code, out, err = proc.returncode, proc.stdout, proc.stderr
-        except subprocess.TimeoutExpired as exc:
-            timed_out = True
-            code = 124
-            out = exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")
-            err = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
-            subprocess.run(["docker", "kill", name], capture_output=True)
+            try:
+                code = int(container.wait(timeout=profile["timeout_s"])["StatusCode"])
+            except requests.exceptions.RequestException:
+                # The wait's read timeout is the hard timeout; a failure before it is not.
+                if time.perf_counter() - started < profile["timeout_s"]:
+                    raise
+                timed_out, code = True, 124
+                container.kill()
+            out = container.logs(stdout=True, stderr=False).decode("utf-8", "replace")
+            err = container.logs(stdout=False, stderr=True).decode("utf-8", "replace")
+        finally:
+            container.remove(force=True)
 
-        duration = int((time.perf_counter() - started) * 1000)
         return SandboxResult(
-            ok=(code == 0),
+            ok=(code == 0 and not timed_out),
             exit_code=code,
             stdout=out,
             stderr=err,
-            duration_ms=duration,
+            duration_ms=int((time.perf_counter() - started) * 1000),
             isolation=self.isolation,
-            image_digest=image_digest(request.image),
+            image_digest=_image_id(self.client, request.image),
             command=" ".join(request.command),
             limits={"cpus": cpus, "memory_gb": mem_gb, "pids": profile["pids"],
-                    "timeout_s": profile["timeout_s"], "network": request.network},
+                    "timeout_s": profile["timeout_s"], "network": request.network,
+                    "read_only_root": True, "user": f"{SANDBOX_USER[0]}:{SANDBOX_USER[1]}"},
             timed_out=timed_out,
             detail="hard timeout reached" if timed_out else "",
         )
+
+
+def _hand_to_sandbox_user(path: str) -> None:
+    """Make a writable mount writable by the job: the platform created it as root.
+
+    Symlinks are changed themselves, never followed: a job could have left one in its own
+    folder pointing anywhere this runner can see.
+    """
+    if not (path == DATA_ROOT or path.startswith(DATA_ROOT + "/")):
+        raise SandboxError(f"writable mount {path} is not under the data root")
+    os.makedirs(path, exist_ok=True)
+    uid, gid = SANDBOX_USER
+    for root, _dirs, files in os.walk(path):
+        os.chown(root, uid, gid, follow_symlinks=False)
+        for name in files:
+            os.chown(os.path.join(root, name), uid, gid, follow_symlinks=False)
+
+
+def _image_id(client: Any, image: str) -> str | None:
+    try:
+        attrs = client.images.get(image).attrs
+        return (attrs.get("RepoDigests") or [None])[0] or attrs.get("Id")
+    except Exception:
+        return None
+
+
+class RemoteRunner:
+    """The orchestrator's runner: each request goes to sandbox-runner, which holds the socket.
+
+    Fails closed. If the service cannot be reached the job does not run - falling back to
+    LocalRunner would quietly drop the isolation this deployment was configured to have.
+    """
+
+    isolation = "container"
+
+    def __init__(self, url: str, token: str) -> None:
+        if not token:
+            raise SandboxError("TRIAD_SANDBOX_URL is set without TRIAD_SANDBOX_TOKEN")
+        self.url = url.rstrip("/")
+        self.token = token
+
+    def run(self, request: SandboxRequest) -> SandboxResult:
+        request.validate()
+        call = urllib.request.Request(
+            f"{self.url}/run", data=json.dumps(asdict(request)).encode(), method="POST",
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
+        )
+        # The job's own hard timeout is enforced by the service; this one only bounds the wait.
+        timeout = RESOURCE_PROFILES[request.profile]["timeout_s"] + 120
+        try:
+            with urllib.request.urlopen(call, timeout=timeout) as response:
+                return SandboxResult(**json.loads(response.read()))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:2000]
+            raise SandboxError(f"sandbox-runner refused the job ({exc.code}): {detail}") from exc
+        except OSError as exc:
+            raise SandboxError(f"sandbox-runner unreachable at {self.url}: {exc}") from exc
 
 
 class LocalRunner:
@@ -273,8 +384,11 @@ def image_digest(image: str) -> str | None:
         return None
 
 
-def get_runner() -> DockerRunner | LocalRunner:
+def get_runner() -> RemoteRunner | DockerRunner | LocalRunner:
     """The single entry point. Nothing else in TRIAD starts a process for generated code."""
+    url = os.environ.get("TRIAD_SANDBOX_URL")
+    if url:
+        return RemoteRunner(url, os.environ.get("TRIAD_SANDBOX_TOKEN", ""))
     return DockerRunner() if docker_available() else LocalRunner()
 
 
@@ -306,12 +420,35 @@ def spark_submit_request(
         jar,
         *job_args,
     ]
+    # Least privilege: the job sees its own inputs and the two JARs, read-only, and writes only
+    # inside its run's sandbox folder - output, report and quarantine alike; the platform moves
+    # them into place. Not the data root.
+    sandbox_dir = f"{data_root}/sandbox/{run_key}"
+    readable = {str(Path(j).parent): str(Path(j).parent) for j in (jar, core_jar)}
+    writable = {sandbox_dir: sandbox_dir}
+    for arg in job_args:
+        if arg.startswith("--input="):
+            path = _local_path(arg.split(":", 1)[1])
+            folder = str(Path(path).parent) if Path(path).suffix else path
+            readable[folder] = folder
+    local = master.startswith("local")
     return SandboxRequest(
         run_key=run_key,
         stage=stage,
         image=image,
         command=command,
         profile=profile,
-        mounts_rw={f"{data_root}/sandbox/{run_key}": f"{data_root}/sandbox/{run_key}"},
-        env={"TRIAD_RUN_KEY": run_key, "SPARK_SUBMIT_AT": utcnow().isoformat()},
+        mounts_ro=readable,
+        mounts_rw=writable,
+        # A local-mode job is one JVM: it needs no network, so it gets none. Spark is told to
+        # bind the loopback, which is all a container with no network has.
+        network="none" if local else "triad_" + SANDBOX_NETWORK_SUFFIX,
+        workdir="/tmp",
+        env={"TRIAD_RUN_KEY": run_key, "SPARK_SUBMIT_AT": utcnow().isoformat(),
+             **({"SPARK_LOCAL_IP": "127.0.0.1", "SPARK_LOCAL_HOSTNAME": "localhost"}
+                if local else {})},
     )
+
+
+def _local_path(uri: str) -> str:
+    return uri[len("file://"):] if uri.startswith("file://") else uri

@@ -6,6 +6,7 @@ service is that a drift report is a row someone can query later, not a log line.
 
 from __future__ import annotations
 
+import uuid
 from datetime import timedelta
 
 import numpy as np
@@ -41,7 +42,9 @@ def _frame(n: int, *, shift: float = 0.0) -> pd.DataFrame:
 @pytest.fixture()
 def run(db_session):
     return q.create_run(
-        db_session, pipeline_name="churn_v1", trigger_type="manual",
+        # Not "churn_v1": the cooldown guard looks for any retrain of the pipeline in the
+        # shared database, so a real retrain attempt there would block these tests.
+        db_session, pipeline_name=f"churn_v1_test_{uuid.uuid4().hex[:8]}", trigger_type="manual",
         triggered_by="test", idempotency_key=f"monitor-{utcnow().timestamp()}",
     )
 
@@ -310,7 +313,9 @@ def test_a_fired_trigger_queues_a_retraining_run(db_session, monitor, run) -> No
     from agents.graph import queue as q
     from triad_core.models import AgentTask, PipelineRun
 
-    run.input_versions = {"transactions": "file:///data/triad/raw/transactions/v=1"}
+    # A dataset with no registered version, so the retrain keeps the source's URI for it. That
+    # a registered dataset's *latest* version replaces the source's is test_triggers' to show.
+    run.input_versions = {"feed_never_registered": "file:///data/triad/raw/feed/v=1"}
     db_session.flush()
 
     decision = monitor.policy.evaluate(
@@ -325,7 +330,7 @@ def test_a_fired_trigger_queues_a_retraining_run(db_session, monitor, run) -> No
     assert queued is not None
     assert queued.trigger_type == "retrain"
     assert queued.parent_run_id == run.id
-    assert queued.input_versions == run.input_versions, "it retrains on the same inputs"
+    assert queued.input_versions == run.input_versions, "nothing newer is registered"
 
     tasks = db_session.execute(
         select(AgentTask).where(AgentTask.run_id == queued.id)

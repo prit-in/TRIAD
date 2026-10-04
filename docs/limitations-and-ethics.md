@@ -39,16 +39,19 @@ which refuses a verdict on a hypothesis when no measurement was recorded:
 | Anything depending on live LLM behaviour — EXP-1's "agent overhead dominates", EXP-8's repair rate | No provider is configured (ADR-0003). A measured zero would describe the missing provider, not the loop |
 | Distributed Spark scaling | Two Compose workers on 8 shared cores would measure scheduling overhead, not scaling. `local[N]` varies the same knob honestly |
 | Shuffle bytes and spill | They come from Spark event logs, which are disabled here |
-| Container isolation as it runs on this machine | `docker` is absent from the dev container's PATH, so jobs fall back to `LocalRunner`. Every claim about container isolation describes `DockerRunner`, which is implemented and tested but is not the path this machine takes |
+| Rootless container isolation | PRD 22.3 recommends rootless Docker or Podman for the runner host. Docker Desktop is not rootless, so the `sandbox-runner` service's socket is root-equivalent on the host (ADR-0004). Jobs themselves run as uid 1000 with every capability dropped |
 
 ## What is implemented and does not work as intended
 
-Two error classifications, both found by EXP-6 and both still open:
+Nothing currently known. The last entries here were EXP-6's two misclassifications - a 256m
+driver refused by Spark read as `UNKNOWN`, and a coursier download failure read as a compile
+error, which prescribed regenerating correct code. Both are fixed at their source (DEC-20); the
+driver-memory case is now named in an escalation rather than remedied automatically, because the
+policy does not let the agent raise driver memory.
 
-- An out-of-memory failure from a 256m driver is classified `UNKNOWN`, so the remedy that exists
-  for it never fires.
-- A coursier dependency-download failure is classified `SCALA_COMPILE_ERROR`, so the prescribed
-  remedy is to regenerate code that was never the problem.
+Until 04-10-2026 this section should also have said that Spark jobs did not run in containers:
+the orchestrator had no docker socket, so every job ran under `LocalRunner` on the host network.
+They now run in containers started by the `sandbox-runner` service (ADR-0004).
 
 ## What the model must not be used for
 
@@ -100,7 +103,10 @@ attributes the data does not carry, and their absence is not evidence of their i
   credential from the connection targets it shows, and a test asserts the whole payload carries
   none.
 - The sandbox that runs Spark jobs has no route to the internet, the LLM, governance, unrelated
-  secrets, or the database.
+  secrets, or the database: a local-mode job's container has no network at all, and is given
+  only its own inputs and JARs read-only. Measured from inside a job, not assumed
+  (`tests/security/test_sandbox_isolation.py`, ADR-0004). This line was written before it was
+  true; until 04-10-2026 jobs ran on the host network under `LocalRunner`.
 - **The audit trail is not anonymised.** It records who did what, deliberately, and it is
   admin-only. Any deployment holding real data needs a retention policy for it — and pruning it
   by row breaks the chain, so whole chains must be archived rather than rows deleted.

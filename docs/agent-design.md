@@ -58,16 +58,25 @@ vary. An out-of-slot change is a checked property, not a convention.
 | 2 | Static scan: forbidden APIs, unbounded driver-side collection, out-of-slot edits | on the rendered source | yes |
 | 3 | Dependencies are unchanged against the declared set | on the rendered source | yes |
 | 4 | It compiles (`sbt core/package jobs/package`), or byte-compiles for Python, or `EXPLAIN`s for SQL | in the toolchain container | yes |
-| 5 | Fixture tests pass | in the toolchain container | **no** |
-| 6 | Dry run produces a plausible report on a sample | in the sandbox | **no** |
+| 5 | Fixture tests pass on the generated object itself (`GeneratedJobsFixtureSpec`) | in the toolchain container | yes |
+| 6 | Dry run produces a plausible report on a sample | in the sandbox | yes |
 | 7 | The output satisfies the dataset contract | after execution | yes |
 | 8 | The artifact is stored and its content hash matches | on store | yes |
 | 9 | Execution succeeded and the contract still passes | after execution | yes |
 
-**Seven of the nine run. Gates 5 and 6 do not, and that is stated rather than implied.** Gate 5
-is the Scala fixture suite: it exists, `sbt core/test` passes its 21 cases, and running it on
-every generated job would add minutes to every stage on top of gate 4's compile. Gate 6 is a dry
-run on a sample, and this pipeline does not do one — it runs the job once, on the whole input.
+**All nine run on every generated job** (verified on run-2026-10-03-002 for CleanJob,
+FeatureJob and LabelJob). Until 03-10-2026 gates 5 and 6 were called by nothing.
+
+Gate 5 runs `GeneratedJobsFixtureSpec` against the generated object - not the core library's
+specs, which test the building blocks and cannot see how a slot composed them - on the
+hand-checked fixtures in `ChurnFixtures`. It is the slowest gate: 394-722 s the first time a
+generated object is seen, measured, because it starts sbt and a forked Spark JVM. Its result is
+reused only under a key covering the generated source, the core library, the fixtures and the
+build file, so an unchanged job costs nothing (0 s on the run's later attempts).
+
+Gate 6 submits the same job through the tool registry on a sample - `dry_run_rows` =
+min(100 000, max(1 000, 1% of the input)) - into throwaway staging, in the sandbox and under the
+profile's time limit (69-220 s here). The job writes nothing a later stage reads.
 
 The gate functions for 7, 8 and 9 were themselves dead code until recently: the *checks* were
 being made — the contract was evaluated, the execution status decided the stage, the artifact was

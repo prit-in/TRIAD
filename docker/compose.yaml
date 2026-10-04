@@ -1,7 +1,7 @@
 # TRIAD MVP stack (PRD section 10.3), sized for Env-A-mini: 8 cores / ~5.3 GB in the
 # Docker VM (see docs/adr/ADR-0002-env-a-mini.md). Profiles keep the resident set small:
 #
-#   core    postgres + mlflow + api + orchestrator + frontend   (always needed)
+#   core    postgres + mlflow + api + orchestrator + sandbox-runner + frontend  (always)
 #   spark   spark-master + spark-worker                         (cluster demos, EXP-*)
 #   tools   dev shell / test runner                             (on demand)
 #
@@ -56,6 +56,9 @@ services:
     <<: *triad-image
     environment:
       <<: *common-env
+      # MLflow 3.x starts a job runner and seven huey consumers (~200 MB each) by default, for
+      # server-side GenAI jobs TRIAD never submits; they held the container at its limit.
+      MLFLOW_SERVER_ENABLE_JOB_EXECUTION: "false"
     command:
       - bash
       - -lc
@@ -113,9 +116,18 @@ services:
     environment:
       <<: *common-env
       TRIAD_WORKER_NAME: orchestrator-1
+      # Gate 5 runs sbt and a forked ScalaTest JVM at once, beside the worker: two JVMs whose
+      # default heaps (sbt's 1 GB, the suite's 1500m) alone exceeded the old 1600M limit.
+      SBT_OPTS: "-Xmx800m -Xss4m"
+      TRIAD_TEST_HEAP: "700m"
+      # Generated code runs in containers started by sandbox-runner; without these two the
+      # worker falls back to LocalRunner and every result says isolation was not in force.
+      TRIAD_SANDBOX_URL: http://sandbox-runner:8090
+      TRIAD_SANDBOX_TOKEN: ${TRIAD_SANDBOX_TOKEN:-dev-only-sandbox-token-change-me}
     command: ["python", "-m", "agents.worker"]
     depends_on:
       postgres: {condition: service_healthy}
+      sandbox-runner: {condition: service_healthy}
     volumes:
       - ..:/workspace
       - triad-data:/data/triad
@@ -123,7 +135,35 @@ services:
       - triad-sbt:/home/triad/.sbt
     deploy:
       resources:
-        limits: {memory: 1600M}
+        limits: {memory: 2600M}
+    networks: [triad-net]
+
+  # The only service with the docker socket (DD-04, PRD 22.3). It holds no database URL, no
+  # JWT secret and no LLM key: just the socket, the token its one caller presents, and the
+  # same data and source mounts, read so it can hand a job exactly the paths it was given.
+  # The jobs it starts run with no network, so they cannot reach this service either.
+  sandbox-runner:
+    <<: *triad-image
+    environment:
+      TZ: UTC
+      PYTHONPATH: /workspace
+      TRIAD_DATA_ROOT: /data/triad
+      TRIAD_SANDBOX_TOKEN: ${TRIAD_SANDBOX_TOKEN:-dev-only-sandbox-token-change-me}
+      TRIAD_SANDBOX_IMAGES: triad-base:0.1
+    command: ["python", "-m", "sandbox.service", "--port", "8090"]
+    volumes:
+      - ..:/workspace:ro
+      - triad-data:/data/triad
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8090/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    deploy:
+      resources:
+        limits: {memory: 200M}
     networks: [triad-net]
 
   frontend:
@@ -179,6 +219,9 @@ services:
     environment:
       <<: *common-env
       TRIAD_DB_URL: postgresql+psycopg://triad:${POSTGRES_PASSWORD:-triad_dev_pw}@postgres:5432/triad
+      # Experiments and tests take the production path: jobs run in sandbox-runner's containers.
+      TRIAD_SANDBOX_URL: http://sandbox-runner:8090
+      TRIAD_SANDBOX_TOKEN: ${TRIAD_SANDBOX_TOKEN:-dev-only-sandbox-token-change-me}
     command: ["sleep", "infinity"]
     volumes:
       - ..:/workspace

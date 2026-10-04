@@ -156,7 +156,9 @@ def test_an_allowed_submission_reaches_the_sandbox(policy: PolicyEngine) -> None
     assert len(sandbox.requests) == 1
     request = sandbox.requests[0]
     assert request.profile == "small"
-    assert request.network.endswith("triad-sandbox-net")
+    # A local-mode job is one JVM and is given no network at all (ST-06); only a cluster job
+    # would get the internal sandbox network.
+    assert request.network == "none"
 
 
 def test_arguments_are_schema_checked_before_the_sandbox_sees_them(policy: PolicyEngine) -> None:

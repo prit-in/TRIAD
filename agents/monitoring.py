@@ -519,19 +519,35 @@ class MonitoringService:
             )
             return None
 
+        # A retrain trains on the data as it is now - the drift that fired it is the difference
+        # between that and what the champion saw - so each input is the latest registered
+        # version, and the source run's own URI only where a dataset has none. Copying the
+        # source's inputs retrained on the stale snapshot, and a source that recorded none
+        # (the early demo runs) produced a run the pipeline rejected for want of transactions.
+        from dataeng.ingest import DatasetRegistry
+
+        inputs = {
+            **dict(source.input_versions or {}),
+            **DatasetRegistry(self.session, self.storage).latest_uris(
+                {*(source.input_versions or {}), *(self.config.get("inputs") or {})}
+            ),
+        }
         run = q.create_run(
             self.session,
             pipeline_name=name,
             trigger_type=trigger_type,
             triggered_by="system",
             config={"retraining": decision.to_dict(), "parent_run": source.run_key},
-            input_versions=dict(source.input_versions or {}),
-            budget=dict(source.budget_json or {}),
+            input_versions=inputs,
+            # The limits only. `budget_json` also holds what the source run *used*, and
+            # RunBudget.from_dict resumes from it, so a retrain inherited its parent's elapsed
+            # time, repair attempts and fingerprint counts as its own.
+            budget={"limits": dict((source.budget_json or {}).get("limits") or {})},
         )
         run.parent_run_id = source.id
         q.enqueue(
             self.session, run, stage="pipeline", agent_name="orchestrator",
-            task_type="run", input_refs=dict(source.input_versions or {}),
+            task_type="run", input_refs=inputs,
         )
         audit.record(
             self.session, actor_type="system", actor_id="monitoring",
@@ -556,9 +572,14 @@ class MonitoringService:
         )
 
 
-def jsonable(payload: dict[str, Any]) -> dict[str, Any]:
+def jsonable(payload: Any) -> Any:
     """Coerce a payload for a JSON column: numpy scalars and tuples turn up from Optuna,
-    sklearn and the evaluation code, and `json.dumps` refuses both."""
+    sklearn and the evaluation code, and `json.dumps` refuses both.
+
+    Any JSON shape, not only an object: `decision_records.alternatives` is a list, and when
+    this accepted dicts alone, recording the acceptance decision raised on every run that
+    reached selection - after the verdict, so the worker retried the whole run from profiling.
+    """
     import numpy as np
 
     def convert(value: Any) -> Any:
@@ -572,4 +593,4 @@ def jsonable(payload: dict[str, Any]) -> dict[str, Any]:
             return value
         return str(value)
 
-    return {str(k): convert(v) for k, v in payload.items()}
+    return convert(payload)

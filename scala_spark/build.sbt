@@ -44,7 +44,9 @@ lazy val commonSettings = Seq(
     "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
     "-Djdk.reflect.useDirectMethodHandle=false",
     "-Dspark.ui.enabled=false",
-    "-Xmx1500m"
+    // Gate 5 runs these tests inside the orchestrator, beside the sbt JVM and the worker, so
+    // the orchestrator sets a smaller heap there; 1500m is for running the suite on its own.
+    s"-Xmx${sys.env.getOrElse("TRIAD_TEST_HEAP", "1500m")}"
   ),
   Test / fork := true,
   Test / parallelExecution := false

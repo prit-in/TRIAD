@@ -115,6 +115,41 @@ def test_a_second_tick_does_not_start_a_second_run(db_session, config) -> None:
     assert len(_runs_started_from(db_session, source)) == 1
 
 
+def test_a_retrain_takes_the_latest_data_and_a_fresh_budget(db_session, config) -> None:
+    """Found live on 2026-10-03: the first scheduled retrain copied its source run's inputs -
+    none, for the early demo runs - and was rejected for want of transactions; and it copied
+    the source's budget, usage included, so it started with the parent's minutes spent."""
+    from sqlalchemy import func
+
+    from triad_core.models import Dataset, DatasetVersion
+
+    source, _ = _champion(db_session, trained_days_ago=40,
+                          pipeline=f"churn-latest-{uuid.uuid4().hex[:6]}")
+    source.input_versions = {}
+    source.budget_json = {"limits": {"max_wall_clock_minutes": 90}, "elapsed_minutes": 15.5,
+                          "llm_calls": 7, "repair_attempts": {"P5": 3}}
+    dataset = db_session.execute(
+        select(Dataset).where(Dataset.name == "transactions")
+    ).scalar_one_or_none()
+    if dataset is None:
+        dataset = Dataset(name="transactions", entity_type="transaction", source_type="parquet")
+        db_session.add(dataset)
+        db_session.flush()
+    newest = 1 + (db_session.execute(
+        select(func.max(DatasetVersion.version_no)).where(DatasetVersion.dataset_id == dataset.id)
+    ).scalar() or 0)
+    uri = f"file:///data/triad/raw/transactions/v={newest}/part-00000.parquet"
+    db_session.add(DatasetVersion(dataset_id=dataset.id, version_no=newest, storage_uri=uri,
+                                  checksum_sha256="0" * 64, size_bytes=1))
+    db_session.flush()
+
+    Scheduler(config).tick(db_session)
+
+    [run] = _runs_started_from(db_session, source)
+    assert run.input_versions["transactions"] == uri
+    assert run.budget_json == {"limits": {"max_wall_clock_minutes": 90}}
+
+
 @pytest.mark.slow
 def test_the_data_trigger_starts_a_run(db_session, config, tmp_path) -> None:
     """New data landing in a watched folder registers a version and starts a run on it."""

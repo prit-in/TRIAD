@@ -13,7 +13,7 @@ Verified on 23-09-2026 against commit `b46d8f5`, with 473 unit tests, 84 securit
 
 | Category | Count | Met | Partly met | Not met |
 | --- | --- | --- | --- | --- |
-| Functional — Must | 65 | 63 | 2 | 0 |
+| Functional — Must | 65 | 65 | 0 | 0 |
 | Functional — Should | 16 | 7 | 3 | 6 |
 | Functional — Could | 3 | 1 | 0 | 2 |
 | Acceptance tests (AT) | 16 | 12 | 1 | 3 |
@@ -21,9 +21,11 @@ Verified on 23-09-2026 against commit `b46d8f5`, with 473 unit tests, 84 securit
 | Experiments (EXP) | 10 | 10 run | — | 0 |
 | Documentation (section 58) | 12 | 12 | 0 | 0 |
 
-No Must requirement is unimplemented. Two are partly met — FR-055, where seven of the nine
-validation gates run, and FR-074, where manual and retraining triggers work and schedule and
-data-arrival triggers are not wired — and each says below exactly which part is missing.
+Every Must requirement is met, each with the run or test that shows it. The last two were
+FR-055, where gates 5 and 6 were called by nothing until 03-10-2026 and all nine now run on every
+generated job, and FR-074, where schedule, drift and data-arrival triggers now start runs. Of the
+security tests, ST-05 (TLS) is not met in this local deployment, and ST-06/ST-07 have been met
+only since 04-10-2026, when Spark jobs first ran in containers (ADR-0004).
 
 The Should column moved by one in each direction since the last revision: FR-065 and FR-066 are
 now met, and FR-055 moved from met to partly met after an audit found that five of the nine
@@ -61,7 +63,7 @@ gates it claims were called by nothing at all.
 | ID | Requirement | State | Evidence |
 | --- | --- | --- | --- |
 | FR-024 | Automated feature suggestions | **not met** (Should) | Features come from the catalogue and the templates |
-| FR-025 | Domain-aware churn features | met | `ChurnTransforms.windowFeatures`; TC-028 |
+| FR-025 | Domain-aware churn features | met (Must) | **38 of the PRD's 42 features are implemented** and the other four are recorded as not model inputs and why: two are current-only attributes that would leak (ASM-11), two are AP-6 segment attributes (DEC-21). `configs/feature_catalog.yaml` is the catalogue (`fsv=2`) and feature hygiene runs on it in every run (H2, H3, H7 on names before the split; H4 on training rows). Until 03-10-2026 only 19 were implemented, cancellations counted as purchases, and three of the five groups had no caller. Verified on run-2026-10-03-002: all five groups available, 44 model inputs (38 plus six supporting columns), 0 dropped by H4. `ChurnFixtures` hand-checks every value; TC-026 puts a post-cutoff event in every group |
 | FR-026 | Point-in-time correctness | met | **TC-026**: events dated on or after the cutoff change no feature value |
 | FR-027 | Model-specific encoding and scaling | met | `candidates.build_pipeline`; leak-free, fitted inside the pipeline |
 | FR-028 | Temporal features | met | recency, frequency, tenure, inter-purchase statistics |
@@ -103,8 +105,8 @@ gates it claims were called by nothing at all.
 | FR-052 | Run planning | met | `agents/routing.py`, LR-01..LR-10, every decision recorded |
 | FR-053 | Permissioned tool calls | met (Must) | `agents/tools/pipeline_tools.py` registers the real tools and every Spark submission and catalogue commit goes through `REGISTRY.call`: agent allowlist, argument schema, the `sandbox.run` policy action, and the run's hash chain. Verified on a full run - 6 mediated submissions and 6 mediated commits in `audit_logs`. `tests/unit/test_tool_mediation.py` proves a refusal at each gate stops the work |
 | FR-054 | Code generation | met | template-first, slots only |
-| FR-055 | Validation gates | **partly met** (Must) | **Seven of the nine run.** Gates 1-4 always did; gates 7, 8 and 9 were performing their checks - contract evaluation, artifact storage under a content hash, execution status - without recording any of them as gates, so `gate_results` showed four where the PRD names nine. They are now recorded. Gate 5 (the Scala fixture suite) and gate 6 (a sandbox dry run on a sample) do not run, and neither is claimed. `tests/unit/test_codegen.py`; EXP-8's `first_failed_gate` agrees, reporting only gates 2 and 4 |
-| FR-056 | Mediated execution | met | `sandbox/runner.py` with resource profiles and refusals |
+| FR-055 | Validation gates | met (Must) | **All nine run and are recorded.** Verified on run-2026-10-03-002: CleanJob, FeatureJob and LabelJob each passed gates 1-9 in `code_artifacts.gate_results`. Gate 5 runs `GeneratedJobsFixtureSpec` against the generated object itself (394-722 s the first time an object is seen, 0 s on a cache hit keyed on the generated source, the core library, the fixtures and the build file); gate 6 submits the job through the registry on a sample of `max(1000, 1%)` rows, capped at 100 000 (69-220 s). Until 03-10-2026 gates 5 and 6 were called by nothing |
+| FR-056 | Mediated execution | met | Every job goes through `sandbox/runner.py`. Since 04-10-2026 the orchestrator's `RemoteRunner` hands it to the `sandbox-runner` service, which starts a container with PRD 22.2's controls and no network (ADR-0004); before that every job ran under `LocalRunner` on the host network. Fails closed when the runner is unreachable |
 | FR-057 | Structured feedback | met | `JobReport` and `StructuredError` |
 | FR-058 | Bounded retries and budgets | met | `agents/llm/budget.py`; circuit breaker on repeated fingerprints |
 | FR-059 | Diagnosis and repair | met | `triad_core/errors.py` taxonomy and playbook |
@@ -132,8 +134,8 @@ gates it claims were called by nothing at all.
 
 | ID | Requirement | State | Evidence |
 | --- | --- | --- | --- |
-| FR-073 | Persisted run state machine | met | `pipeline_runs`, state changes committed with their audit entry |
-| FR-074 | Triggers and scheduling | **partly met** (Must) | Manual triggers work end to end, and a retraining trigger now queues a run. **Schedule ticks and data-arrival triggers are not wired**: `watch_folder` exists but nothing runs it on a timer |
+| FR-073 | Persisted run state machine | met | `pipeline_runs`; each transition is committed with its audit entry as it happens. Until 03-10-2026 the preparation phase was one transaction, so nothing was visible until it ended and everything was lost if the worker died. Observed live on run-2026-10-03-002 through `GET /pipelines/{id}`: PROFILED, PLANNED, FEATURES_READY, TRAINING, EVALUATED, ESCALATED, each as it happened; a worker restart mid-run resumed the task on its lease (AT-11) |
+| FR-074 | Triggers and scheduling | met (Must) | `agents/scheduler.py`, ticked by the worker. Schedule (RT-6), drift (RT-1..RT-4) and data arrival (a watched landing folder) each start a run in `tests/unit/test_triggers.py`, named by cause; manual through `POST /pipelines/run`. Live: the first tick on 03-10-2026 queued run-2026-10-03-001 for the deployed champion on RT-3 and RT-7, which exposed two defects in how a retrain is built - it copied its source's inputs (none, for a 2026-09-18 demo run) and its source's used budget - both fixed (PRD 19.3: retrain on the newest window) |
 | FR-075 | Approval workflow | met | separation of duties, mandatory comment, expiry; `tests/unit/test_api.py`, `test_governance.py` |
 | FR-076 | Registry aliases and rollback | met | aliases never stages (CR-14); rollback restores a recorded version only |
 | FR-077 | Experiment tracking | met (Must) | Runs, parameters, metrics and artifacts go to MLflow, and the `experiments` row - split spec, objective, MLflow experiment id - is written per run, whether or not MLflow was reachable |
@@ -172,6 +174,19 @@ gates it claims were called by nothing at all.
 | ATC-17 | Self-approval refused | met — asserted through the service *and* through the API |
 | ATC-18 | Replay with no LLM calls | **met** — verified end to end on run-2026-09-21-007: 3/3 stored artifacts reused with identical content hashes, 0 LLM invocations, and all three outputs identical (clean `061e97b5…`, features `2a97e511…`, labels `ce277092…`). Getting there needed two fixes, because there were two causes: Spark's per-job UUID in every part-file name, and row-to-file assignment that varies with task scheduling. A table's content is now the multiset of its rows |
 | ATC-06..11, 14..16 | (various) | **partly covered** by the tests above; not individually mapped |
+
+## Security tests (PRD 47: ST-01 to ST-08)
+
+| Test | What | Status and evidence |
+| --- | --- | --- |
+| ST-01 | Authentication | met - argon2id hashes, signed expiring tokens; `tests/unit/test_api.py` (expired and foreign-key tokens refused, wrong password and unknown email indistinguishable) |
+| ST-02 | Role check on every endpoint | met - `tests/security/test_endpoint_authorisation.py` enumerates the routes from the running app rather than from a list |
+| ST-03 | Secret scanning of code and logs | met - `tests/security/test_no_secrets_in_source.py`; `test_refusals_are_audited.py`; a sandbox request carrying a secret-looking variable is refused |
+| ST-04 | Run isolation | met - run-scoped staging, storage paths confined to the data root (`test_storage_paths_stay_in_the_data_root.py`), and since 04-10-2026 a job's container has only its run's folders writable |
+| ST-05 | TLS and encryption settings | **not met** - the local stack serves plain HTTP and no reverse proxy is configured; PRD 22.2's lab setting (TLS at the proxy) is not in place |
+| ST-06 | Sandbox network egress blocked | **met since 04-10-2026** - `tests/security/test_sandbox_isolation.py` runs a job through `sandbox-runner` and observes the internet unreachable and postgres, mlflow and the runner unresolvable (ADR-0004). Before that, jobs ran under `LocalRunner` on the host network |
+| ST-07 | Sandbox file-system and process limits | **met since 04-10-2026** - same file: uid 1000, no capabilities, read-only root and inputs, pids 256, memory 3 GiB, no docker socket |
+| ST-08 | Model hash check before loading | **met since 03-10-2026** - a directory hash recorded at registration and verified on every load, fail-closed (`registry._load_verified`, `tests/unit/test_audit_findings_2026_10.py`); 17 older versions backfilled and labelled trust-on-first-use |
 
 ## Experiments
 

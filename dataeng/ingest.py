@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -236,6 +237,16 @@ class DatasetRegistry:
             .order_by(DatasetVersion.version_no.desc())
             .limit(1)
         ).scalar_one_or_none()
+
+    def latest_uris(self, names: Iterable[str]) -> dict[str, str]:
+        """Storage URI of the latest version of each named dataset; unregistered names are left out."""
+        uris: dict[str, str] = {}
+        for name in names:
+            dataset = self.get(name)
+            version = self.latest_version(dataset) if dataset is not None else None
+            if version is not None and version.storage_uri:
+                uris[name] = version.storage_uri
+        return uris
 
     def _next_version_no(self, dataset: Dataset) -> int:
         """Next free version number, considering both the catalogue and the storage layout.

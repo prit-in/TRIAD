@@ -134,8 +134,9 @@ class Scheduler:
 
     def _start_data_run(self, session: Session, *, store: Any) -> Any:
         from agents.graph import queue as q
+        from dataeng.ingest import DatasetRegistry
         from triad_core import audit
-        from triad_core.models import Dataset, DatasetVersion, PipelineRun
+        from triad_core.models import PipelineRun
 
         pipeline = self.config.get("pipeline", "churn_v1")
         # One run of a pipeline at a time (DEC-18): data arriving mid-run waits for the next tick.
@@ -148,18 +149,7 @@ class Scheduler:
         if active is not None:
             return None
 
-        inputs: dict[str, str] = {}
-        for name in (self.config.get("inputs") or {}):
-            dataset = session.execute(select(Dataset).where(Dataset.name == name)).scalars().first()
-            if dataset is None:
-                continue
-            version = session.execute(
-                select(DatasetVersion)
-                .where(DatasetVersion.dataset_id == dataset.id)
-                .order_by(DatasetVersion.version_no.desc())
-            ).scalars().first()
-            if version is not None and version.storage_uri:
-                inputs[name] = version.storage_uri
+        inputs = DatasetRegistry(session, store).latest_uris(self.config.get("inputs") or {})
         if "transactions" not in inputs:
             return None
 

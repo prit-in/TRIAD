@@ -36,7 +36,6 @@ fault, and it is stated as that rather than as a distributed executor loss.
 
 from __future__ import annotations
 
-import subprocess
 import threading
 import time
 import uuid
@@ -120,20 +119,27 @@ class _ContainerKiller:
     def _run(self) -> None:
         if self._stop.wait(self.delay):
             return
+        # Through the SDK: the image has no docker CLI, so the `docker ps` this used to run
+        # could never find anything, and the arm could never land. The socket is given to the
+        # experiment's container for this experiment only; no platform service but
+        # sandbox-runner has it (DD-04).
+        try:
+            import docker
+
+            client = docker.from_env(timeout=30)
+            client.ping()
+        except Exception as exc:  # no engine reachable is a recorded limitation, not a crash
+            self.error = f"{type(exc).__name__}: {exc}"
+            return
         deadline = time.perf_counter() + 240
         while time.perf_counter() < deadline and not self._stop.is_set():
-            try:
-                found = subprocess.run(
-                    ["docker", "ps", "--filter", "name=triad-sbx-", "--format", "{{.Names}}"],
-                    capture_output=True, text=True, timeout=30,
-                )
-            except Exception as exc:  # docker unreachable is a recorded limitation, not a crash
-                self.error = f"{type(exc).__name__}: {exc}"
-                return
-            names = [n for n in found.stdout.splitlines() if n.strip()]
-            if names:
-                subprocess.run(["docker", "kill", names[0]], capture_output=True, timeout=30)
-                self.killed = names[0]
+            # The job itself, not gate 6's dry run on a sample, which runs first and is named
+            # `<stage>-dryrun`: the arm is about losing the executor mid-stage.
+            running = [c for c in client.containers.list(filters={"name": "triad-sbx-"})
+                       if "dryrun" not in c.name]
+            if running:
+                running[0].kill()
+                self.killed = running[0].name
                 return
             self._stop.wait(1.0)
 

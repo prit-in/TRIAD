@@ -176,17 +176,23 @@ Four findings, none of which a passing test would have surfaced:
    `2a97e511…`, labels `ce277092…`. ATC-18 passes.
 2. **A 256m Spark driver's out-of-memory failure is classified `UNKNOWN`,** so the playbook
    prescribed `none` and `RAISE_EXECUTOR_MEMORY` never fired. The classifier does not recognise
-   the signature this failure actually produces. **Open.**
+   the signature this failure actually produces. **Fixed (DEC-20):** Spark's
+   `[INVALID_DRIVER_MEMORY]` refusal is now `RESOURCE_CONFIG_INVALID`, escalated naming the
+   setting rather than remedied, because the policy does not let the agent raise driver memory.
 3. **`docker` is not on the PATH inside the dev container,** so `get_runner()` falls back to
    `LocalRunner` and Spark jobs are *not* running in containers in this environment. The
    container kill could not land — recorded as `container_killed: false` rather than reported as
    a recovery that never happened. Every claim about container isolation therefore describes
    `DockerRunner`, which is implemented and exercised by its own tests, but is not the path this
-   machine takes.
+   machine takes. **Resolved 04-10-2026 (ADR-0004)** - and the finding was worse than it read:
+   `DockerRunner` shelled out to a CLI the image does not have and could never have run. Jobs now
+   run in containers started by the `sandbox-runner` service, so the killed-container arm can
+   land; EXP-6 is to be re-run to measure it.
 4. **sbt's dependency download failure is classified as `SCALA_COMPILE_ERROR`.** The clean
    baseline took two attempts because attempt 1 failed on a coursier network fetch inside
    `gate4_compile`. A network problem is not a compile error and the prescribed remedy
-   (`regenerate_code`) cannot help it. **Open.**
+   (`regenerate_code`) cannot help it. **Fixed (DEC-20):** `DEPENDENCY_RESOLUTION`, resubmitted
+   once and never sent to code regeneration; the compile pattern now requires a file and line.
 
 EXP-6 is also what proved the `RAISE_EXECUTOR_MEMORY` plumbing fix: that remedy bumped an input
 nothing read, so an out-of-memory retry was submitted with exactly the memory that had just
