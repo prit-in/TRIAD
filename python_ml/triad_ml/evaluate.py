@@ -368,13 +368,46 @@ def segment_metrics(
     return out
 
 
+def recall_gaps(segments: list[Metrics]) -> dict[str, float]:
+    """The AP-6 gap within each segmentation, from segments with enough data (DEC-02).
+
+    Countries are compared with countries and channels with channels. This used to take the
+    largest minus the smallest recall over every segment of every attribute together, so a
+    country's recall was set against an acquisition channel's - overlapping groups from
+    different partitions - and each attribute added made the "gap" larger (run-2026-10-04-004
+    escalated on 0.160 that way).
+    """
+    by_attribute: dict[str, list[float]] = {}
+    for m in segments:
+        recall = m.get("recall")
+        if m.values.get("insufficient_data") or np.isnan(recall) or not m.segment:
+            continue
+        by_attribute.setdefault(m.segment.split("=", 1)[0], []).append(float(recall))
+    return {a: float(max(r) - min(r)) for a, r in by_attribute.items() if len(r) >= 2}
+
+
 def recall_gap(segments: list[Metrics]) -> float:
-    """Largest recall difference between segments with enough data (AP-6)."""
-    recalls = [
-        m.get("recall") for m in segments if not m.values.get("insufficient_data")
-        and not np.isnan(m.get("recall"))
-    ]
-    return float(max(recalls) - min(recalls)) if len(recalls) >= 2 else 0.0
+    """The largest within-segmentation recall difference (AP-6)."""
+    return max(recall_gaps(segments).values(), default=0.0)
+
+
+def segment_evidence(segments: list[Metrics]) -> dict[str, Any]:
+    """What a person needs to judge an AP-6 verdict: each segment, its size, and its recall."""
+    return {
+        "segment_recall_gap": recall_gap(segments),
+        "segment_recall_gaps": recall_gaps(segments),
+        "segments": [
+            {
+                "segment": m.segment,
+                "rows": m.n_rows,
+                "positives": int(m.values["positives"]) if "positives" in m.values
+                else round(m.prevalence * m.n_rows),
+                "recall": None if np.isnan(m.get("recall")) else round(float(m.get("recall")), 4),
+                "insufficient_data": bool(m.values.get("insufficient_data")),
+            }
+            for m in segments
+        ],
+    }
 
 
 # --- Acceptance policy (PRD section 17.6) -------------------------------------
@@ -484,8 +517,8 @@ def check_acceptance(
     # AP-6: segment recall gap.
     checked.append("AP-6")
     if segments:
-        gap = recall_gap(segments)
-        evidence["segment_recall_gap"] = gap
+        evidence.update(segment_evidence(segments))
+        gap = evidence["segment_recall_gap"]
         if gap > float(policy.get("AP6_max_segment_recall_gap", 0.10)):
             codes.append("SEGMENT_RECALL_GAP")
 

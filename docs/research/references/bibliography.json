@@ -1,0 +1,4646 @@
+{
+ "wang2024agents": {
+  "doi": "10.1007/s11704-024-40231-1",
+  "type": "journal-article",
+  "title": "A survey on large language model based autonomous agents",
+  "authors": [
+   {
+    "given": "Lei",
+    "family": "Wang"
+   },
+   {
+    "given": "Chen",
+    "family": "Ma"
+   },
+   {
+    "given": "Xueyang",
+    "family": "Feng"
+   },
+   {
+    "given": "Zeyu",
+    "family": "Zhang"
+   },
+   {
+    "given": "Hao",
+    "family": "Yang"
+   },
+   {
+    "given": "Jingsen",
+    "family": "Zhang"
+   },
+   {
+    "given": "Zhiyuan",
+    "family": "Chen"
+   },
+   {
+    "given": "Jiakai",
+    "family": "Tang"
+   },
+   {
+    "given": "Xu",
+    "family": "Chen"
+   },
+   {
+    "given": "Yankai",
+    "family": "Lin"
+   },
+   {
+    "given": "Wayne Xin",
+    "family": "Zhao"
+   },
+   {
+    "given": "Zhewei",
+    "family": "Wei"
+   },
+   {
+    "given": "Jirong",
+    "family": "Wen"
+   }
+  ],
+  "container": "Frontiers of Computer Science",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "18",
+  "issue": "6",
+  "pages": "186345",
+  "year": 2024,
+  "sections": [
+   1,
+   3,
+   6
+  ]
+ },
+ "xi2025agents": {
+  "doi": "10.1007/s11432-024-4222-0",
+  "type": "journal-article",
+  "title": "The rise and potential of large language model based agents: a survey",
+  "authors": [
+   {
+    "given": "Zhiheng",
+    "family": "Xi"
+   },
+   {
+    "given": "Wenxiang",
+    "family": "Chen"
+   },
+   {
+    "given": "Xin",
+    "family": "Guo"
+   },
+   {
+    "given": "Wei",
+    "family": "He"
+   },
+   {
+    "given": "Yiwen",
+    "family": "Ding"
+   },
+   {
+    "given": "Boyang",
+    "family": "Hong"
+   },
+   {
+    "given": "Ming",
+    "family": "Zhang"
+   },
+   {
+    "given": "Junzhe",
+    "family": "Wang"
+   },
+   {
+    "given": "Senjie",
+    "family": "Jin"
+   },
+   {
+    "given": "Enyu",
+    "family": "Zhou"
+   },
+   {
+    "given": "Rui",
+    "family": "Zheng"
+   },
+   {
+    "given": "Xiaoran",
+    "family": "Fan"
+   },
+   {
+    "given": "Xiao",
+    "family": "Wang"
+   },
+   {
+    "given": "Limao",
+    "family": "Xiong"
+   },
+   {
+    "given": "Yuhao",
+    "family": "Zhou"
+   },
+   {
+    "given": "Weiran",
+    "family": "Wang"
+   },
+   {
+    "given": "Changhao",
+    "family": "Jiang"
+   },
+   {
+    "given": "Yicheng",
+    "family": "Zou"
+   },
+   {
+    "given": "Xiangyang",
+    "family": "Liu"
+   },
+   {
+    "given": "Zhangyue",
+    "family": "Yin"
+   },
+   {
+    "given": "Shihan",
+    "family": "Dou"
+   },
+   {
+    "given": "Rongxiang",
+    "family": "Weng"
+   },
+   {
+    "given": "Wenjuan",
+    "family": "Qin"
+   },
+   {
+    "given": "Yongyan",
+    "family": "Zheng"
+   },
+   {
+    "given": "Xipeng",
+    "family": "Qiu"
+   },
+   {
+    "given": "Xuanjing",
+    "family": "Huang"
+   },
+   {
+    "given": "Qi",
+    "family": "Zhang"
+   },
+   {
+    "given": "Tao",
+    "family": "Gui"
+   }
+  ],
+  "container": "Science China Information Sciences",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "68",
+  "issue": "2",
+  "pages": "121101",
+  "year": 2025,
+  "sections": [
+   1,
+   3,
+   21
+  ]
+ },
+ "he2025masse": {
+  "doi": "10.1145/3712003",
+  "type": "journal-article",
+  "title": "LLM-Based Multi-Agent Systems for Software Engineering: Literature Review, Vision, and the Road Ahead",
+  "authors": [
+   {
+    "given": "Junda",
+    "family": "He"
+   },
+   {
+    "given": "Christoph",
+    "family": "Treude"
+   },
+   {
+    "given": "David",
+    "family": "Lo"
+   }
+  ],
+  "container": "ACM Transactions on Software Engineering and Methodology",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "34",
+  "issue": "5",
+  "pages": "1-30",
+  "year": 2025,
+  "sections": [
+   3,
+   6
+  ]
+ },
+ "chen2024mas": {
+  "doi": "10.1007/s44336-024-00009-2",
+  "type": "journal-article",
+  "title": "A survey on LLM-based multi-agent systems: workflow, infrastructure, and challenges",
+  "authors": [
+   {
+    "given": "Xinyi",
+    "family": "Li"
+   },
+   {
+    "given": "Sai",
+    "family": "Wang"
+   },
+   {
+    "given": "Siqi",
+    "family": "Zeng"
+   },
+   {
+    "given": "Yu",
+    "family": "Wu"
+   },
+   {
+    "given": "Yi",
+    "family": "Yang"
+   }
+  ],
+  "container": "Vicinagearth",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "1",
+  "issue": "1",
+  "pages": "9",
+  "year": 2024,
+  "sections": [
+   6,
+   11
+  ]
+ },
+ "hou2024llm4se": {
+  "doi": "10.1145/3695988",
+  "type": "journal-article",
+  "title": "Large Language Models for Software Engineering: A Systematic Literature Review",
+  "authors": [
+   {
+    "given": "Xinyi",
+    "family": "Hou"
+   },
+   {
+    "given": "Yanjie",
+    "family": "Zhao"
+   },
+   {
+    "given": "Yue",
+    "family": "Liu"
+   },
+   {
+    "given": "Zhou",
+    "family": "Yang"
+   },
+   {
+    "given": "Kailong",
+    "family": "Wang"
+   },
+   {
+    "given": "Li",
+    "family": "Li"
+   },
+   {
+    "given": "Xiapu",
+    "family": "Luo"
+   },
+   {
+    "given": "David",
+    "family": "Lo"
+   },
+   {
+    "given": "John",
+    "family": "Grundy"
+   },
+   {
+    "given": "Haoyu",
+    "family": "Wang"
+   }
+  ],
+  "container": "ACM Transactions on Software Engineering and Methodology",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "33",
+  "issue": "8",
+  "pages": "1-79",
+  "year": 2024,
+  "sections": [
+   3,
+   8
+  ]
+ },
+ "wang2024llmtesting": {
+  "doi": "10.1109/tse.2024.3368208",
+  "type": "journal-article",
+  "title": "Software Testing With Large Language Models: Survey, Landscape, and Vision",
+  "authors": [
+   {
+    "given": "Junjie",
+    "family": "Wang"
+   },
+   {
+    "given": "Yuchao",
+    "family": "Huang"
+   },
+   {
+    "given": "Chunyang",
+    "family": "Chen"
+   },
+   {
+    "given": "Zhe",
+    "family": "Liu"
+   },
+   {
+    "given": "Song",
+    "family": "Wang"
+   },
+   {
+    "given": "Qing",
+    "family": "Wang"
+   }
+  ],
+  "container": "IEEE Transactions on Software Engineering",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "50",
+  "issue": "4",
+  "pages": "911-936",
+  "year": 2024,
+  "sections": [
+   7
+  ]
+ },
+ "jiang2024selfplanning": {
+  "doi": "10.1145/3672456",
+  "type": "journal-article",
+  "title": "Self-Planning Code Generation with Large Language Models",
+  "authors": [
+   {
+    "given": "Xue",
+    "family": "Jiang"
+   },
+   {
+    "given": "Yihong",
+    "family": "Dong"
+   },
+   {
+    "given": "Lecheng",
+    "family": "Wang"
+   },
+   {
+    "given": "Zheng",
+    "family": "Fang"
+   },
+   {
+    "given": "Qiwei",
+    "family": "Shang"
+   },
+   {
+    "given": "Ge",
+    "family": "Li"
+   },
+   {
+    "given": "Zhi",
+    "family": "Jin"
+   },
+   {
+    "given": "Wenpin",
+    "family": "Jiao"
+   }
+  ],
+  "container": "ACM Transactions on Software Engineering and Methodology",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "33",
+  "issue": "7",
+  "pages": "1-30",
+  "year": 2024,
+  "sections": [
+   6,
+   7
+  ]
+ },
+ "tihanyi2024secure": {
+  "doi": "10.1007/s10664-024-10590-1",
+  "type": "journal-article",
+  "title": "How secure is AI-generated code: a large-scale comparison of large language models",
+  "authors": [
+   {
+    "given": "Norbert",
+    "family": "Tihanyi"
+   },
+   {
+    "given": "Tamas",
+    "family": "Bisztray"
+   },
+   {
+    "given": "Mohamed Amine",
+    "family": "Ferrag"
+   },
+   {
+    "given": "Ridhi",
+    "family": "Jain"
+   },
+   {
+    "given": "Lucas C.",
+    "family": "Cordeiro"
+   }
+  ],
+  "container": "Empirical Software Engineering",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "30",
+  "issue": "2",
+  "pages": "47",
+  "year": 2024,
+  "sections": [
+   12
+  ]
+ },
+ "das2025llmsecurity": {
+  "doi": "10.1145/3712001",
+  "type": "journal-article",
+  "title": "Security and Privacy Challenges of Large Language Models: A Survey",
+  "authors": [
+   {
+    "given": "Badhan Chandra",
+    "family": "Das"
+   },
+   {
+    "given": "M. Hadi",
+    "family": "Amini"
+   },
+   {
+    "given": "Yanzhao",
+    "family": "Wu"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "57",
+  "issue": "6",
+  "pages": "1-39",
+  "year": 2025,
+  "sections": [
+   12
+  ]
+ },
+ "boiko2023chemistry": {
+  "doi": "10.1038/s41586-023-06792-0",
+  "type": "journal-article",
+  "title": "Autonomous chemical research with large language models",
+  "authors": [
+   {
+    "given": "Daniil A.",
+    "family": "Boiko"
+   },
+   {
+    "given": "Robert",
+    "family": "MacKnight"
+   },
+   {
+    "given": "Ben",
+    "family": "Kline"
+   },
+   {
+    "given": "Gabe",
+    "family": "Gomes"
+   }
+  ],
+  "container": "Nature",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "624",
+  "issue": "7992",
+  "pages": "570-578",
+  "year": 2023,
+  "sections": [
+   1,
+   3
+  ]
+ },
+ "xue2024dbgpt": {
+  "doi": "10.1007/s41019-023-00235-6",
+  "type": "journal-article",
+  "title": "DB-GPT: Large Language Model Meets Database",
+  "authors": [
+   {
+    "given": "Xuanhe",
+    "family": "Zhou"
+   },
+   {
+    "given": "Zhaoyan",
+    "family": "Sun"
+   },
+   {
+    "given": "Guoliang",
+    "family": "Li"
+   }
+  ],
+  "container": "Data Science and Engineering",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "9",
+  "issue": "1",
+  "pages": "102-111",
+  "year": 2024,
+  "sections": [
+   3
+  ]
+ },
+ "naveed2024llmsurvey": {
+  "doi": "10.1007/s10462-024-10888-y",
+  "type": "journal-article",
+  "title": "Large language models (LLMs): survey, technical frameworks, and future challenges",
+  "authors": [
+   {
+    "given": "Pranjal",
+    "family": "Kumar"
+   }
+  ],
+  "container": "Artificial Intelligence Review",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "57",
+  "issue": "10",
+  "pages": "260",
+  "year": 2024,
+  "sections": [
+   3
+  ]
+ },
+ "pearce2022asleep": {
+  "doi": "10.1109/sp46214.2022.9833571",
+  "type": "proceedings-article",
+  "title": "Asleep at the Keyboard? Assessing the Security of GitHub Copilot’s Code Contributions",
+  "authors": [
+   {
+    "given": "Hammond",
+    "family": "Pearce"
+   },
+   {
+    "given": "Baleegh",
+    "family": "Ahmad"
+   },
+   {
+    "given": "Benjamin",
+    "family": "Tan"
+   },
+   {
+    "given": "Brendan",
+    "family": "Dolan-Gavitt"
+   },
+   {
+    "given": "Ramesh",
+    "family": "Karri"
+   }
+  ],
+  "container": "2022 IEEE Symposium on Security and Privacy (SP)",
+  "publisher": "IEEE",
+  "volume": null,
+  "issue": null,
+  "pages": "754-768",
+  "year": 2022,
+  "sections": [
+   12
+  ]
+ },
+ "greshake2023injection": {
+  "doi": "10.1145/3605764.3623985",
+  "type": "proceedings-article",
+  "title": "Not What You've Signed Up For: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection",
+  "authors": [
+   {
+    "given": "Kai",
+    "family": "Greshake"
+   },
+   {
+    "given": "Sahar",
+    "family": "Abdelnabi"
+   },
+   {
+    "given": "Shailesh",
+    "family": "Mishra"
+   },
+   {
+    "given": "Christoph",
+    "family": "Endres"
+   },
+   {
+    "given": "Thorsten",
+    "family": "Holz"
+   },
+   {
+    "given": "Mario",
+    "family": "Fritz"
+   }
+  ],
+  "container": "Proceedings of the 16th ACM Workshop on Artificial Intelligence and Security",
+  "publisher": "ACM",
+  "volume": null,
+  "issue": null,
+  "pages": "79-90",
+  "year": 2023,
+  "sections": [
+   12
+  ]
+ },
+ "kreuzberger2023mlops": {
+  "doi": "10.1109/access.2023.3262138",
+  "type": "journal-article",
+  "title": "Machine Learning Operations (MLOps): Overview, Definition, and Architecture",
+  "authors": [
+   {
+    "given": "Dominik",
+    "family": "Kreuzberger"
+   },
+   {
+    "given": "Niklas",
+    "family": "Kühl"
+   },
+   {
+    "given": "Sebastian",
+    "family": "Hirschl"
+   }
+  ],
+  "container": "IEEE Access",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "11",
+  "issue": null,
+  "pages": "31866-31879",
+  "year": 2023,
+  "sections": [
+   1,
+   3,
+   14
+  ]
+ },
+ "paleyes2022deploying": {
+  "doi": "10.1145/3533378",
+  "type": "journal-article",
+  "title": "Challenges in Deploying Machine Learning: A Survey of Case Studies",
+  "authors": [
+   {
+    "given": "Andrei",
+    "family": "Paleyes"
+   },
+   {
+    "given": "Raoul-Gabriel",
+    "family": "Urma"
+   },
+   {
+    "given": "Neil D.",
+    "family": "Lawrence"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "55",
+  "issue": "6",
+  "pages": "1-29",
+  "year": 2022,
+  "sections": [
+   2,
+   3
+  ]
+ },
+ "ashmore2021assuring": {
+  "doi": "10.1145/3453444",
+  "type": "journal-article",
+  "title": "Assuring the Machine Learning Lifecycle: Desiderata, Methods, and Challenges",
+  "authors": [
+   {
+    "given": "Rob",
+    "family": "Ashmore"
+   },
+   {
+    "given": "Radu",
+    "family": "Calinescu"
+   },
+   {
+    "given": "Colin",
+    "family": "Paterson"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "54",
+  "issue": "5",
+  "pages": "1-39",
+  "year": 2021,
+  "sections": [
+   10,
+   17
+  ]
+ },
+ "zhang2022mltesting": {
+  "doi": "10.1109/tse.2019.2962027",
+  "type": "journal-article",
+  "title": "Machine Learning Testing: Survey, Landscapes and Horizons",
+  "authors": [
+   {
+    "given": "Jie M.",
+    "family": "Zhang"
+   },
+   {
+    "given": "Mark",
+    "family": "Harman"
+   },
+   {
+    "given": "Lei",
+    "family": "Ma"
+   },
+   {
+    "given": "Yang",
+    "family": "Liu"
+   }
+  ],
+  "container": "IEEE Transactions on Software Engineering",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "48",
+  "issue": "1",
+  "pages": "1-36",
+  "year": 2022,
+  "sections": [
+   7,
+   17
+  ]
+ },
+ "giray2021se4ml": {
+  "doi": "10.1016/j.jss.2021.111031",
+  "type": "journal-article",
+  "title": "A software engineering perspective on engineering machine learning systems: State of the art and challenges",
+  "authors": [
+   {
+    "given": "Görkem",
+    "family": "Giray"
+   }
+  ],
+  "container": "Journal of Systems and Software",
+  "publisher": "Elsevier BV",
+  "volume": "180",
+  "issue": null,
+  "pages": "111031",
+  "year": 2021,
+  "sections": [
+   2
+  ]
+ },
+ "wan2020mlchange": {
+  "doi": "10.1109/tse.2019.2937083",
+  "type": "journal-article",
+  "title": "How does Machine Learning Change Software Development Practices?",
+  "authors": [
+   {
+    "given": "Zhiyuan",
+    "family": "Wan"
+   },
+   {
+    "given": "Xin",
+    "family": "Xia"
+   },
+   {
+    "given": "David",
+    "family": "Lo"
+   },
+   {
+    "given": "Gail C.",
+    "family": "Murphy"
+   }
+  ],
+  "container": "IEEE Transactions on Software Engineering",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": null,
+  "issue": null,
+  "pages": "1-1",
+  "year": 2020,
+  "sections": [
+   2
+  ]
+ },
+ "amershi2019se4ml": {
+  "doi": "10.1109/icse-seip.2019.00042",
+  "type": "proceedings-article",
+  "title": "Software Engineering for Machine Learning: A Case Study",
+  "authors": [
+   {
+    "given": "Saleema",
+    "family": "Amershi"
+   },
+   {
+    "given": "Andrew",
+    "family": "Begel"
+   },
+   {
+    "given": "Christian",
+    "family": "Bird"
+   },
+   {
+    "given": "Robert",
+    "family": "DeLine"
+   },
+   {
+    "given": "Harald",
+    "family": "Gall"
+   },
+   {
+    "given": "Ece",
+    "family": "Kamar"
+   },
+   {
+    "given": "Nachiappan",
+    "family": "Nagappan"
+   },
+   {
+    "given": "Besmira",
+    "family": "Nushi"
+   },
+   {
+    "given": "Thomas",
+    "family": "Zimmermann"
+   }
+  ],
+  "container": "2019 IEEE/ACM 41st International Conference on Software Engineering: Software Engineering in Practice (ICSE-SEIP)",
+  "publisher": "IEEE",
+  "volume": null,
+  "issue": null,
+  "pages": "291-300",
+  "year": 2019,
+  "sections": [
+   2,
+   3
+  ]
+ },
+ "bodor2025mlopsrobust": {
+  "doi": "10.1145/3708497",
+  "type": "journal-article",
+  "title": "Towards Trustworthy Machine Learning in Production: An Overview of the Robustness in MLOps Approach",
+  "authors": [
+   {
+    "given": "Firas",
+    "family": "Bayram"
+   },
+   {
+    "given": "Bestoun S.",
+    "family": "Ahmed"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "57",
+  "issue": "5",
+  "pages": "1-35",
+  "year": 2025,
+  "sections": [
+   17
+  ]
+ },
+ "lwakatare2020industrial": {
+  "doi": "10.1016/j.infsof.2020.106368",
+  "type": "journal-article",
+  "title": "Large-scale machine learning systems in real-world industrial settings: A review of challenges and solutions",
+  "authors": [
+   {
+    "given": "Lucy Ellen",
+    "family": "Lwakatare"
+   },
+   {
+    "given": "Aiswarya",
+    "family": "Raj"
+   },
+   {
+    "given": "Ivica",
+    "family": "Crnkovic"
+   },
+   {
+    "given": "Jan",
+    "family": "Bosch"
+   },
+   {
+    "given": "Helena Holmström",
+    "family": "Olsson"
+   }
+  ],
+  "container": "Information and Software Technology",
+  "publisher": "Elsevier BV",
+  "volume": "127",
+  "issue": null,
+  "pages": "106368",
+  "year": 2020,
+  "sections": [
+   2
+  ]
+ },
+ "priestley2023dataquality": {
+  "doi": "10.1145/3592616",
+  "type": "journal-article",
+  "title": "A Survey of Data Quality Requirements That Matter in ML Development Pipelines",
+  "authors": [
+   {
+    "given": "Maria",
+    "family": "Priestley"
+   },
+   {
+    "given": "Fionntán",
+    "family": "O’donnell"
+   },
+   {
+    "given": "Elena",
+    "family": "Simperl"
+   }
+  ],
+  "container": "Journal of Data and Information Quality",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "15",
+  "issue": "2",
+  "pages": "1-39",
+  "year": 2023,
+  "sections": [
+   7
+  ]
+ },
+ "cote2022cleaning": {
+  "doi": "10.1145/3506712",
+  "type": "journal-article",
+  "title": "Machine Learning and Data Cleaning: Which Serves the Other?",
+  "authors": [
+   {
+    "given": "Ihab F.",
+    "family": "Ilyas"
+   },
+   {
+    "given": "Theodoros",
+    "family": "Rekatsinas"
+   }
+  ],
+  "container": "Journal of Data and Information Quality",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "14",
+  "issue": "3",
+  "pages": "1-11",
+  "year": 2022,
+  "sections": [
+   7
+  ]
+ },
+ "chu2016cleaning": {
+  "doi": "10.1145/2882903.2912574",
+  "type": "proceedings-article",
+  "title": "Data Cleaning: Overview and Emerging Challenges",
+  "authors": [
+   {
+    "given": "Xu",
+    "family": "Chu"
+   },
+   {
+    "given": "Ihab F.",
+    "family": "Ilyas"
+   },
+   {
+    "given": "Sanjay",
+    "family": "Krishnan"
+   },
+   {
+    "given": "Jiannan",
+    "family": "Wang"
+   }
+  ],
+  "container": "Proceedings of the 2016 International Conference on Management of Data",
+  "publisher": "ACM",
+  "volume": null,
+  "issue": null,
+  "pages": "2201-2206",
+  "year": 2016,
+  "sections": [
+   7
+  ]
+ },
+ "abedjan2016errors": {
+  "doi": "10.14778/2994509.2994518",
+  "type": "journal-article",
+  "title": "Detecting data errors: where are we and what needs to be done?",
+  "authors": [
+   {
+    "given": "Ziawasch",
+    "family": "Abedjan"
+   },
+   {
+    "given": "Xu",
+    "family": "Chu"
+   },
+   {
+    "given": "Dong",
+    "family": "Deng"
+   },
+   {
+    "given": "Raul Castro",
+    "family": "Fernandez"
+   },
+   {
+    "given": "Ihab F.",
+    "family": "Ilyas"
+   },
+   {
+    "given": "Mourad",
+    "family": "Ouzzani"
+   },
+   {
+    "given": "Paolo",
+    "family": "Papotti"
+   },
+   {
+    "given": "Michael",
+    "family": "Stonebraker"
+   },
+   {
+    "given": "Nan",
+    "family": "Tang"
+   }
+  ],
+  "container": "Proceedings of the VLDB Endowment",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "9",
+  "issue": "12",
+  "pages": "993-1004",
+  "year": 2016,
+  "sections": [
+   7
+  ]
+ },
+ "schelter2018dataquality": {
+  "doi": "10.14778/3229863.3229867",
+  "type": "journal-article",
+  "title": "Automating large-scale data quality verification",
+  "authors": [
+   {
+    "given": "Sebastian",
+    "family": "Schelter"
+   },
+   {
+    "given": "Dustin",
+    "family": "Lange"
+   },
+   {
+    "given": "Philipp",
+    "family": "Schmidt"
+   },
+   {
+    "given": "Meltem",
+    "family": "Celikel"
+   },
+   {
+    "given": "Felix",
+    "family": "Biessmann"
+   },
+   {
+    "given": "Andreas",
+    "family": "Grafberger"
+   }
+  ],
+  "container": "Proceedings of the VLDB Endowment",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "11",
+  "issue": "12",
+  "pages": "1781-1794",
+  "year": 2018,
+  "sections": [
+   7
+  ]
+ },
+ "werder2022provenance": {
+  "doi": "10.1145/3503488",
+  "type": "journal-article",
+  "title": "Establishing Data Provenance for Responsible Artificial Intelligence Systems",
+  "authors": [
+   {
+    "given": "Karl",
+    "family": "Werder"
+   },
+   {
+    "given": "Balasubramaniam",
+    "family": "Ramesh"
+   },
+   {
+    "given": "Rongen (Sophia)",
+    "family": "Zhang"
+   }
+  ],
+  "container": "ACM Transactions on Management Information Systems",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "13",
+  "issue": "2",
+  "pages": "1-23",
+  "year": 2022,
+  "sections": [
+   10,
+   12
+  ]
+ },
+ "chapman2020provenance": {
+  "doi": "10.14778/3415478.3415556",
+  "type": "journal-article",
+  "title": "Improving reproducibility of data science pipelines through transparent provenance capture",
+  "authors": [
+   {
+    "given": "Lukas",
+    "family": "Rupprecht"
+   },
+   {
+    "given": "James C.",
+    "family": "Davis"
+   },
+   {
+    "given": "Constantine",
+    "family": "Arnold"
+   },
+   {
+    "given": "Yaniv",
+    "family": "Gur"
+   },
+   {
+    "given": "Deepavali",
+    "family": "Bhagwat"
+   }
+  ],
+  "container": "Proceedings of the VLDB Endowment",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "13",
+  "issue": "12",
+  "pages": "3354-3368",
+  "year": 2020,
+  "sections": [
+   10,
+   17
+  ]
+ },
+ "herschel2017provenance": {
+  "doi": "10.1007/s00778-017-0486-1",
+  "type": "journal-article",
+  "title": "A survey on provenance: What for? What form? What from?",
+  "authors": [
+   {
+    "given": "Melanie",
+    "family": "Herschel"
+   },
+   {
+    "given": "Ralf",
+    "family": "Diestelkämper"
+   },
+   {
+    "given": "Houssem",
+    "family": "Ben Lahmar"
+   }
+  ],
+  "container": "The VLDB Journal",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "26",
+  "issue": "6",
+  "pages": "881-906",
+  "year": 2017,
+  "sections": [
+   10
+  ]
+ },
+ "polyzotis2018lifecycle": {
+  "doi": "10.1145/3299887.3299891",
+  "type": "journal-article",
+  "title": "Data Lifecycle Challenges in Production Machine Learning: A Survey",
+  "authors": [
+   {
+    "given": "Neoklis",
+    "family": "Polyzotis"
+   },
+   {
+    "given": "Sudip",
+    "family": "Roy"
+   },
+   {
+    "given": "Steven Euijong",
+    "family": "Whang"
+   },
+   {
+    "given": "Martin",
+    "family": "Zinkevich"
+   }
+  ],
+  "container": "ACM SIGMOD Record",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "47",
+  "issue": "2",
+  "pages": "17-28",
+  "year": 2018,
+  "sections": [
+   2,
+   7
+  ]
+ },
+ "gong2021dataeval": {
+  "doi": "10.1109/tr.2021.3070863",
+  "type": "journal-article",
+  "title": "Data Evaluation and Enhancement for Quality Improvement of Machine Learning",
+  "authors": [
+   {
+    "given": "Haihua",
+    "family": "Chen"
+   },
+   {
+    "given": "Jiangping",
+    "family": "Chen"
+   },
+   {
+    "given": "Junhua",
+    "family": "Ding"
+   }
+  ],
+  "container": "IEEE Transactions on Reliability",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "70",
+  "issue": "2",
+  "pages": "831-847",
+  "year": 2021,
+  "sections": [
+   7
+  ]
+ },
+ "zaharia2016spark": {
+  "doi": "10.1145/2934664",
+  "type": "journal-article",
+  "title": "Apache Spark: a unified engine for big data processing",
+  "authors": [
+   {
+    "given": "Matei",
+    "family": "Zaharia"
+   },
+   {
+    "given": "Reynold S.",
+    "family": "Xin"
+   },
+   {
+    "given": "Patrick",
+    "family": "Wendell"
+   },
+   {
+    "given": "Tathagata",
+    "family": "Das"
+   },
+   {
+    "given": "Michael",
+    "family": "Armbrust"
+   },
+   {
+    "given": "Ankur",
+    "family": "Dave"
+   },
+   {
+    "given": "Xiangrui",
+    "family": "Meng"
+   },
+   {
+    "given": "Josh",
+    "family": "Rosen"
+   },
+   {
+    "given": "Shivaram",
+    "family": "Venkataraman"
+   },
+   {
+    "given": "Michael J.",
+    "family": "Franklin"
+   },
+   {
+    "given": "Ali",
+    "family": "Ghodsi"
+   },
+   {
+    "given": "Joseph",
+    "family": "Gonzalez"
+   },
+   {
+    "given": "Scott",
+    "family": "Shenker"
+   },
+   {
+    "given": "Ion",
+    "family": "Stoica"
+   }
+  ],
+  "container": "Communications of the ACM",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "59",
+  "issue": "11",
+  "pages": "56-65",
+  "year": 2016,
+  "sections": [
+   3,
+   5,
+   9
+  ]
+ },
+ "armbrust2015sparksql": {
+  "doi": "10.1145/2723372.2742797",
+  "type": "proceedings-article",
+  "title": "Spark SQL: Relational Data Processing in Spark",
+  "authors": [
+   {
+    "given": "Michael",
+    "family": "Armbrust"
+   },
+   {
+    "given": "Reynold S.",
+    "family": "Xin"
+   },
+   {
+    "given": "Cheng",
+    "family": "Lian"
+   },
+   {
+    "given": "Yin",
+    "family": "Huai"
+   },
+   {
+    "given": "Davies",
+    "family": "Liu"
+   },
+   {
+    "given": "Joseph K.",
+    "family": "Bradley"
+   },
+   {
+    "given": "Xiangrui",
+    "family": "Meng"
+   },
+   {
+    "given": "Tomer",
+    "family": "Kaftan"
+   },
+   {
+    "given": "Michael J.",
+    "family": "Franklin"
+   },
+   {
+    "given": "Ali",
+    "family": "Ghodsi"
+   },
+   {
+    "given": "Matei",
+    "family": "Zaharia"
+   }
+  ],
+  "container": "Proceedings of the 2015 ACM SIGMOD International Conference on Management of Data",
+  "publisher": "ACM",
+  "volume": null,
+  "issue": null,
+  "pages": "1383-1394",
+  "year": 2015,
+  "sections": [
+   5,
+   9
+  ]
+ },
+ "armbrust2020delta": {
+  "doi": "10.14778/3415478.3415560",
+  "type": "journal-article",
+  "title": "Delta lake: high-performance ACID table storage over cloud object stores",
+  "authors": [
+   {
+    "given": "Michael",
+    "family": "Armbrust"
+   },
+   {
+    "given": "Tathagata",
+    "family": "Das"
+   },
+   {
+    "given": "Liwen",
+    "family": "Sun"
+   },
+   {
+    "given": "Burak",
+    "family": "Yavuz"
+   },
+   {
+    "given": "Shixiong",
+    "family": "Zhu"
+   },
+   {
+    "given": "Mukul",
+    "family": "Murthy"
+   },
+   {
+    "given": "Joseph",
+    "family": "Torres"
+   },
+   {
+    "given": "Herman",
+    "family": "van Hovell"
+   },
+   {
+    "given": "Adrian",
+    "family": "Ionescu"
+   },
+   {
+    "given": "Alicja",
+    "family": "Łuszczak"
+   },
+   {
+    "given": "Michał",
+    "family": "Świtakowski"
+   },
+   {
+    "given": "Michał",
+    "family": "Szafrański"
+   },
+   {
+    "given": "Xiao",
+    "family": "Li"
+   },
+   {
+    "given": "Takuya",
+    "family": "Ueshin"
+   },
+   {
+    "given": "Mostafa",
+    "family": "Mokhtar"
+   },
+   {
+    "given": "Peter",
+    "family": "Boncz"
+   },
+   {
+    "given": "Ali",
+    "family": "Ghodsi"
+   },
+   {
+    "given": "Sameer",
+    "family": "Paranjpye"
+   },
+   {
+    "given": "Pieter",
+    "family": "Senster"
+   },
+   {
+    "given": "Reynold",
+    "family": "Xin"
+   },
+   {
+    "given": "Matei",
+    "family": "Zaharia"
+   }
+  ],
+  "container": "Proceedings of the VLDB Endowment",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "13",
+  "issue": "12",
+  "pages": "3411-3424",
+  "year": 2020,
+  "sections": [
+   9
+  ]
+ },
+ "tang2020sparksurvey": {
+  "doi": "10.1109/tkde.2020.2975652",
+  "type": "journal-article",
+  "title": "A Survey on Spark Ecosystem: Big Data Processing Infrastructure, Machine Learning, and Applications",
+  "authors": [
+   {
+    "given": "Shanjiang",
+    "family": "Tang"
+   },
+   {
+    "given": "Bingsheng",
+    "family": "He"
+   },
+   {
+    "given": "Ce",
+    "family": "Yu"
+   },
+   {
+    "given": "Yusen",
+    "family": "Li"
+   },
+   {
+    "given": "Kun",
+    "family": "Li"
+   }
+  ],
+  "container": "IEEE Transactions on Knowledge and Data Engineering",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": null,
+  "issue": null,
+  "pages": "1-1",
+  "year": 2020,
+  "sections": [
+   3,
+   9
+  ]
+ },
+ "herodotou2020tuning": {
+  "doi": "10.1145/3381027",
+  "type": "journal-article",
+  "title": "A Survey on Automatic Parameter Tuning for Big Data Processing Systems",
+  "authors": [
+   {
+    "given": "Herodotos",
+    "family": "Herodotou"
+   },
+   {
+    "given": "Yuxing",
+    "family": "Chen"
+   },
+   {
+    "given": "Jiaheng",
+    "family": "Lu"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "53",
+  "issue": "2",
+  "pages": "1-37",
+  "year": 2020,
+  "sections": [
+   9,
+   11
+  ]
+ },
+ "ahmed2020hadoopspark": {
+  "doi": "10.1186/s40537-020-00388-5",
+  "type": "journal-article",
+  "title": "A comprehensive performance analysis of Apache Hadoop and Apache Spark for large scale data sets using HiBench",
+  "authors": [
+   {
+    "given": "N.",
+    "family": "Ahmed"
+   },
+   {
+    "given": "Andre L. C.",
+    "family": "Barczak"
+   },
+   {
+    "given": "Teo",
+    "family": "Susnjak"
+   },
+   {
+    "given": "Mohammed A.",
+    "family": "Rashid"
+   }
+  ],
+  "container": "Journal of Big Data",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "7",
+  "issue": "1",
+  "pages": "110",
+  "year": 2020,
+  "sections": [
+   3,
+   9
+  ]
+ },
+ "lin2023sparktuning": {
+  "doi": "10.14778/3611540.3611548",
+  "type": "journal-article",
+  "title": "Towards General and Efficient Online Tuning for Spark",
+  "authors": [
+   {
+    "given": "Yang",
+    "family": "Li"
+   },
+   {
+    "given": "Huaijun",
+    "family": "Jiang"
+   },
+   {
+    "given": "Yu",
+    "family": "Shen"
+   },
+   {
+    "given": "Yide",
+    "family": "Fang"
+   },
+   {
+    "given": "Xiaofeng",
+    "family": "Yang"
+   },
+   {
+    "given": "Danqing",
+    "family": "Huang"
+   },
+   {
+    "given": "Xinyi",
+    "family": "Zhang"
+   },
+   {
+    "given": "Wentao",
+    "family": "Zhang"
+   },
+   {
+    "given": "Ce",
+    "family": "Zhang"
+   },
+   {
+    "given": "Peng",
+    "family": "Chen"
+   },
+   {
+    "given": "Bin",
+    "family": "Cui"
+   }
+  ],
+  "container": "Proceedings of the VLDB Endowment",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "16",
+  "issue": "12",
+  "pages": "3570-3583",
+  "year": 2023,
+  "sections": [
+   9,
+   11
+  ]
+ },
+ "cheng2021sparkcloud": {
+  "doi": "10.1016/j.jss.2021.111028",
+  "type": "journal-article",
+  "title": "Tuning configuration of apache spark on public clouds by combining multi-objective optimization and performance prediction model",
+  "authors": [
+   {
+    "given": "Guoli",
+    "family": "Cheng"
+   },
+   {
+    "given": "Shi",
+    "family": "Ying"
+   },
+   {
+    "given": "Bingming",
+    "family": "Wang"
+   }
+  ],
+  "container": "Journal of Systems and Software",
+  "publisher": "Elsevier BV",
+  "volume": "180",
+  "issue": null,
+  "pages": "111028",
+  "year": 2021,
+  "sections": [
+   9
+  ]
+ },
+ "islam2020sparkscheduling": {
+  "doi": "10.1016/j.jss.2019.110515",
+  "type": "journal-article",
+  "title": "Cost-efficient dynamic scheduling of big data applications in apache spark on cloud",
+  "authors": [
+   {
+    "given": "Muhammed Tawfiqul",
+    "family": "Islam"
+   },
+   {
+    "given": "Satish Narayana",
+    "family": "Srirama"
+   },
+   {
+    "given": "Shanika",
+    "family": "Karunasekera"
+   },
+   {
+    "given": "Rajkumar",
+    "family": "Buyya"
+   }
+  ],
+  "container": "Journal of Systems and Software",
+  "publisher": "Elsevier BV",
+  "volume": "162",
+  "issue": null,
+  "pages": "110515",
+  "year": 2020,
+  "sections": [
+   9,
+   11
+  ]
+ },
+ "dean2008mapreduce": {
+  "doi": "10.1145/1327452.1327492",
+  "type": "journal-article",
+  "title": "MapReduce: simplified data processing on large clusters",
+  "authors": [
+   {
+    "given": "Jeffrey",
+    "family": "Dean"
+   },
+   {
+    "given": "Sanjay",
+    "family": "Ghemawat"
+   }
+  ],
+  "container": "Communications of the ACM",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "51",
+  "issue": "1",
+  "pages": "107-113",
+  "year": 2008,
+  "sections": [
+   3
+  ]
+ },
+ "harby2025lakehouse": {
+  "doi": "10.1016/j.is.2024.102460",
+  "type": "journal-article",
+  "title": "Data Lakehouse: A survey and experimental study",
+  "authors": [
+   {
+    "given": "Ahmed A.",
+    "family": "Harby"
+   },
+   {
+    "given": "Farhana",
+    "family": "Zulkernine"
+   }
+  ],
+  "container": "Information Systems",
+  "publisher": "Elsevier BV",
+  "volume": "127",
+  "issue": null,
+  "pages": "102460",
+  "year": 2025,
+  "sections": [
+   5
+  ]
+ },
+ "verbraeken2020distml": {
+  "doi": "10.1145/3377454",
+  "type": "journal-article",
+  "title": "A Survey on Distributed Machine Learning",
+  "authors": [
+   {
+    "given": "Joost",
+    "family": "Verbraeken"
+   },
+   {
+    "given": "Matthijs",
+    "family": "Wolting"
+   },
+   {
+    "given": "Jonathan",
+    "family": "Katzy"
+   },
+   {
+    "given": "Jeroen",
+    "family": "Kloppenburg"
+   },
+   {
+    "given": "Tim",
+    "family": "Verbelen"
+   },
+   {
+    "given": "Jan S.",
+    "family": "Rellermeyer"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "53",
+  "issue": "2",
+  "pages": "1-33",
+  "year": 2020,
+  "sections": [
+   3,
+   9
+  ]
+ },
+ "ahmad2019churnbigdata": {
+  "doi": "10.1186/s40537-019-0191-6",
+  "type": "journal-article",
+  "title": "Customer churn prediction in telecom using machine learning in big data platform",
+  "authors": [
+   {
+    "given": "Abdelrahim Kasem",
+    "family": "Ahmad"
+   },
+   {
+    "given": "Assef",
+    "family": "Jafar"
+   },
+   {
+    "given": "Kadan",
+    "family": "Aljoumaa"
+   }
+  ],
+  "container": "Journal of Big Data",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "6",
+  "issue": "1",
+  "pages": "28",
+  "year": 2019,
+  "sections": [
+   3,
+   18
+  ]
+ },
+ "harris2020numpy": {
+  "doi": "10.1038/s41586-020-2649-2",
+  "type": "journal-article",
+  "title": "Array programming with NumPy",
+  "authors": [
+   {
+    "given": "Charles R.",
+    "family": "Harris"
+   },
+   {
+    "given": "K. Jarrod",
+    "family": "Millman"
+   },
+   {
+    "given": "Stéfan J.",
+    "family": "van der Walt"
+   },
+   {
+    "given": "Ralf",
+    "family": "Gommers"
+   },
+   {
+    "given": "Pauli",
+    "family": "Virtanen"
+   },
+   {
+    "given": "David",
+    "family": "Cournapeau"
+   },
+   {
+    "given": "Eric",
+    "family": "Wieser"
+   },
+   {
+    "given": "Julian",
+    "family": "Taylor"
+   },
+   {
+    "given": "Sebastian",
+    "family": "Berg"
+   },
+   {
+    "given": "Nathaniel J.",
+    "family": "Smith"
+   },
+   {
+    "given": "Robert",
+    "family": "Kern"
+   },
+   {
+    "given": "Matti",
+    "family": "Picus"
+   },
+   {
+    "given": "Stephan",
+    "family": "Hoyer"
+   },
+   {
+    "given": "Marten H.",
+    "family": "van Kerkwijk"
+   },
+   {
+    "given": "Matthew",
+    "family": "Brett"
+   },
+   {
+    "given": "Allan",
+    "family": "Haldane"
+   },
+   {
+    "given": "Jaime Fernández",
+    "family": "del Río"
+   },
+   {
+    "given": "Mark",
+    "family": "Wiebe"
+   },
+   {
+    "given": "Pearu",
+    "family": "Peterson"
+   },
+   {
+    "given": "Pierre",
+    "family": "Gérard-Marchant"
+   },
+   {
+    "given": "Kevin",
+    "family": "Sheppard"
+   },
+   {
+    "given": "Tyler",
+    "family": "Reddy"
+   },
+   {
+    "given": "Warren",
+    "family": "Weckesser"
+   },
+   {
+    "given": "Hameer",
+    "family": "Abbasi"
+   },
+   {
+    "given": "Christoph",
+    "family": "Gohlke"
+   },
+   {
+    "given": "Travis E.",
+    "family": "Oliphant"
+   }
+  ],
+  "container": "Nature",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "585",
+  "issue": "7825",
+  "pages": "357-362",
+  "year": 2020,
+  "sections": [
+   3,
+   5
+  ]
+ },
+ "virtanen2020scipy": {
+  "doi": "10.1038/s41592-019-0686-2",
+  "type": "journal-article",
+  "title": "SciPy 1.0: fundamental algorithms for scientific computing in Python",
+  "authors": [
+   {
+    "given": "Pauli",
+    "family": "Virtanen"
+   },
+   {
+    "given": "Ralf",
+    "family": "Gommers"
+   },
+   {
+    "given": "Travis E.",
+    "family": "Oliphant"
+   },
+   {
+    "given": "Matt",
+    "family": "Haberland"
+   },
+   {
+    "given": "Tyler",
+    "family": "Reddy"
+   },
+   {
+    "given": "David",
+    "family": "Cournapeau"
+   },
+   {
+    "given": "Evgeni",
+    "family": "Burovski"
+   },
+   {
+    "given": "Pearu",
+    "family": "Peterson"
+   },
+   {
+    "given": "Warren",
+    "family": "Weckesser"
+   },
+   {
+    "given": "Jonathan",
+    "family": "Bright"
+   },
+   {
+    "given": "Stéfan J.",
+    "family": "van der Walt"
+   },
+   {
+    "given": "Matthew",
+    "family": "Brett"
+   },
+   {
+    "given": "Joshua",
+    "family": "Wilson"
+   },
+   {
+    "given": "K. Jarrod",
+    "family": "Millman"
+   },
+   {
+    "given": "Nikolay",
+    "family": "Mayorov"
+   },
+   {
+    "given": "Andrew R. J.",
+    "family": "Nelson"
+   },
+   {
+    "given": "Eric",
+    "family": "Jones"
+   },
+   {
+    "given": "Robert",
+    "family": "Kern"
+   },
+   {
+    "given": "Eric",
+    "family": "Larson"
+   },
+   {
+    "given": "C J",
+    "family": "Carey"
+   },
+   {
+    "given": "İlhan",
+    "family": "Polat"
+   },
+   {
+    "given": "Yu",
+    "family": "Feng"
+   },
+   {
+    "given": "Eric W.",
+    "family": "Moore"
+   },
+   {
+    "given": "Jake",
+    "family": "VanderPlas"
+   },
+   {
+    "given": "Denis",
+    "family": "Laxalde"
+   },
+   {
+    "given": "Josef",
+    "family": "Perktold"
+   },
+   {
+    "given": "Robert",
+    "family": "Cimrman"
+   },
+   {
+    "given": "Ian",
+    "family": "Henriksen"
+   },
+   {
+    "given": "E. A.",
+    "family": "Quintero"
+   },
+   {
+    "given": "Charles R.",
+    "family": "Harris"
+   },
+   {
+    "given": "Anne M.",
+    "family": "Archibald"
+   },
+   {
+    "given": "Antônio H.",
+    "family": "Ribeiro"
+   },
+   {
+    "given": "Fabian",
+    "family": "Pedregosa"
+   },
+   {
+    "given": "Paul",
+    "family": "van Mulbregt"
+   },
+   {
+    "given": "",
+    "family": "SciPy 1.0 Contributors"
+   },
+   {
+    "given": "Aditya",
+    "family": "Vijaykumar"
+   },
+   {
+    "given": "Alessandro Pietro",
+    "family": "Bardelli"
+   },
+   {
+    "given": "Alex",
+    "family": "Rothberg"
+   },
+   {
+    "given": "Andreas",
+    "family": "Hilboll"
+   },
+   {
+    "given": "Andreas",
+    "family": "Kloeckner"
+   },
+   {
+    "given": "Anthony",
+    "family": "Scopatz"
+   },
+   {
+    "given": "Antony",
+    "family": "Lee"
+   },
+   {
+    "given": "Ariel",
+    "family": "Rokem"
+   },
+   {
+    "given": "C. Nathan",
+    "family": "Woods"
+   },
+   {
+    "given": "Chad",
+    "family": "Fulton"
+   },
+   {
+    "given": "Charles",
+    "family": "Masson"
+   },
+   {
+    "given": "Christian",
+    "family": "Häggström"
+   },
+   {
+    "given": "Clark",
+    "family": "Fitzgerald"
+   },
+   {
+    "given": "David A.",
+    "family": "Nicholson"
+   },
+   {
+    "given": "David R.",
+    "family": "Hagen"
+   },
+   {
+    "given": "Dmitrii V.",
+    "family": "Pasechnik"
+   },
+   {
+    "given": "Emanuele",
+    "family": "Olivetti"
+   },
+   {
+    "given": "Eric",
+    "family": "Martin"
+   },
+   {
+    "given": "Eric",
+    "family": "Wieser"
+   },
+   {
+    "given": "Fabrice",
+    "family": "Silva"
+   },
+   {
+    "given": "Felix",
+    "family": "Lenders"
+   },
+   {
+    "given": "Florian",
+    "family": "Wilhelm"
+   },
+   {
+    "given": "G.",
+    "family": "Young"
+   },
+   {
+    "given": "Gavin A.",
+    "family": "Price"
+   },
+   {
+    "given": "Gert-Ludwig",
+    "family": "Ingold"
+   },
+   {
+    "given": "Gregory E.",
+    "family": "Allen"
+   },
+   {
+    "given": "Gregory R.",
+    "family": "Lee"
+   },
+   {
+    "given": "Hervé",
+    "family": "Audren"
+   },
+   {
+    "given": "Irvin",
+    "family": "Probst"
+   },
+   {
+    "given": "Jörg P.",
+    "family": "Dietrich"
+   },
+   {
+    "given": "Jacob",
+    "family": "Silterra"
+   },
+   {
+    "given": "James T",
+    "family": "Webber"
+   },
+   {
+    "given": "Janko",
+    "family": "Slavič"
+   },
+   {
+    "given": "Joel",
+    "family": "Nothman"
+   },
+   {
+    "given": "Johannes",
+    "family": "Buchner"
+   },
+   {
+    "given": "Johannes",
+    "family": "Kulick"
+   },
+   {
+    "given": "Johannes L.",
+    "family": "Schönberger"
+   },
+   {
+    "given": "José Vinícius",
+    "family": "de Miranda Cardoso"
+   },
+   {
+    "given": "Joscha",
+    "family": "Reimer"
+   },
+   {
+    "given": "Joseph",
+    "family": "Harrington"
+   },
+   {
+    "given": "Juan Luis Cano",
+    "family": "Rodríguez"
+   },
+   {
+    "given": "Juan",
+    "family": "Nunez-Iglesias"
+   },
+   {
+    "given": "Justin",
+    "family": "Kuczynski"
+   },
+   {
+    "given": "Kevin",
+    "family": "Tritz"
+   },
+   {
+    "given": "Martin",
+    "family": "Thoma"
+   },
+   {
+    "given": "Matthew",
+    "family": "Newville"
+   },
+   {
+    "given": "Matthias",
+    "family": "Kümmerer"
+   },
+   {
+    "given": "Maximilian",
+    "family": "Bolingbroke"
+   },
+   {
+    "given": "Michael",
+    "family": "Tartre"
+   },
+   {
+    "given": "Mikhail",
+    "family": "Pak"
+   },
+   {
+    "given": "Nathaniel J.",
+    "family": "Smith"
+   },
+   {
+    "given": "Nikolai",
+    "family": "Nowaczyk"
+   },
+   {
+    "given": "Nikolay",
+    "family": "Shebanov"
+   },
+   {
+    "given": "Oleksandr",
+    "family": "Pavlyk"
+   },
+   {
+    "given": "Per A.",
+    "family": "Brodtkorb"
+   },
+   {
+    "given": "Perry",
+    "family": "Lee"
+   },
+   {
+    "given": "Robert T.",
+    "family": "McGibbon"
+   },
+   {
+    "given": "Roman",
+    "family": "Feldbauer"
+   },
+   {
+    "given": "Sam",
+    "family": "Lewis"
+   },
+   {
+    "given": "Sam",
+    "family": "Tygier"
+   },
+   {
+    "given": "Scott",
+    "family": "Sievert"
+   },
+   {
+    "given": "Sebastiano",
+    "family": "Vigna"
+   },
+   {
+    "given": "Stefan",
+    "family": "Peterson"
+   },
+   {
+    "given": "Surhud",
+    "family": "More"
+   },
+   {
+    "given": "Tadeusz",
+    "family": "Pudlik"
+   },
+   {
+    "given": "Takuya",
+    "family": "Oshima"
+   },
+   {
+    "given": "Thomas J.",
+    "family": "Pingel"
+   },
+   {
+    "given": "Thomas P.",
+    "family": "Robitaille"
+   },
+   {
+    "given": "Thomas",
+    "family": "Spura"
+   },
+   {
+    "given": "Thouis R.",
+    "family": "Jones"
+   },
+   {
+    "given": "Tim",
+    "family": "Cera"
+   },
+   {
+    "given": "Tim",
+    "family": "Leslie"
+   },
+   {
+    "given": "Tiziano",
+    "family": "Zito"
+   },
+   {
+    "given": "Tom",
+    "family": "Krauss"
+   },
+   {
+    "given": "Utkarsh",
+    "family": "Upadhyay"
+   },
+   {
+    "given": "Yaroslav O.",
+    "family": "Halchenko"
+   },
+   {
+    "given": "Yoshiki",
+    "family": "Vázquez-Baeza"
+   }
+  ],
+  "container": "Nature Methods",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "17",
+  "issue": "3",
+  "pages": "261-272",
+  "year": 2020,
+  "sections": [
+   3,
+   5
+  ]
+ },
+ "castro2023hppython": {
+  "doi": "10.1145/3617588",
+  "type": "journal-article",
+  "title": "Landscape of High-Performance Python to Develop Data Science and Machine Learning Applications",
+  "authors": [
+   {
+    "given": "Oscar",
+    "family": "Castro"
+   },
+   {
+    "given": "Pierrick",
+    "family": "Bruneau"
+   },
+   {
+    "given": "Jean-Sébastien",
+    "family": "Sottet"
+   },
+   {
+    "given": "Dario",
+    "family": "Torregrossa"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "56",
+  "issue": "3",
+  "pages": "1-30",
+  "year": 2023,
+  "sections": [
+   3,
+   5
+  ]
+ },
+ "chen2016xgboost": {
+  "doi": "10.1145/2939672.2939785",
+  "type": "proceedings-article",
+  "title": "XGBoost: A Scalable Tree Boosting System",
+  "authors": [
+   {
+    "given": "Tianqi",
+    "family": "Chen"
+   },
+   {
+    "given": "Carlos",
+    "family": "Guestrin"
+   }
+  ],
+  "container": "Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining",
+  "publisher": "ACM",
+  "volume": null,
+  "issue": null,
+  "pages": "785-794",
+  "year": 2016,
+  "sections": [
+   8
+  ]
+ },
+ "akiba2019optuna": {
+  "doi": "10.1145/3292500.3330701",
+  "type": "proceedings-article",
+  "title": "Optuna: A Next-generation Hyperparameter Optimization Framework",
+  "authors": [
+   {
+    "given": "Takuya",
+    "family": "Akiba"
+   },
+   {
+    "given": "Shotaro",
+    "family": "Sano"
+   },
+   {
+    "given": "Toshihiko",
+    "family": "Yanase"
+   },
+   {
+    "given": "Takeru",
+    "family": "Ohta"
+   },
+   {
+    "given": "Masanori",
+    "family": "Koyama"
+   }
+  ],
+  "container": "Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery &amp; Data Mining",
+  "publisher": "ACM",
+  "volume": null,
+  "issue": null,
+  "pages": "2623-2631",
+  "year": 2019,
+  "sections": [
+   8
+  ]
+ },
+ "he2021automl": {
+  "doi": "10.1016/j.knosys.2020.106622",
+  "type": "journal-article",
+  "title": "AutoML: A survey of the state-of-the-art",
+  "authors": [
+   {
+    "given": "Xin",
+    "family": "He"
+   },
+   {
+    "given": "Kaiyong",
+    "family": "Zhao"
+   },
+   {
+    "given": "Xiaowen",
+    "family": "Chu"
+   }
+  ],
+  "container": "Knowledge-Based Systems",
+  "publisher": "Elsevier BV",
+  "volume": "212",
+  "issue": null,
+  "pages": "106622",
+  "year": 2021,
+  "sections": [
+   3,
+   8
+  ]
+ },
+ "karmaker2021automl": {
+  "doi": "10.1145/3470918",
+  "type": "journal-article",
+  "title": "AutoML to Date and Beyond: Challenges and Opportunities",
+  "authors": [
+   {
+    "given": "Shubhra Kanti",
+    "family": "Karmaker (“Santu”)"
+   },
+   {
+    "given": "Md. Mahadi",
+    "family": "Hassan"
+   },
+   {
+    "given": "Micah J.",
+    "family": "Smith"
+   },
+   {
+    "given": "Lei",
+    "family": "Xu"
+   },
+   {
+    "given": "Chengxiang",
+    "family": "Zhai"
+   },
+   {
+    "given": "Kalyan",
+    "family": "Veeramachaneni"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "54",
+  "issue": "8",
+  "pages": "1-36",
+  "year": 2021,
+  "sections": [
+   3,
+   8
+  ]
+ },
+ "yang2020hpo": {
+  "doi": "10.1016/j.neucom.2020.07.061",
+  "type": "journal-article",
+  "title": "On hyperparameter optimization of machine learning algorithms: Theory and practice",
+  "authors": [
+   {
+    "given": "Li",
+    "family": "Yang"
+   },
+   {
+    "given": "Abdallah",
+    "family": "Shami"
+   }
+  ],
+  "container": "Neurocomputing",
+  "publisher": "Elsevier BV",
+  "volume": "415",
+  "issue": null,
+  "pages": "295-316",
+  "year": 2020,
+  "sections": [
+   8
+  ]
+ },
+ "bischl2023hpo": {
+  "doi": "10.1002/widm.1484",
+  "type": "journal-article",
+  "title": "Hyperparameter optimization: Foundations, algorithms, best practices, and open challenges",
+  "authors": [
+   {
+    "given": "Bernd",
+    "family": "Bischl"
+   },
+   {
+    "given": "Martin",
+    "family": "Binder"
+   },
+   {
+    "given": "Michel",
+    "family": "Lang"
+   },
+   {
+    "given": "Tobias",
+    "family": "Pielok"
+   },
+   {
+    "given": "Jakob",
+    "family": "Richter"
+   },
+   {
+    "given": "Stefan",
+    "family": "Coors"
+   },
+   {
+    "given": "Janek",
+    "family": "Thomas"
+   },
+   {
+    "given": "Theresa",
+    "family": "Ullmann"
+   },
+   {
+    "given": "Marc",
+    "family": "Becker"
+   },
+   {
+    "given": "Anne‐Laure",
+    "family": "Boulesteix"
+   },
+   {
+    "given": "Difan",
+    "family": "Deng"
+   },
+   {
+    "given": "Marius",
+    "family": "Lindauer"
+   }
+  ],
+  "container": "WIREs Data Mining and Knowledge Discovery",
+  "publisher": "Wiley",
+  "volume": "13",
+  "issue": "2",
+  "pages": "e1484",
+  "year": 2023,
+  "sections": [
+   8
+  ]
+ },
+ "salazar2021fairfeatures": {
+  "doi": "10.14778/3461535.3463474",
+  "type": "journal-article",
+  "title": "Automated feature engineering for algorithmic fairness",
+  "authors": [
+   {
+    "given": "Ricardo",
+    "family": "Salazar"
+   },
+   {
+    "given": "Felix",
+    "family": "Neutatz"
+   },
+   {
+    "given": "Ziawasch",
+    "family": "Abedjan"
+   }
+  ],
+  "container": "Proceedings of the VLDB Endowment",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "14",
+  "issue": "9",
+  "pages": "1694-1702",
+  "year": 2021,
+  "sections": [
+   8,
+   10
+  ]
+ },
+ "fan2022autofs": {
+  "doi": "10.1109/tkde.2021.3115477",
+  "type": "journal-article",
+  "title": "Automated Feature Selection: A Reinforcement Learning Perspective",
+  "authors": [
+   {
+    "given": "Kunpeng",
+    "family": "Liu"
+   },
+   {
+    "given": "Yanjie",
+    "family": "Fu"
+   },
+   {
+    "given": "Le",
+    "family": "Wu"
+   },
+   {
+    "given": "Xiaolin",
+    "family": "Li"
+   },
+   {
+    "given": "Charu",
+    "family": "Aggarwal"
+   },
+   {
+    "given": "Hui",
+    "family": "Xiong"
+   }
+  ],
+  "container": "IEEE Transactions on Knowledge and Data Engineering",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": null,
+  "issue": null,
+  "pages": "1-1",
+  "year": 2022,
+  "sections": [
+   8
+  ]
+ },
+ "hutter2019automl": {
+  "doi": "10.1007/978-3-030-05318-5",
+  "type": "book",
+  "title": "Automated Machine Learning: Methods, Systems, Challenges",
+  "authors": [],
+  "container": "The Springer Series on Challenges in Machine Learning",
+  "publisher": "Springer International Publishing",
+  "volume": null,
+  "issue": null,
+  "pages": null,
+  "year": 2019,
+  "sections": [
+   3,
+   8
+  ]
+ },
+ "shwartz2022tabular": {
+  "doi": "10.1016/j.inffus.2021.11.011",
+  "type": "journal-article",
+  "title": "Tabular data: Deep learning is not all you need",
+  "authors": [
+   {
+    "given": "Ravid",
+    "family": "Shwartz-Ziv"
+   },
+   {
+    "given": "Amitai",
+    "family": "Armon"
+   }
+  ],
+  "container": "Information Fusion",
+  "publisher": "Elsevier BV",
+  "volume": "81",
+  "issue": null,
+  "pages": "84-90",
+  "year": 2022,
+  "sections": [
+   8
+  ]
+ },
+ "borisov2024tabular": {
+  "doi": "10.1109/tnnls.2022.3229161",
+  "type": "journal-article",
+  "title": "Deep Neural Networks and Tabular Data: A Survey",
+  "authors": [
+   {
+    "given": "Vadim",
+    "family": "Borisov"
+   },
+   {
+    "given": "Tobias",
+    "family": "Leemann"
+   },
+   {
+    "given": "Kathrin",
+    "family": "Seßler"
+   },
+   {
+    "given": "Johannes",
+    "family": "Haug"
+   },
+   {
+    "given": "Martin",
+    "family": "Pawelczyk"
+   },
+   {
+    "given": "Gjergji",
+    "family": "Kasneci"
+   }
+  ],
+  "container": "IEEE Transactions on Neural Networks and Learning Systems",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "35",
+  "issue": "6",
+  "pages": "7499-7519",
+  "year": 2024,
+  "sections": [
+   8
+  ]
+ },
+ "breiman2001rf": {
+  "doi": "10.1023/a:1010933404324",
+  "type": "journal-article",
+  "title": "Random Forests",
+  "authors": [
+   {
+    "given": "Leo",
+    "family": "Breiman"
+   }
+  ],
+  "container": "Machine Learning",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "45",
+  "issue": "1",
+  "pages": "5-32",
+  "year": 2001,
+  "sections": [
+   8
+  ]
+ },
+ "friedman2001gbm": {
+  "doi": "10.1214/aos/1013203451",
+  "type": "journal-article",
+  "title": "Greedy function approximation: A gradient boosting machine.",
+  "authors": [
+   {
+    "given": "Jerome H.",
+    "family": "Friedman"
+   }
+  ],
+  "container": "The Annals of Statistics",
+  "publisher": "Institute of Mathematical Statistics",
+  "volume": "29",
+  "issue": "5",
+  "pages": null,
+  "year": 2001,
+  "sections": [
+   8
+  ]
+ },
+ "he2009imbalanced": {
+  "doi": "10.1109/tkde.2008.239",
+  "type": "journal-article",
+  "title": "Learning from Imbalanced Data",
+  "authors": [
+   {
+    "given": "",
+    "family": "Haibo He"
+   },
+   {
+    "given": "E.A.",
+    "family": "Garcia"
+   }
+  ],
+  "container": "IEEE Transactions on Knowledge and Data Engineering",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "21",
+  "issue": "9",
+  "pages": "1263-1284",
+  "year": 2009,
+  "sections": [
+   8
+  ]
+ },
+ "silvafilho2023calibration": {
+  "doi": "10.1007/s10994-023-06336-7",
+  "type": "journal-article",
+  "title": "Classifier calibration: a survey on how to assess and improve predicted class probabilities",
+  "authors": [
+   {
+    "given": "Telmo",
+    "family": "Silva Filho"
+   },
+   {
+    "given": "Hao",
+    "family": "Song"
+   },
+   {
+    "given": "Miquel",
+    "family": "Perello-Nieto"
+   },
+   {
+    "given": "Raul",
+    "family": "Santos-Rodriguez"
+   },
+   {
+    "given": "Meelis",
+    "family": "Kull"
+   },
+   {
+    "given": "Peter",
+    "family": "Flach"
+   }
+  ],
+  "container": "Machine Learning",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "112",
+  "issue": "9",
+  "pages": "3211-3260",
+  "year": 2023,
+  "sections": [
+   8,
+   10,
+   14
+  ]
+ },
+ "bocker2021platt": {
+  "doi": "10.1016/j.is.2020.101641",
+  "type": "journal-article",
+  "title": "On the appropriateness of Platt scaling in classifier calibration",
+  "authors": [
+   {
+    "given": "Björn",
+    "family": "Böken"
+   }
+  ],
+  "container": "Information Systems",
+  "publisher": "Elsevier BV",
+  "volume": "95",
+  "issue": null,
+  "pages": "101641",
+  "year": 2021,
+  "sections": [
+   8
+  ]
+ },
+ "niculescu2005probabilities": {
+  "doi": "10.1145/1102351.1102430",
+  "type": "proceedings-article",
+  "title": "Predicting good probabilities with supervised learning",
+  "authors": [
+   {
+    "given": "Alexandru",
+    "family": "Niculescu-Mizil"
+   },
+   {
+    "given": "Rich",
+    "family": "Caruana"
+   }
+  ],
+  "container": "Proceedings of the 22nd international conference on Machine learning  - ICML '05",
+  "publisher": "ACM Press",
+  "volume": null,
+  "issue": null,
+  "pages": "625-632",
+  "year": 2005,
+  "sections": [
+   8,
+   14
+  ]
+ },
+ "zadrozny2002calibration": {
+  "doi": "10.1145/775047.775151",
+  "type": "proceedings-article",
+  "title": "Transforming classifier scores into accurate multiclass probability estimates",
+  "authors": [
+   {
+    "given": "Bianca",
+    "family": "Zadrozny"
+   },
+   {
+    "given": "Charles",
+    "family": "Elkan"
+   }
+  ],
+  "container": "Proceedings of the eighth ACM SIGKDD international conference on Knowledge discovery and data mining",
+  "publisher": "ACM",
+  "volume": null,
+  "issue": null,
+  "pages": "694-699",
+  "year": 2002,
+  "sections": [
+   8
+  ]
+ },
+ "vancalster2019calibration": {
+  "doi": "10.1186/s12916-019-1466-7",
+  "type": "journal-article",
+  "title": "Calibration: the Achilles heel of predictive analytics",
+  "authors": [
+   {
+    "given": "",
+    "family": "On behalf of Topic Group ‘Evaluating diagnostic tests and prediction models’ of the STRATOS initiative"
+   },
+   {
+    "given": "Ben",
+    "family": "Van Calster"
+   },
+   {
+    "given": "David J.",
+    "family": "McLernon"
+   },
+   {
+    "given": "Maarten",
+    "family": "van Smeden"
+   },
+   {
+    "given": "Laure",
+    "family": "Wynants"
+   },
+   {
+    "given": "Ewout W.",
+    "family": "Steyerberg"
+   }
+  ],
+  "container": "BMC Medicine",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "17",
+  "issue": "1",
+  "pages": "230",
+  "year": 2019,
+  "sections": [
+   10,
+   14
+  ]
+ },
+ "saito2015prplot": {
+  "doi": "10.1371/journal.pone.0118432",
+  "type": "journal-article",
+  "title": "The Precision-Recall Plot Is More Informative than the ROC Plot When Evaluating Binary Classifiers on Imbalanced Datasets",
+  "authors": [
+   {
+    "given": "Takaya",
+    "family": "Saito"
+   },
+   {
+    "given": "Marc",
+    "family": "Rehmsmeier"
+   }
+  ],
+  "container": "PLOS ONE",
+  "publisher": "Public Library of Science (PLoS)",
+  "volume": "10",
+  "issue": "3",
+  "pages": "e0118432",
+  "year": 2015,
+  "sections": [
+   14
+  ]
+ },
+ "brier1950": {
+  "doi": "10.1175/1520-0493(1950)078<0001:vofeit>2.0.co;2",
+  "type": "journal-article",
+  "title": "VERIFICATION OF FORECASTS EXPRESSED IN TERMS OF PROBABILITY",
+  "authors": [
+   {
+    "given": "GLENN W.",
+    "family": "BRIER"
+   }
+  ],
+  "container": "Monthly Weather Review",
+  "publisher": "American Meteorological Society",
+  "volume": "78",
+  "issue": "1",
+  "pages": "1-3",
+  "year": 1950,
+  "sections": [
+   14
+  ]
+ },
+ "efron1979bootstrap": {
+  "doi": "10.1214/aos/1176344552",
+  "type": "journal-article",
+  "title": "Bootstrap Methods: Another Look at the Jackknife",
+  "authors": [
+   {
+    "given": "B.",
+    "family": "Efron"
+   }
+  ],
+  "container": "The Annals of Statistics",
+  "publisher": "Institute of Mathematical Statistics",
+  "volume": "7",
+  "issue": "1",
+  "pages": null,
+  "year": 1979,
+  "sections": [
+   14
+  ]
+ },
+ "cerqueira2020tsvalidation": {
+  "doi": "10.1007/s10994-020-05910-7",
+  "type": "journal-article",
+  "title": "Evaluating time series forecasting models: an empirical study on performance estimation methods",
+  "authors": [
+   {
+    "given": "Vitor",
+    "family": "Cerqueira"
+   },
+   {
+    "given": "Luis",
+    "family": "Torgo"
+   },
+   {
+    "given": "Igor",
+    "family": "Mozetič"
+   }
+  ],
+  "container": "Machine Learning",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "109",
+  "issue": "11",
+  "pages": "1997-2028",
+  "year": 2020,
+  "sections": [
+   8,
+   14
+  ]
+ },
+ "kapoor2023leakage": {
+  "doi": "10.1016/j.patter.2023.100804",
+  "type": "journal-article",
+  "title": "Leakage and the reproducibility crisis in machine-learning-based science",
+  "authors": [
+   {
+    "given": "Sayash",
+    "family": "Kapoor"
+   },
+   {
+    "given": "Arvind",
+    "family": "Narayanan"
+   }
+  ],
+  "container": "Patterns",
+  "publisher": "Elsevier BV",
+  "volume": "4",
+  "issue": "9",
+  "pages": "100804",
+  "year": 2023,
+  "sections": [
+   2,
+   8,
+   17
+  ]
+ },
+ "kaufman2012leakage": {
+  "doi": "10.1145/2382577.2382579",
+  "type": "journal-article",
+  "title": "Leakage in data mining: Formulation, detection, and avoidance",
+  "authors": [
+   {
+    "given": "Shachar",
+    "family": "Kaufman"
+   },
+   {
+    "given": "Saharon",
+    "family": "Rosset"
+   },
+   {
+    "given": "Claudia",
+    "family": "Perlich"
+   },
+   {
+    "given": "Ori",
+    "family": "Stitelman"
+   }
+  ],
+  "container": "ACM Transactions on Knowledge Discovery from Data",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "6",
+  "issue": "4",
+  "pages": "1-21",
+  "year": 2012,
+  "sections": [
+   8
+  ]
+ },
+ "rosenblatt2024leakage": {
+  "doi": "10.1038/s41467-024-46150-w",
+  "type": "journal-article",
+  "title": "Data leakage inflates prediction performance in connectome-based machine learning models",
+  "authors": [
+   {
+    "given": "Matthew",
+    "family": "Rosenblatt"
+   },
+   {
+    "given": "Link",
+    "family": "Tejavibulya"
+   },
+   {
+    "given": "Rongtao",
+    "family": "Jiang"
+   },
+   {
+    "given": "Stephanie",
+    "family": "Noble"
+   },
+   {
+    "given": "Dustin",
+    "family": "Scheinost"
+   }
+  ],
+  "container": "Nature Communications",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "15",
+  "issue": "1",
+  "pages": "1829",
+  "year": 2024,
+  "sections": [
+   8
+  ]
+ },
+ "lu2019drift": {
+  "doi": "10.1109/tkde.2018.2876857",
+  "type": "journal-article",
+  "title": "Learning under Concept Drift: A Review",
+  "authors": [
+   {
+    "given": "Jie",
+    "family": "Lu"
+   },
+   {
+    "given": "Anjin",
+    "family": "Liu"
+   },
+   {
+    "given": "Fan",
+    "family": "Dong"
+   },
+   {
+    "given": "Feng",
+    "family": "Gu"
+   },
+   {
+    "given": "Joao",
+    "family": "Gama"
+   },
+   {
+    "given": "Guangquan",
+    "family": "Zhang"
+   }
+  ],
+  "container": "IEEE Transactions on Knowledge and Data Engineering",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": null,
+  "issue": null,
+  "pages": "1-1",
+  "year": 2018,
+  "sections": [
+   10,
+   11
+  ]
+ },
+ "gama2014drift": {
+  "doi": "10.1145/2523813",
+  "type": "journal-article",
+  "title": "A survey on concept drift adaptation",
+  "authors": [
+   {
+    "given": "João",
+    "family": "Gama"
+   },
+   {
+    "given": "Indrė",
+    "family": "Žliobaitė"
+   },
+   {
+    "given": "Albert",
+    "family": "Bifet"
+   },
+   {
+    "given": "Mykola",
+    "family": "Pechenizkiy"
+   },
+   {
+    "given": "Abdelhamid",
+    "family": "Bouchachia"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "46",
+  "issue": "4",
+  "pages": "1-37",
+  "year": 2014,
+  "sections": [
+   10,
+   11
+  ]
+ },
+ "hu2021drift": {
+  "doi": "10.1109/tcyb.2020.2983962",
+  "type": "journal-article",
+  "title": "Concept Drift Detection via Equal Intensity k-Means Space Partitioning",
+  "authors": [
+   {
+    "given": "Anjin",
+    "family": "Liu"
+   },
+   {
+    "given": "Jie",
+    "family": "Lu"
+   },
+   {
+    "given": "Guangquan",
+    "family": "Zhang"
+   }
+  ],
+  "container": "IEEE Transactions on Cybernetics",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "51",
+  "issue": "6",
+  "pages": "3198-3211",
+  "year": 2021,
+  "sections": [
+   11
+  ]
+ },
+ "arrieta2020xai": {
+  "doi": "10.1016/j.inffus.2019.12.012",
+  "type": "journal-article",
+  "title": "Explainable Artificial Intelligence (XAI): Concepts, taxonomies, opportunities and challenges toward responsible AI",
+  "authors": [
+   {
+    "given": "Alejandro",
+    "family": "Barredo Arrieta"
+   },
+   {
+    "given": "Natalia",
+    "family": "Díaz-Rodríguez"
+   },
+   {
+    "given": "Javier",
+    "family": "Del Ser"
+   },
+   {
+    "given": "Adrien",
+    "family": "Bennetot"
+   },
+   {
+    "given": "Siham",
+    "family": "Tabik"
+   },
+   {
+    "given": "Alberto",
+    "family": "Barbado"
+   },
+   {
+    "given": "Salvador",
+    "family": "Garcia"
+   },
+   {
+    "given": "Sergio",
+    "family": "Gil-Lopez"
+   },
+   {
+    "given": "Daniel",
+    "family": "Molina"
+   },
+   {
+    "given": "Richard",
+    "family": "Benjamins"
+   },
+   {
+    "given": "Raja",
+    "family": "Chatila"
+   },
+   {
+    "given": "Francisco",
+    "family": "Herrera"
+   }
+  ],
+  "container": "Information Fusion",
+  "publisher": "Elsevier BV",
+  "volume": "58",
+  "issue": null,
+  "pages": "82-115",
+  "year": 2020,
+  "sections": [
+   3,
+   10
+  ]
+ },
+ "tjoa2021xai": {
+  "doi": "10.1109/tnnls.2020.3027314",
+  "type": "journal-article",
+  "title": "A Survey on Explainable Artificial Intelligence (XAI): Toward Medical XAI",
+  "authors": [
+   {
+    "given": "Erico",
+    "family": "Tjoa"
+   },
+   {
+    "given": "Cuntai",
+    "family": "Guan"
+   }
+  ],
+  "container": "IEEE Transactions on Neural Networks and Learning Systems",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "32",
+  "issue": "11",
+  "pages": "4793-4813",
+  "year": 2021,
+  "sections": [
+   10
+  ]
+ },
+ "lundberg2020trees": {
+  "doi": "10.1038/s42256-019-0138-9",
+  "type": "journal-article",
+  "title": "From local explanations to global understanding with explainable AI for trees",
+  "authors": [
+   {
+    "given": "Scott M.",
+    "family": "Lundberg"
+   },
+   {
+    "given": "Gabriel",
+    "family": "Erion"
+   },
+   {
+    "given": "Hugh",
+    "family": "Chen"
+   },
+   {
+    "given": "Alex",
+    "family": "DeGrave"
+   },
+   {
+    "given": "Jordan M.",
+    "family": "Prutkin"
+   },
+   {
+    "given": "Bala",
+    "family": "Nair"
+   },
+   {
+    "given": "Ronit",
+    "family": "Katz"
+   },
+   {
+    "given": "Jonathan",
+    "family": "Himmelfarb"
+   },
+   {
+    "given": "Nisha",
+    "family": "Bansal"
+   },
+   {
+    "given": "Su-In",
+    "family": "Lee"
+   }
+  ],
+  "container": "Nature Machine Intelligence",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "2",
+  "issue": "1",
+  "pages": "56-67",
+  "year": 2020,
+  "sections": [
+   10
+  ]
+ },
+ "ahmed2022xai40": {
+  "doi": "10.1109/tii.2022.3146552",
+  "type": "journal-article",
+  "title": "From Artificial Intelligence to Explainable Artificial Intelligence in Industry 4.0: A Survey on What, How, and Where",
+  "authors": [
+   {
+    "given": "Imran",
+    "family": "Ahmed"
+   },
+   {
+    "given": "Gwanggil",
+    "family": "Jeon"
+   },
+   {
+    "given": "Francesco",
+    "family": "Piccialli"
+   }
+  ],
+  "container": "IEEE Transactions on Industrial Informatics",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "18",
+  "issue": "8",
+  "pages": "5031-5042",
+  "year": 2022,
+  "sections": [
+   10,
+   18
+  ]
+ },
+ "kaur2022trustworthy": {
+  "doi": "10.1145/3491209",
+  "type": "journal-article",
+  "title": "Trustworthy Artificial Intelligence: A Review",
+  "authors": [
+   {
+    "given": "Davinder",
+    "family": "Kaur"
+   },
+   {
+    "given": "Suleyman",
+    "family": "Uslu"
+   },
+   {
+    "given": "Kaley J.",
+    "family": "Rittichier"
+   },
+   {
+    "given": "Arjan",
+    "family": "Durresi"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "55",
+  "issue": "2",
+  "pages": "1-38",
+  "year": 2022,
+  "sections": [
+   10,
+   17
+  ]
+ },
+ "li2023trustworthy": {
+  "doi": "10.1145/3555803",
+  "type": "journal-article",
+  "title": "Trustworthy AI: From Principles to Practices",
+  "authors": [
+   {
+    "given": "Bo",
+    "family": "Li"
+   },
+   {
+    "given": "Peng",
+    "family": "Qi"
+   },
+   {
+    "given": "Bo",
+    "family": "Liu"
+   },
+   {
+    "given": "Shuai",
+    "family": "Di"
+   },
+   {
+    "given": "Jingen",
+    "family": "Liu"
+   },
+   {
+    "given": "Jiquan",
+    "family": "Pei"
+   },
+   {
+    "given": "Jinfeng",
+    "family": "Yi"
+   },
+   {
+    "given": "Bowen",
+    "family": "Zhou"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "55",
+  "issue": "9",
+  "pages": "1-46",
+  "year": 2023,
+  "sections": [
+   10,
+   17
+  ]
+ },
+ "thiebes2021trustworthy": {
+  "doi": "10.1007/s12525-020-00441-4",
+  "type": "journal-article",
+  "title": "Trustworthy artificial intelligence",
+  "authors": [
+   {
+    "given": "Scott",
+    "family": "Thiebes"
+   },
+   {
+    "given": "Sebastian",
+    "family": "Lins"
+   },
+   {
+    "given": "Ali",
+    "family": "Sunyaev"
+   }
+  ],
+  "container": "Electronic Markets",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "31",
+  "issue": "2",
+  "pages": "447-464",
+  "year": 2020,
+  "sections": [
+   10
+  ]
+ },
+ "mehrabi2021fairness": {
+  "doi": "10.1145/3457607",
+  "type": "journal-article",
+  "title": "A Survey on Bias and Fairness in Machine Learning",
+  "authors": [
+   {
+    "given": "Ninareh",
+    "family": "Mehrabi"
+   },
+   {
+    "given": "Fred",
+    "family": "Morstatter"
+   },
+   {
+    "given": "Nripsuta",
+    "family": "Saxena"
+   },
+   {
+    "given": "Kristina",
+    "family": "Lerman"
+   },
+   {
+    "given": "Aram",
+    "family": "Galstyan"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "54",
+  "issue": "6",
+  "pages": "1-35",
+  "year": 2021,
+  "sections": [
+   10
+  ]
+ },
+ "pessach2022fairness": {
+  "doi": "10.1145/3494672",
+  "type": "journal-article",
+  "title": "A Review on Fairness in Machine Learning",
+  "authors": [
+   {
+    "given": "Dana",
+    "family": "Pessach"
+   },
+   {
+    "given": "Erez",
+    "family": "Shmueli"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "55",
+  "issue": "3",
+  "pages": "1-44",
+  "year": 2022,
+  "sections": [
+   10
+  ]
+ },
+ "caton2024fairness": {
+  "doi": "10.1145/3616865",
+  "type": "journal-article",
+  "title": "Fairness in Machine Learning: A Survey",
+  "authors": [
+   {
+    "given": "Simon",
+    "family": "Caton"
+   },
+   {
+    "given": "Christian",
+    "family": "Haas"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "56",
+  "issue": "7",
+  "pages": "1-38",
+  "year": 2024,
+  "sections": [
+   10
+  ]
+ },
+ "lu2024rai": {
+  "doi": "10.1145/3626234",
+  "type": "journal-article",
+  "title": "Responsible AI Pattern Catalogue: A Collection of Best Practices for AI Governance and Engineering",
+  "authors": [
+   {
+    "given": "Qinghua",
+    "family": "Lu"
+   },
+   {
+    "given": "Liming",
+    "family": "Zhu"
+   },
+   {
+    "given": "Xiwei",
+    "family": "Xu"
+   },
+   {
+    "given": "Jon",
+    "family": "Whittle"
+   },
+   {
+    "given": "Didar",
+    "family": "Zowghi"
+   },
+   {
+    "given": "Aurelie",
+    "family": "Jacquet"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "56",
+  "issue": "7",
+  "pages": "1-35",
+  "year": 2024,
+  "sections": [
+   12
+  ]
+ },
+ "shneiderman2020hcai": {
+  "doi": "10.1145/3419764",
+  "type": "journal-article",
+  "title": "Bridging the Gap Between Ethics and Practice: Guidelines for Reliable, Safe, and Trustworthy Human-centered AI Systems",
+  "authors": [
+   {
+    "given": "Ben",
+    "family": "Shneiderman"
+   }
+  ],
+  "container": "ACM Transactions on Interactive Intelligent Systems",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "10",
+  "issue": "4",
+  "pages": "1-31",
+  "year": 2020,
+  "sections": [
+   10,
+   12
+  ]
+ },
+ "mitchell2019modelcards": {
+  "doi": "10.1145/3287560.3287596",
+  "type": "proceedings-article",
+  "title": "Model Cards for Model Reporting",
+  "authors": [
+   {
+    "given": "Margaret",
+    "family": "Mitchell"
+   },
+   {
+    "given": "Simone",
+    "family": "Wu"
+   },
+   {
+    "given": "Andrew",
+    "family": "Zaldivar"
+   },
+   {
+    "given": "Parker",
+    "family": "Barnes"
+   },
+   {
+    "given": "Lucy",
+    "family": "Vasserman"
+   },
+   {
+    "given": "Ben",
+    "family": "Hutchinson"
+   },
+   {
+    "given": "Elena",
+    "family": "Spitzer"
+   },
+   {
+    "given": "Inioluwa Deborah",
+    "family": "Raji"
+   },
+   {
+    "given": "Timnit",
+    "family": "Gebru"
+   }
+  ],
+  "container": "Proceedings of the Conference on Fairness, Accountability, and Transparency",
+  "publisher": "ACM",
+  "volume": null,
+  "issue": null,
+  "pages": "220-229",
+  "year": 2019,
+  "sections": [
+   10,
+   12
+  ]
+ },
+ "gebru2021datasheets": {
+  "doi": "10.1145/3458723",
+  "type": "journal-article",
+  "title": "Datasheets for datasets",
+  "authors": [
+   {
+    "given": "Timnit",
+    "family": "Gebru"
+   },
+   {
+    "given": "Jamie",
+    "family": "Morgenstern"
+   },
+   {
+    "given": "Briana",
+    "family": "Vecchione"
+   },
+   {
+    "given": "Jennifer Wortman",
+    "family": "Vaughan"
+   },
+   {
+    "given": "Hanna",
+    "family": "Wallach"
+   },
+   {
+    "given": "Hal Daumé",
+    "family": "III"
+   },
+   {
+    "given": "Kate",
+    "family": "Crawford"
+   }
+  ],
+  "container": "Communications of the ACM",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "64",
+  "issue": "12",
+  "pages": "86-92",
+  "year": 2021,
+  "sections": [
+   10
+  ]
+ },
+ "raji2020accountability": {
+  "doi": "10.1145/3351095.3372873",
+  "type": "proceedings-article",
+  "title": "Closing the AI accountability gap: defining an end-to-end framework for internal algorithmic auditing",
+  "authors": [
+   {
+    "given": "Inioluwa Deborah",
+    "family": "Raji"
+   },
+   {
+    "given": "Andrew",
+    "family": "Smart"
+   },
+   {
+    "given": "Rebecca N.",
+    "family": "White"
+   },
+   {
+    "given": "Margaret",
+    "family": "Mitchell"
+   },
+   {
+    "given": "Timnit",
+    "family": "Gebru"
+   },
+   {
+    "given": "Ben",
+    "family": "Hutchinson"
+   },
+   {
+    "given": "Jamila",
+    "family": "Smith-Loud"
+   },
+   {
+    "given": "Daniel",
+    "family": "Theron"
+   },
+   {
+    "given": "Parker",
+    "family": "Barnes"
+   }
+  ],
+  "container": "Proceedings of the 2020 Conference on Fairness, Accountability, and Transparency",
+  "publisher": "ACM",
+  "volume": null,
+  "issue": null,
+  "pages": "33-44",
+  "year": 2020,
+  "sections": [
+   12,
+   17
+  ]
+ },
+ "nist2023airmf": {
+  "doi": "10.6028/nist.ai.100-1",
+  "type": "report",
+  "title": "Artificial Intelligence Risk Management Framework (AI RMF 1.0)",
+  "authors": [
+   {
+    "given": "Elham",
+    "family": "Tabassi"
+   }
+  ],
+  "container": "",
+  "publisher": "National Institute of Standards and Technology (U.S.)",
+  "volume": null,
+  "issue": null,
+  "pages": null,
+  "year": 2023,
+  "sections": [
+   12
+  ]
+ },
+ "mosqueira2023hitl": {
+  "doi": "10.1007/s10462-022-10246-w",
+  "type": "journal-article",
+  "title": "Human-in-the-loop machine learning: a state of the art",
+  "authors": [
+   {
+    "given": "Eduardo",
+    "family": "Mosqueira-Rey"
+   },
+   {
+    "given": "Elena",
+    "family": "Hernández-Pereira"
+   },
+   {
+    "given": "David",
+    "family": "Alonso-Ríos"
+   },
+   {
+    "given": "José",
+    "family": "Bobes-Bascarán"
+   },
+   {
+    "given": "Ángel",
+    "family": "Fernández-Leal"
+   }
+  ],
+  "container": "Artificial Intelligence Review",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "56",
+  "issue": "4",
+  "pages": "3005-3054",
+  "year": 2022,
+  "sections": [
+   11,
+   12
+  ]
+ },
+ "wu2022hitl": {
+  "doi": "10.1016/j.future.2022.05.014",
+  "type": "journal-article",
+  "title": "A survey of human-in-the-loop for machine learning",
+  "authors": [
+   {
+    "given": "Xingjiao",
+    "family": "Wu"
+   },
+   {
+    "given": "Luwei",
+    "family": "Xiao"
+   },
+   {
+    "given": "Yixuan",
+    "family": "Sun"
+   },
+   {
+    "given": "Junhang",
+    "family": "Zhang"
+   },
+   {
+    "given": "Tianlong",
+    "family": "Ma"
+   },
+   {
+    "given": "Liang",
+    "family": "He"
+   }
+  ],
+  "container": "Future Generation Computer Systems",
+  "publisher": "Elsevier BV",
+  "volume": "135",
+  "issue": null,
+  "pages": "364-381",
+  "year": 2022,
+  "sections": [
+   11
+  ]
+ },
+ "sultan2019container": {
+  "doi": "10.1109/access.2019.2911732",
+  "type": "journal-article",
+  "title": "Container Security: Issues, Challenges, and the Road Ahead",
+  "authors": [
+   {
+    "given": "Sari",
+    "family": "Sultan"
+   },
+   {
+    "given": "Imtiaz",
+    "family": "Ahmad"
+   },
+   {
+    "given": "Tassos",
+    "family": "Dimitriou"
+   }
+  ],
+  "container": "IEEE Access",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "7",
+  "issue": null,
+  "pages": "52976-52996",
+  "year": 2019,
+  "sections": [
+   12
+  ]
+ },
+ "jarkas2025container": {
+  "doi": "10.1145/3715001",
+  "type": "journal-article",
+  "title": "A Container Security Survey: Exploits, Attacks, and Defenses",
+  "authors": [
+   {
+    "given": "Omar",
+    "family": "Jarkas"
+   },
+   {
+    "given": "Ryan",
+    "family": "Ko"
+   },
+   {
+    "given": "Naipeng",
+    "family": "Dong"
+   },
+   {
+    "given": "Redowan",
+    "family": "Mahmud"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "57",
+  "issue": "7",
+  "pages": "1-36",
+  "year": 2025,
+  "sections": [
+   12
+  ]
+ },
+ "wong2023container": {
+  "doi": "10.1016/j.cose.2023.103490",
+  "type": "journal-article",
+  "title": "Container security: Precaution levels, mitigation strategies, and research perspectives",
+  "authors": [
+   {
+    "given": "Devi Priya",
+    "family": "V S"
+   },
+   {
+    "given": "Sibi",
+    "family": "Chakkaravarthy Sethuraman"
+   },
+   {
+    "given": "Muhammad Khurram",
+    "family": "Khan"
+   }
+  ],
+  "container": "Computers &amp; Security",
+  "publisher": "Elsevier BV",
+  "volume": "135",
+  "issue": null,
+  "pages": "103490",
+  "year": 2023,
+  "sections": [
+   12
+  ]
+ },
+ "schneier1999auditlogs": {
+  "doi": "10.1145/317087.317089",
+  "type": "journal-article",
+  "title": "Secure audit logs to support computer forensics",
+  "authors": [
+   {
+    "given": "Bruce",
+    "family": "Schneier"
+   },
+   {
+    "given": "John",
+    "family": "Kelsey"
+   }
+  ],
+  "container": "ACM Transactions on Information and System Security",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "2",
+  "issue": "2",
+  "pages": "159-176",
+  "year": 1999,
+  "sections": [
+   12
+  ]
+ },
+ "lalwani2022churn": {
+  "doi": "10.1007/s00607-021-00908-y",
+  "type": "journal-article",
+  "title": "Customer churn prediction system: a machine learning approach",
+  "authors": [
+   {
+    "given": "Praveen",
+    "family": "Lalwani"
+   },
+   {
+    "given": "Manas Kumar",
+    "family": "Mishra"
+   },
+   {
+    "given": "Jasroop Singh",
+    "family": "Chadha"
+   },
+   {
+    "given": "Pratyush",
+    "family": "Sethi"
+   }
+  ],
+  "container": "Computing",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "104",
+  "issue": "2",
+  "pages": "271-294",
+  "year": 2021,
+  "sections": [
+   2,
+   8,
+   18
+  ]
+ },
+ "manzoor2024churnreview": {
+  "doi": "10.1109/access.2024.3402092",
+  "type": "journal-article",
+  "title": "A Review on Machine Learning Methods for Customer Churn Prediction and Recommendations for Business Practitioners",
+  "authors": [
+   {
+    "given": "Awais",
+    "family": "Manzoor"
+   },
+   {
+    "given": "M.",
+    "family": "Atif Qureshi"
+   },
+   {
+    "given": "Etain",
+    "family": "Kidney"
+   },
+   {
+    "given": "Luca",
+    "family": "Longo"
+   }
+  ],
+  "container": "IEEE Access",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "12",
+  "issue": null,
+  "pages": "70434-70463",
+  "year": 2024,
+  "sections": [
+   3,
+   18
+  ]
+ },
+ "wu2021churntelco": {
+  "doi": "10.1109/access.2021.3073776",
+  "type": "journal-article",
+  "title": "Integrated Churn Prediction and Customer Segmentation Framework for Telco Business",
+  "authors": [
+   {
+    "given": "Shuli",
+    "family": "Wu"
+   },
+   {
+    "given": "Wei-Chuen",
+    "family": "Yau"
+   },
+   {
+    "given": "Thian-Song",
+    "family": "Ong"
+   },
+   {
+    "given": "Siew-Chin",
+    "family": "Chong"
+   }
+  ],
+  "container": "IEEE Access",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "9",
+  "issue": null,
+  "pages": "62118-62136",
+  "year": 2021,
+  "sections": [
+   18
+  ]
+ },
+ "ecommerce2023churn": {
+  "doi": "10.1016/j.measen.2023.100728",
+  "type": "journal-article",
+  "title": "E-commerce customer churn prevention using machine learning-based business intelligence strategy",
+  "authors": [
+   {
+    "given": "Shobana",
+    "family": "J"
+   },
+   {
+    "given": "Ch.",
+    "family": "Gangadhar"
+   },
+   {
+    "given": "Rakesh Kumar",
+    "family": "Arora"
+   },
+   {
+    "given": "P.N.",
+    "family": "Renjith"
+   },
+   {
+    "given": "J.",
+    "family": "Bamini"
+   },
+   {
+    "given": "Yugendra devidas",
+    "family": "Chincholkar"
+   }
+  ],
+  "container": "Measurement: Sensors",
+  "publisher": "Elsevier BV",
+  "volume": "27",
+  "issue": null,
+  "pages": "100728",
+  "year": 2023,
+  "sections": [
+   18
+  ]
+ },
+ "verbeke2012churn": {
+  "doi": "10.1016/j.ejor.2011.09.031",
+  "type": "journal-article",
+  "title": "New insights into churn prediction in the telecommunication sector: A profit driven data mining approach",
+  "authors": [
+   {
+    "given": "Wouter",
+    "family": "Verbeke"
+   },
+   {
+    "given": "Karel",
+    "family": "Dejaeger"
+   },
+   {
+    "given": "David",
+    "family": "Martens"
+   },
+   {
+    "given": "Joon",
+    "family": "Hur"
+   },
+   {
+    "given": "Bart",
+    "family": "Baesens"
+   }
+  ],
+  "container": "European Journal of Operational Research",
+  "publisher": "Elsevier BV",
+  "volume": "218",
+  "issue": "1",
+  "pages": "211-229",
+  "year": 2012,
+  "sections": [
+   8,
+   18
+  ]
+ },
+ "decaigny2018churn": {
+  "doi": "10.1016/j.ejor.2018.02.009",
+  "type": "journal-article",
+  "title": "A new hybrid classification algorithm for customer churn prediction based on logistic regression and decision trees",
+  "authors": [
+   {
+    "given": "Arno",
+    "family": "De Caigny"
+   },
+   {
+    "given": "Kristof",
+    "family": "Coussement"
+   },
+   {
+    "given": "Koen W.",
+    "family": "De Bock"
+   }
+  ],
+  "container": "European Journal of Operational Research",
+  "publisher": "Elsevier BV",
+  "volume": "269",
+  "issue": "2",
+  "pages": "760-772",
+  "year": 2018,
+  "sections": [
+   8
+  ]
+ },
+ "fader2005rfm": {
+  "doi": "10.1509/jmkr.2005.42.4.415",
+  "type": "journal-article",
+  "title": "RFM and CLV: Using Iso-Value Curves for Customer Base Analysis",
+  "authors": [
+   {
+    "given": "Peter S.",
+    "family": "Fader"
+   },
+   {
+    "given": "Bruce G.S.",
+    "family": "Hardie"
+   },
+   {
+    "given": "Ka Lok",
+    "family": "Lee"
+   }
+  ],
+  "container": "Journal of Marketing Research",
+  "publisher": "SAGE Publications",
+  "volume": "42",
+  "issue": "4",
+  "pages": "415-430",
+  "year": 2005,
+  "sections": [
+   8
+  ]
+ },
+ "rental2023churn": {
+  "doi": "10.1186/s40537-023-00721-8",
+  "type": "journal-article",
+  "title": "Machine learning based customer churn prediction in home appliance rental business",
+  "authors": [
+   {
+    "given": "Youngjung",
+    "family": "Suh"
+   }
+  ],
+  "container": "Journal of Big Data",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "10",
+  "issue": "1",
+  "pages": "41",
+  "year": 2023,
+  "sections": [
+   18
+  ]
+ },
+ "batko2022healthcare": {
+  "doi": "10.1186/s40537-021-00553-4",
+  "type": "journal-article",
+  "title": "The use of Big Data Analytics in healthcare",
+  "authors": [
+   {
+    "given": "Kornelia",
+    "family": "Batko"
+   },
+   {
+    "given": "Andrzej",
+    "family": "Ślęzak"
+   }
+  ],
+  "container": "Journal of Big Data",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "9",
+  "issue": "1",
+  "pages": "3",
+  "year": 2022,
+  "sections": [
+   18
+  ]
+ },
+ "smartfactory2022": {
+  "doi": "10.1016/j.jmsy.2022.03.010",
+  "type": "journal-article",
+  "title": "An end-to-end big data analytics platform for IoT-enabled smart factories: A case study of battery module assembly system for electric vehicles",
+  "authors": [
+   {
+    "given": "Sinan",
+    "family": "Kahveci"
+   },
+   {
+    "given": "Bugra",
+    "family": "Alkan"
+   },
+   {
+    "given": "Mus’ab H.",
+    "family": "Ahmad"
+   },
+   {
+    "given": "Bilal",
+    "family": "Ahmad"
+   },
+   {
+    "given": "Robert",
+    "family": "Harrison"
+   }
+  ],
+  "container": "Journal of Manufacturing Systems",
+  "publisher": "Elsevier BV",
+  "volume": "63",
+  "issue": null,
+  "pages": "214-223",
+  "year": 2022,
+  "sections": [
+   18
+  ]
+ },
+ "smartcities2020": {
+  "doi": "10.1016/j.cosrev.2020.100303",
+  "type": "journal-article",
+  "title": "Leveraging Deep Learning and IoT big data analytics to support the smart cities development: Review and future directions",
+  "authors": [
+   {
+    "given": "Safa Ben",
+    "family": "Atitallah"
+   },
+   {
+    "given": "Maha",
+    "family": "Driss"
+   },
+   {
+    "given": "Wadii",
+    "family": "Boulila"
+   },
+   {
+    "given": "Henda Ben",
+    "family": "Ghézala"
+   }
+  ],
+  "container": "Computer Science Review",
+  "publisher": "Elsevier BV",
+  "volume": "38",
+  "issue": null,
+  "pages": "100303",
+  "year": 2020,
+  "sections": [
+   18
+  ]
+ },
+ "kandt2021cities": {
+  "doi": "10.1016/j.cities.2020.102992",
+  "type": "journal-article",
+  "title": "Smart cities, big data and urban policy: Towards urban analytics for the long run",
+  "authors": [
+   {
+    "given": "Jens",
+    "family": "Kandt"
+   },
+   {
+    "given": "Michael",
+    "family": "Batty"
+   }
+  ],
+  "container": "Cities",
+  "publisher": "Elsevier BV",
+  "volume": "109",
+  "issue": null,
+  "pages": "102992",
+  "year": 2021,
+  "sections": [
+   18
+  ]
+ },
+ "fraud2023banking": {
+  "doi": "10.1109/access.2022.3232287",
+  "type": "journal-article",
+  "title": "Fraud Detection in Banking Data by Machine Learning Techniques",
+  "authors": [
+   {
+    "given": "Seyedeh Khadijeh",
+    "family": "Hashemi"
+   },
+   {
+    "given": "Seyedeh Leili",
+    "family": "Mirtaheri"
+   },
+   {
+    "given": "Sergio",
+    "family": "Greco"
+   }
+  ],
+  "container": "IEEE Access",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "11",
+  "issue": null,
+  "pages": "3034-3043",
+  "year": 2023,
+  "sections": [
+   18
+  ]
+ },
+ "weber2024xaifinance": {
+  "doi": "10.1007/s10462-024-10854-8",
+  "type": "journal-article",
+  "title": "Explainable artificial intelligence (XAI) in finance: a systematic literature review",
+  "authors": [
+   {
+    "given": "Jurgita",
+    "family": "Černevičienė"
+   },
+   {
+    "given": "Audrius",
+    "family": "Kabašinskas"
+   }
+  ],
+  "container": "Artificial Intelligence Review",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "57",
+  "issue": "8",
+  "pages": "216",
+  "year": 2024,
+  "sections": [
+   18
+  ]
+ },
+ "chou2021nids": {
+  "doi": "10.1145/3472753",
+  "type": "journal-article",
+  "title": "A Survey on Data-driven Network Intrusion Detection",
+  "authors": [
+   {
+    "given": "Dylan",
+    "family": "Chou"
+   },
+   {
+    "given": "Meng",
+    "family": "Jiang"
+   }
+  ],
+  "container": "ACM Computing Surveys",
+  "publisher": "Association for Computing Machinery (ACM)",
+  "volume": "54",
+  "issue": "9",
+  "pages": "1-36",
+  "year": 2021,
+  "sections": [
+   18
+  ]
+ },
+ "wang2020xaiids": {
+  "doi": "10.1109/access.2020.2988359",
+  "type": "journal-article",
+  "title": "An Explainable Machine Learning Framework for Intrusion Detection Systems",
+  "authors": [
+   {
+    "given": "Maonan",
+    "family": "Wang"
+   },
+   {
+    "given": "Kangfeng",
+    "family": "Zheng"
+   },
+   {
+    "given": "Yanqing",
+    "family": "Yang"
+   },
+   {
+    "given": "Xiujuan",
+    "family": "Wang"
+   }
+  ],
+  "container": "IEEE Access",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "8",
+  "issue": null,
+  "pages": "73127-73141",
+  "year": 2020,
+  "sections": [
+   18
+  ]
+ },
+ "smartgrid2021": {
+  "doi": "10.1109/access.2020.3041178",
+  "type": "journal-article",
+  "title": "Smart Grid Big Data Analytics: Survey of Technologies, Techniques, and Applications",
+  "authors": [
+   {
+    "given": "Dabeeruddin",
+    "family": "Syed"
+   },
+   {
+    "given": "Ameema",
+    "family": "Zainab"
+   },
+   {
+    "given": "Ali",
+    "family": "Ghrayeb"
+   },
+   {
+    "given": "Shady S.",
+    "family": "Refaat"
+   },
+   {
+    "given": "Haitham",
+    "family": "Abu-Rub"
+   },
+   {
+    "given": "Othmane",
+    "family": "Bouhali"
+   }
+  ],
+  "container": "IEEE Access",
+  "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+  "volume": "9",
+  "issue": null,
+  "pages": "59564-59585",
+  "year": 2021,
+  "sections": [
+   18
+  ]
+ },
+ "sarker2021datascience": {
+  "doi": "10.1007/s42979-021-00765-8",
+  "type": "journal-article",
+  "title": "Data Science and Analytics: An Overview from Data-Driven Smart Computing, Decision-Making and Applications Perspective",
+  "authors": [
+   {
+    "given": "Iqbal H.",
+    "family": "Sarker"
+   }
+  ],
+  "container": "SN Computer Science",
+  "publisher": "Springer Science and Business Media LLC",
+  "volume": "2",
+  "issue": "5",
+  "pages": "377",
+  "year": 2021,
+  "sections": [
+   1,
+   3
+  ]
+ }
+}

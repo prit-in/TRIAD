@@ -149,8 +149,11 @@ PLAYBOOK: dict[ErrorClass, PlaybookEntry] = {
 _PATTERNS: list[tuple[ErrorClass, re.Pattern[str]]] = [
     # These two come first because both appear inside text later patterns also match: every
     # line of an sbt stack trace begins `[error]`, and Spark's low-memory refusal mentions memory.
+    # "unable to create native thread" is a process limit (the profile's pids cap), not heap:
+    # read as an out-of-memory, it would be "remedied" with more memory that changes nothing.
     (ErrorClass.RESOURCE_CONFIG_INVALID, re.compile(
-        r"INVALID_(DRIVER|EXECUTOR)_MEMORY|System memory \d+ must be at least \d+", re.I)),
+        r"INVALID_(DRIVER|EXECUTOR)_MEMORY|System memory \d+ must be at least \d+"
+        r"|unable to create native thread", re.I)),
     (ErrorClass.DEPENDENCY_RESOLUTION, re.compile(
         r"lmcoursier|coursier\.(error\.)?(ResolutionError|FetchError|DownloadError)"
         r"|sbt\.librarymanagement\.ResolveException|unresolved dependenc(y|ies)"

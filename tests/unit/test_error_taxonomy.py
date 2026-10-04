@@ -146,3 +146,28 @@ def test_gate_4_only_claims_a_compile_error_when_the_compiler_reported_one() -> 
         assert classify(result.detail, hint=result.error_class).error_class is (
             expected or ErrorClass.DEPENDENCY_RESOLUTION
         )
+
+
+# run-2026-10-04-002: the first containerised clean job failed this way, and the failure was
+# recorded as a fragment of stack frames and classified UNKNOWN.
+NATIVE_THREAD_TRACE = (
+    'Exception in thread "main" java.lang.OutOfMemoryError: unable to create native thread: '
+    "possibly out of memory or process/resource limits reached\n"
+    + "".join(f"\tat org.apache.spark.sql.execution.Frame{i}.run(Frame.scala:{i})\n"
+              for i in range(200))
+)
+
+
+def test_thread_exhaustion_is_a_process_limit_not_an_out_of_memory() -> None:
+    diagnosis = classify(NATIVE_THREAD_TRACE)
+    assert diagnosis.error_class is ErrorClass.RESOURCE_CONFIG_INVALID
+    assert PLAYBOOK[ErrorClass.RESOURCE_CONFIG_INVALID].remedy is Remedy.NONE
+
+
+def test_a_failure_without_a_job_error_line_keeps_the_exception_not_just_the_frames() -> None:
+    from agents.graph.pipeline import _structured_error
+
+    assert len(NATIVE_THREAD_TRACE) > 4000, "the exception line is outside the last 4000 chars"
+    message = _structured_error(NATIVE_THREAD_TRACE)
+    assert "unable to create native thread" in message
+    assert classify(message).error_class is ErrorClass.RESOURCE_CONFIG_INVALID

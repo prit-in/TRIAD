@@ -375,6 +375,17 @@ def prepare(
         except Exception as exc:   # a missing attribute table must not fail the run
             say("segments", f"customer attributes unavailable: {type(exc).__name__}: {exc}",
                 False)
+    # PRD AP-6 names "country group, tenure band". Tenure is a model input, so its band is
+    # derived here for evaluation only and excluded from the features with the attributes
+    # above; until 04-10-2026 the one segmentation the PRD names besides country was not checked.
+    if "tenure_days" in dataset.columns:
+        import pandas as pd
+
+        dataset["tenure_band"] = pd.cut(
+            dataset["tenure_days"], bins=[-1, 180, 365, 730, float("inf")],
+            labels=["under 6 months", "6-12 months", "1-2 years", "over 2 years"],
+        ).astype("string")
+        segment_columns.append("tenure_band")
     say("segments",
         f"segment attributes joined for evaluation: {segment_columns or 'none available'}",
         bool(segment_columns))

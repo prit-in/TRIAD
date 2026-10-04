@@ -73,5 +73,12 @@ The nineteen findings of the second audit (03-10-2026) are in commit `9f89a24`.
   available; selection escalated on MISCALIBRATED (ECE 0.0617 on 243 rows against 0.05, Brier
   skill 0.336) - consistent with EXP-5's noise floor at this size, and recorded with its
   evidence and alternatives. A worker restart mid-run resumed the task on its lease.
-- **run-2026-10-04-001** (800 customers x 30 months, jobs in the container sandbox): in progress
-  at the time of writing; recorded in IMPLEMENTATION_STATUS.md when it finishes.
+- **run-2026-10-04-001 to -006** (800 and 10 000 customers, every Spark job in the container
+  sandbox): each found or confirmed a defect, now fixed (quarantine mount point, hostname and
+  thread exhaustion, pids limits, the cross-attribute AP-6 gap); run-2026-10-04-006 ran every job
+  in containers on 82 852 labelled rows and escalated on a 0.331 recall gap within tenure band - to
+  be analysed (IMPLEMENTATION_STATUS.md, "Next exact steps").
+- **Open policy question:** PRD section 30's "promotion despite a failed check" (two approvers) is
+  defined in `governance.yaml` but no code path requests it, so an escalated run has no governed
+  way forward. FR-075's own acceptance criterion (self-approval refused) is met; the unbuilt part
+  is the section-30 autonomy row and UC-17's alternative flow ("several approvers for overrides").

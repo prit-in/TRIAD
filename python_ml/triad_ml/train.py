@@ -458,14 +458,19 @@ def select_model(
     if segment_cols:
         segs = segment_metrics(split.valid, y_valid, p_valid, segment_cols=segment_cols,
                                threshold=threshold)
-        from python_ml.triad_ml.evaluate import recall_gap
+        from python_ml.triad_ml.evaluate import segment_evidence
 
-        gap = recall_gap(segs)
+        # The segments themselves, not only the gap: a person deciding this escalation needs
+        # to see which groups differ, how large they are, and how many churners each holds.
+        seg_evidence = segment_evidence(segs)
+        gap = seg_evidence["segment_recall_gap"]
         rules.append("AP-6")
         if gap > float(policy.get("AP6_max_segment_recall_gap", 0.10)):
+            worst = max(seg_evidence["segment_recall_gaps"].items(), key=lambda kv: kv[1])[0]
             return SelectionResult(
-                "ESCALATE", best, f"segment recall gap {gap:.3f} exceeds the limit", rules,
-                evidence={"segment_recall_gap": gap}, rejected=rejected, verdicts=verdicts,
+                "ESCALATE", best,
+                f"segment recall gap {gap:.3f} within {worst} exceeds the limit", rules,
+                evidence=seg_evidence, rejected=rejected, verdicts=verdicts,
             )
 
     # --- stage D: score the test snapshot exactly once ------------------------

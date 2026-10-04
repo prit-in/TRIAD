@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -547,7 +548,10 @@ class ChurnPipeline:
                 "job_args": job_args,
                 "command": " ".join(job_args),
                 "resources": {
-                    "profile": stage_inputs.get("resource_profile", "small"),
+                    # PRD 22.4 assigns "small" to dry runs and tests and "medium" to a Spark
+                    # client; the full execution ran as "small", whose 10-minute timeout a full
+                    # job at a larger tier would hit. Gate 6's dry run below keeps "small".
+                    "profile": stage_inputs.get("resource_profile", "medium"),
                     "master": routing.get("deploy_mode", "local[2]"),
                     "driver_memory": memory,
                 },
@@ -589,11 +593,11 @@ class ChurnPipeline:
                     or f"triad.jobs.generated.{artifact['artifact'].object_name}",
                     "job_args": job_args,
                     "master": self.config.get("spark_master", "local[2]"),
-                    "profile": artifact["resources"]["profile"],
+                    "profile": "small",
                     "driver_memory": artifact["resources"]["driver_memory"],
                 },
                 sandbox=self.sandbox,
-                policy_context={"profile": artifact["resources"]["profile"]},
+                policy_context={"profile": "small"},
             )
             try:
                 if not call.ok:
@@ -852,8 +856,19 @@ def _newest_jar(folder: Path) -> Path | None:
 
 
 def _structured_error(output: str) -> str:
-    """Prefer the job's own structured error line over raw log text (FR-043)."""
-    for line in output.splitlines():
+    """Prefer the job's own structured error line over raw log text (FR-043).
+
+    Without one - the JVM failed before the job could write it - the exception lines go first
+    and the tail after them. The tail alone is the bottom of a Java trace: on run-2026-10-04-002
+    it held frames and not the `OutOfMemoryError: unable to create native thread` at the top, so
+    the failure was classified UNKNOWN.
+    """
+    lines = output.splitlines()
+    for line in lines:
         if line.startswith("TRIAD_JOB_ERROR "):
             return line[len("TRIAD_JOB_ERROR ") :]
-    return output[-4000:]
+    headers = [line for line in lines
+               if line.startswith(("Exception in thread", "Caused by:"))
+               or re.match(r"[\w.$]+(Exception|Error)(:|$)", line)]
+    tail = output[-4000:]
+    return "\n".join([*headers[-10:], "...", tail]) if headers else tail

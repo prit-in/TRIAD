@@ -19,7 +19,10 @@ from sandbox.runner import (
 def test_profiles_match_the_prd_table() -> None:
     assert set(RESOURCE_PROFILES) == {"small", "medium", "large"}
     assert RESOURCE_PROFILES["small"]["timeout_s"] == 600
-    assert RESOURCE_PROFILES["large"]["pids"] == 1024
+    # Doubled from the PRD's illustrative 256/512/1024 (DEC-25), keeping its ratios: the
+    # feature job alone peaked at 292 threads, and every Spark thread counts as a process.
+    assert [RESOURCE_PROFILES[p]["pids"] for p in ("small", "medium", "large")] == [512, 1024, 2048]
+    assert RESOURCE_PROFILES["small"]["pids"] > 292
 
 
 def test_unknown_profile_is_refused() -> None:

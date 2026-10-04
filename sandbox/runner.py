@@ -37,11 +37,13 @@ from typing import Any
 
 from triad_core.ids import utcnow
 
-# PRD 22.4
+# PRD 22.4, whose values are marked (EX). The process limits are doubled from it (DEC-25): a
+# Spark driver's threads count against the cgroup's pids limit, and the feature job peaked at
+# 292 (measured through `pids.peak`), so 256 killed it with "unable to create native thread".
 RESOURCE_PROFILES: dict[str, dict[str, Any]] = {
-    "small": {"cpus": "2", "memory": "4g", "pids": 256, "timeout_s": 600, "scratch": "2g"},
-    "medium": {"cpus": "4", "memory": "16g", "pids": 512, "timeout_s": 3600, "scratch": "10g"},
-    "large": {"cpus": "8", "memory": "32g", "pids": 1024, "timeout_s": 10800, "scratch": "50g"},
+    "small": {"cpus": "2", "memory": "4g", "pids": 512, "timeout_s": 600, "scratch": "2g"},
+    "medium": {"cpus": "4", "memory": "16g", "pids": 1024, "timeout_s": 3600, "scratch": "10g"},
+    "large": {"cpus": "8", "memory": "32g", "pids": 2048, "timeout_s": 10800, "scratch": "50g"},
 }
 
 # Env-A-mini cannot honour the PRD's medium/large sizes; the runner clamps them and says so.
@@ -229,6 +231,9 @@ class DockerRunner:
             read_only=True, tmpfs={"/tmp": f"rw,size={profile['scratch']},exec"},
             nano_cpus=int(cpus * 1e9), mem_limit=f"{mem_gb}g", pids_limit=int(profile["pids"]),
             network_mode=request.network, working_dir=request.workdir,
+            # With no network the container's generated hostname resolves to nothing, and the
+            # JVM's logging asks for it on every logger it creates.
+            hostname="localhost" if request.network == "none" else None,
             mounts=mounts, environment=_scrubbed_env(request.env),
         )
         timed_out = False

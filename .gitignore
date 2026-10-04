@@ -75,3 +75,4 @@ frontend/node_modules/
 # own documents; the repository may be published, so none of them are redistributed through it.
 # docs/faculty/FACULTY_MATERIALS_ANALYSIS.md carries every requirement they impose.
 docs/faculty/source/
+docs/research/references/crossref_cache.json

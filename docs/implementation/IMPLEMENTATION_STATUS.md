@@ -1,6 +1,75 @@
 # IMPLEMENTATION_STATUS
 
-Updated: 22-09-2026. **Read this file first when resuming.**
+Updated: 04-10-2026. **Read this file first when resuming.** The handoff below supersedes the
+older sections that follow it where they disagree.
+
+## Handoff, 04-10-2026 (session closed mid-work, at the user's request)
+
+### Done in this session (commits 9f89a24, 88a3d72, and the commit that adds this section)
+
+- Second audit: 19 defects fixed; FR-025, FR-055 (all nine gates), FR-074 (triggers), ST-08 met.
+- **Spark jobs run in containers** via the new `sandbox-runner` service (ADR-0004); ST-06/ST-07
+  executed by `tests/security/test_sandbox_isolation.py`. Before: host network, docs claimed otherwise.
+- Found by end-to-end runs and fixed: selection crashed after every verdict (`jsonable`); retrain
+  copied its source's inputs and used budget (DEC-22, PRD 19.3); quarantine could not be a mount
+  point; a no-network container's unresolvable hostname exhausted Spark's threads; pids limits sized
+  by measurement (DEC-25: feature job peaks at 292 threads); full jobs run as `medium`, dry runs as
+  `small`; thread exhaustion classified `RESOURCE_CONFIG_INVALID`; job errors keep exception lines.
+- **AP-6 corrected (DEC-26)**: gaps within each segmentation (was across all attributes mixed),
+  tenure band added (PRD names it), full segment table in the decision evidence.
+- Memory: MLflow job runner disabled, orchestrator 2600M, gate-5 heaps (DEC-23).
+- DEC-21 (segment attributes evaluation-only), DEC-24 (**LangGraph not the runtime - deviation from
+  CR-08**), CURRENT_PROJECT_AUDIT.md, ST-01..ST-08 rows in the traceability.
+- Research: `docs/research/` - README plus sections 01-12, 14, 18, 20, 21 drafted with verified
+  citations; 118 references verified against Crossref (`references/bibliography.json`, 89% journal,
+  74% 2020-2025); 26 draw.io diagrams generated (`figures/drawio/`); trust-score script
+  (`analysis/trust_score.py`); AP-6 noise-floor experiment (`experiments/segment_gap_noise_floor.py`).
+
+### End-to-end runs this session (all API-started, worker-executed)
+
+| Run | Data | Outcome | What it showed |
+| --- | --- | --- | --- |
+| run-2026-10-03-002 | 400 customers | ESCALATED (MISCALIBRATED, ECE 0.0617 on 243 rows) | all 9 gates x 3 jobs; live states; lease recovery |
+| run-2026-10-04-001/002 | 800 x 30 | ESCALATED (cleaning) | quarantine mount, then thread exhaustion in containers |
+| run-2026-10-04-003 | 800 x 30 | ESCALATED (features) | pids limit 256 too low (DEC-25) |
+| run-2026-10-04-004 | 800 x 30 | ESCALATED (AP-6 0.160) | the cross-attribute gap bug (DEC-26) |
+| run-2026-10-04-005 | 800 x 30 | ESCALATED (AP-6 0.115 within channel) | segments of ~30 churners: noise |
+| run-2026-10-04-006 | 10 000 x 30 | ESCALATED (**AP-6 0.331 within tenure_band**) | 82 852 rows; all jobs in containers |
+
+### Next exact steps, in order
+
+1. **Analyse run-2026-10-04-006's AP-6 escalation.** 0.331 within tenure band on 6 263 validation
+   rows is far outside the noise floor - probably a real recall disparity by tenure (tenure is a
+   model input; churn of new customers may be harder to detect). Read the segment table from the
+   acceptance decision (`decision_records.evidence_refs`, `segments`), and report it as a finding.
+   Do not loosen AP-6 to obtain a pass.
+2. **Decide the override path.** PRD section 30 ("Promotion despite a failed check: two approvers, ML
+   Engineer and Admin, override note") and `governance.yaml` define it; no code requests it. Either
+   build it (register the escalated candidate, `POST /pipelines/{id}/override`, two-approver
+   approvals, publish on both) or record it as unmet. Ask the user - it is a policy question.
+3. **Re-run all ten experiments** on the final code (feature catalogue, sandbox, harness fixes all
+   changed since): `docker compose -f docker/compose.yaml --profile tools run --rm -T dev python
+   scripts/run_experiment.py --all` (sequential; nothing else may run). EXP-6 needs the socket for
+   its fault injector: add `-v /var/run/docker.sock:/var/run/docker.sock` for that one only. Then
+   re-run `experiments/segment_gap_noise_floor.py` (conclusion text changed) and update
+   EXPERIMENTS.md from the new `latest.json` files.
+4. **Figures**: export `figures/drawio/*.drawio` to 600-DPI PNG. The headless exporter
+   (`rlespinasse/drawio-desktop-headless`) needs `-e DRAWIO_DESKTOP_COMMAND_TIMEOUT=180s` and
+   `--shm-size=1g`; at scale 5 the renderer still produced nothing - try scale 3 or SVG then
+   rasterize. Mount `C:\Windows\Fonts` read-only for Times New Roman. Then write
+   `build_charts.py` (Fig. 21-25, 28 from stored experiment outputs, matplotlib at 600 DPI).
+5. **Write the result sections** (00 front matter, 13, 15, 16, 17, 19, 22, 23 appendix) from the
+   re-run outputs and `analysis/trust_score.py`; build the reference list in citation order.
+6. Then: PRD_FACULTY_TRACEABILITY.md, demo preparation docs, FINAL_COMPLIANCE_AUDIT.md (two final
+   audits), FINAL_REPORT refresh, full test suite + ruff, and only at the very end ask the user for
+   the team details (names, photos, author order).
+
+### State left running
+
+The Compose core stack is up (postgres, mlflow, api, orchestrator, sandbox-runner, frontend). The
+scheduler will not retrain before 10-10-2026 (cooldown after run-2026-10-03-001). To drive the API
+in a new session, set a seed password with `scripts/seed_demo.py --force` (TRIAD_SEED_PASSWORD).
+Registered datasets now include the 800- and 10 000-customer versions (transactions v13, v14).
 
 ## Current position
 

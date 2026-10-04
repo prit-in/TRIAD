@@ -117,7 +117,10 @@ def test_every_control_is_asked_for(monkeypatch, tmp_path) -> None:
     assert kw["user"] == "1000:1000"
     assert kw["cap_drop"] == ["ALL"] and kw["security_opt"] == ["no-new-privileges"]
     assert kw["read_only"] is True and kw["network_mode"] == "none"
-    assert kw["pids_limit"] == 256 and kw["mem_limit"] == "3.0g"
+    # With no network an unresolvable hostname stalled every logger's lookup, and Spark's
+    # cached thread pools grew until the pids limit killed the job (run-2026-10-04-002).
+    assert kw["hostname"] == "localhost"
+    assert kw["pids_limit"] == 512 and kw["mem_limit"] == "3.0g"
     assert kw["tmpfs"] == {"/tmp": "rw,size=2g,exec"}
     assert "TRIAD_DB_URL" not in kw["environment"]
     assert (run_folder, 1000, 1000, False) in chowned, "the run folder is handed to the job's user"

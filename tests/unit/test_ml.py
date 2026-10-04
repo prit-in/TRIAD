@@ -716,3 +716,29 @@ def test_an_escalating_calibration_chain_keeps_the_remedies_it_tried() -> None:
     assert result.evidence.get("ece_after_calibration") is not None
     assert result.evidence.get("brier_skill_after_calibration") is not None
     assert result.evidence.get("class_weighting") in ("balanced", "removed")
+
+
+
+def test_ap6_compares_segments_within_one_segmentation_only() -> None:
+    """A country is compared with countries, never with a channel (run-2026-10-04-004).
+
+    The gap used to be max minus min over every segment of every attribute, so overlapping
+    groups from different partitions were compared and each attribute added widened the gap.
+    """
+    from python_ml.triad_ml.evaluate import Metrics, recall_gaps, segment_evidence
+
+    def seg(name: str, recall: float, rows: int = 120, prevalence: float = 0.4) -> Metrics:
+        return Metrics(split="valid", segment=name, values={"recall": recall},
+                       n_rows=rows, prevalence=prevalence)
+
+    segments = [seg("country=GB", 0.90), seg("country=IN", 0.84),
+                seg("channel=web", 0.82), seg("channel=app", 0.85)]
+
+    assert recall_gaps(segments) == pytest.approx({"country": 0.06, "channel": 0.03})
+    assert recall_gap(segments) == pytest.approx(0.06), "not 0.90 - 0.82 across attributes"
+
+    evidence = segment_evidence(segments)
+    assert evidence["segment_recall_gap"] == pytest.approx(0.06)
+    assert {s["segment"] for s in evidence["segments"]} == {
+        "country=GB", "country=IN", "channel=web", "channel=app"}
+    assert all(s["rows"] == 120 and s["positives"] == 48 for s in evidence["segments"])

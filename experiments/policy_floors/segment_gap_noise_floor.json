@@ -1,0 +1,161 @@
+{
+  "question": "How often does AP-6 refuse a model whose recall is equal across segments?",
+  "limit": 0.1,
+  "min_rows": 50,
+  "min_positives": 30,
+  "prevalence": 0.253,
+  "true_recall": 0.5,
+  "segmentation_shares": {
+    "country": [
+      0.5,
+      0.15,
+      0.15,
+      0.08,
+      0.07,
+      0.05
+    ],
+    "acquisition_channel": [
+      0.2,
+      0.2,
+      0.2,
+      0.2,
+      0.2
+    ],
+    "loyalty_tier": [
+      0.6,
+      0.3,
+      0.1
+    ],
+    "tenure_band": [
+      0.2550607287449393,
+      0.26720647773279355,
+      0.4777327935222672
+    ]
+  },
+  "trials_per_cell": 20000,
+  "seed": 20261004,
+  "statistic": "recall_gap, python_ml/triad_ml/evaluate.py (within-segmentation, DEC-26)",
+  "rows": [
+    {
+      "n_rows": 494,
+      "segmentations": [
+        "country",
+        "acquisition_channel",
+        "loyalty_tier",
+        "tenure_band"
+      ],
+      "median_gap": 0.12838915470494422,
+      "p90_gap": 0.22828784119106704,
+      "false_alarm_rate": 0.65485,
+      "gate": "all four segmentations (as configured)"
+    },
+    {
+      "n_rows": 1000,
+      "segmentations": [
+        "country",
+        "acquisition_channel",
+        "loyalty_tier",
+        "tenure_band"
+      ],
+      "median_gap": 0.1836734693877551,
+      "p90_gap": 0.261384185855283,
+      "false_alarm_rate": 0.9712,
+      "gate": "all four segmentations (as configured)"
+    },
+    {
+      "n_rows": 2000,
+      "segmentations": [
+        "country",
+        "acquisition_channel",
+        "loyalty_tier",
+        "tenure_band"
+      ],
+      "median_gap": 0.16338644173695724,
+      "p90_gap": 0.23809523809523808,
+      "false_alarm_rate": 0.951,
+      "gate": "all four segmentations (as configured)"
+    },
+    {
+      "n_rows": 4000,
+      "segmentations": [
+        "country",
+        "acquisition_channel",
+        "loyalty_tier",
+        "tenure_band"
+      ],
+      "median_gap": 0.13046823396881985,
+      "p90_gap": 0.19459605157718368,
+      "false_alarm_rate": 0.80925,
+      "gate": "all four segmentations (as configured)"
+    },
+    {
+      "n_rows": 8000,
+      "segmentations": [
+        "country",
+        "acquisition_channel",
+        "loyalty_tier",
+        "tenure_band"
+      ],
+      "median_gap": 0.09201257861635218,
+      "p90_gap": 0.1379554115128101,
+      "false_alarm_rate": 0.3962,
+      "gate": "all four segmentations (as configured)"
+    },
+    {
+      "n_rows": 494,
+      "segmentations": [
+        "country",
+        "tenure_band"
+      ],
+      "median_gap": 0.09368895211000475,
+      "p90_gap": 0.2055574912891987,
+      "false_alarm_rate": 0.46745,
+      "gate": "country and tenure band only (the PRD's AP-6 wording)"
+    },
+    {
+      "n_rows": 1000,
+      "segmentations": [
+        "country",
+        "tenure_band"
+      ],
+      "median_gap": 0.13237639553429031,
+      "p90_gap": 0.2137760011843956,
+      "false_alarm_rate": 0.73655,
+      "gate": "country and tenure band only (the PRD's AP-6 wording)"
+    },
+    {
+      "n_rows": 2000,
+      "segmentations": [
+        "country",
+        "tenure_band"
+      ],
+      "median_gap": 0.14384426129321193,
+      "p90_gap": 0.2335384331116039,
+      "false_alarm_rate": 0.814,
+      "gate": "country and tenure band only (the PRD's AP-6 wording)"
+    },
+    {
+      "n_rows": 4000,
+      "segmentations": [
+        "country",
+        "tenure_band"
+      ],
+      "median_gap": 0.12397704879969779,
+      "p90_gap": 0.19418724133009843,
+      "false_alarm_rate": 0.7113,
+      "gate": "country and tenure band only (the PRD's AP-6 wording)"
+    },
+    {
+      "n_rows": 8000,
+      "segmentations": [
+        "country",
+        "tenure_band"
+      ],
+      "median_gap": 0.08774172255410795,
+      "p90_gap": 0.13799804063140647,
+      "false_alarm_rate": 0.36095,
+      "gate": "country and tenure band only (the PRD's AP-6 wording)"
+    }
+  ],
+  "conclusion": "At the 800-customer runs' validation size (494 rows, prevalence 0.253), a model whose recall is identical in every segment is refused by AP-6 in 65% of draws: segments are admitted with as few as 30 churners, where recall's sampling error alone is about 0.09, larger than the 0.10 limit is wide. The 0.115 gap that escalated run-2026-10-04-005 is well inside that noise."
+}

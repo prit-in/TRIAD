@@ -120,7 +120,7 @@ def test_st07_a_job_writes_only_where_its_run_may_and_runs_unprivileged(runner, 
     assert seen["run_folder"] == "written", "the run's own folder is writable"
     assert seen["data_root"] != "written", "the rest of the data root is not even mounted"
     assert seen["scratch"] == "written", "scratch is a tmpfs"
-    assert seen["pids_max"] == "256", "the small profile's process limit"
+    assert seen["pids_max"] == "512", "the small profile's process limit (DEC-25)"
     assert seen["memory_max"] == str(3 * 1024**3), "the small profile, clamped to Env-A-mini"
     assert not seen["socket_visible"], "the docker socket never reaches a job"
 
