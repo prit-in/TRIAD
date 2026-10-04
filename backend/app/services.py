@@ -19,20 +19,35 @@ PUBLISH_STAGE = "publish"
 PUBLISH_TASK = "publish"
 
 
-def enqueue_publish(session: Session, approval: Approval) -> AgentTask | None:
+def enqueue_publish(
+    session: Session, approval: Approval, *, decision_status: str | None = None
+) -> AgentTask | None:
     """Queue the post-approval half of the run, once, for a decided promotion.
 
     Returns None when there is nothing to queue: the approval is still pending, it is not a
     promotion, or the work is already queued. Queuing twice would run the publish phase twice
     and move the champion alias twice.
+
+    `decision_status` is the status of the whole decision the approval belongs to
+    (`GovernanceService.group_status`). A promotion despite a failed check is a group of
+    shares, one per required role: it is queued only when every share has approved, and as
+    soon as any is rejected the run returns to ESCALATED - a refused override leaves the
+    candidate unpromoted and nothing to publish.
     """
-    if approval.action_type != "model_promotion":
+    override = approval.policy_action == "model.promote_with_failed_check"
+    if approval.action_type != "model_promotion" and not override:
         return None
-    if approval.status not in ("approved", "rejected"):
-        return None
+    status = decision_status or approval.status
 
     run = session.get(PipelineRun, approval.run_id)
     if run is None:
+        return None
+    if override and status == "rejected":
+        if run.state == "APPROVAL_REQUIRED":
+            q.set_state(session, run, "ESCALATED", stage="approval", actor="governance",
+                        error_summary="the promotion despite a failed check was rejected")
+        return None
+    if status not in (("approved",) if override else ("approved", "rejected")):
         return None
 
     existing = session.execute(

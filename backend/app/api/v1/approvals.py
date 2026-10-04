@@ -21,6 +21,7 @@ from backend.app.services import enqueue_publish
 from triad_core.config import settings
 from triad_core.governance import (
     CommentRequired,
+    DuplicateApprover,
     GovernanceService,
     NotAuthorised,
     NothingPending,
@@ -119,10 +120,12 @@ def decide(
                                 problem_type="nothing-pending") from exc
     except PolicyDenied as exc:
         raise problems.forbidden(str(exc), problem_type="policy-denied") from exc
+    except DuplicateApprover as exc:
+        raise problems.forbidden(str(exc), problem_type="duplicate-approver") from exc
 
     # An approved promotion still has to be carried out, and a rejected one still has to
     # archive its shadow scores and say so in a report. Both are the orchestrator's work.
-    enqueue_publish(session, decided)
+    enqueue_publish(session, decided, decision_status=service.group_status(decided))
     return ApprovalView.model_validate(decided)
 
 

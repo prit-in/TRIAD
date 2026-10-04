@@ -527,12 +527,19 @@ def prepare(
                 ci=selection.selected.valid_metrics.intervals.get(name),
             )
 
-    if selection.outcome == "ESCALATE":
+    # A candidate that failed only a rule a person may override, and would otherwise have
+    # been proposed, is registered and documented like any challenger, so the two approvers PRD
+    # section 30 requires have a version, a model card and metrics against the champion to
+    # decide on. The run still ends ESCALATED. Any other escalation stops here, as before.
+    overridable = (selection.outcome == "ESCALATE" and selection.override_eligible
+                   and selection.selected is not None and selection.test_metrics is not None)
+    if selection.outcome == "ESCALATE" and not overridable:
         pipeline.finish("ESCALATED", ok=False, reason=selection.reason)
         return PhaseResult(False, "ESCALATED", selection.reason,
                            {"selection": selection.to_dict()})
 
-    pipeline._advance("SELECTED", stage="select")
+    if not overridable:
+        pipeline._advance("SELECTED", stage="select")
     # `intervals` carries the bootstrap 95% bounds. They used to stop here: `_record_metric`
     # has taken a `ci=` argument since it was written and no caller ever passed one, so
     # `metrics.ci_low` and `metrics.ci_high` were columns nothing filled - and FR-066's
@@ -594,9 +601,14 @@ def prepare(
         )
         mlflow_version = registered.version if registered else None
         artifact_sha256 = registered.artifact_sha256 if registered else None
-        if mlflow_version:
+        if mlflow_version and not overridable:
             registry.set_challenger(MODEL_NAME, mlflow_version)
             say("registry", f"registered {MODEL_NAME} v{mlflow_version} as challenger", True)
+        elif mlflow_version:
+            # Not the challenger alias: an escalated candidate is not the model awaiting
+            # promotion until two people say so.
+            say("registry", f"registered {MODEL_NAME} v{mlflow_version} as a candidate "
+                            "awaiting an override decision", True)
     except Exception as exc:
         registry_error = str(exc)
         say("registry", f"could not register the challenger: {exc}", False)
@@ -685,7 +697,9 @@ def prepare(
         churn_definition=pipeline.config["label"]["definition"].strip(),
         horizon_days=int(pipeline.config["label"]["horizon_days"]),
         training_cutoffs=list(spec.train_cutoffs),
-        feature_set_version="fsv=1",
+        # Was the literal "fsv=1" after the catalogue became fsv=2, so a card could name a
+        # different feature set from the version row it documents.
+        feature_set_version=FEATURE_SET_VERSION,
         candidate_comparison=[
             {
                 "family": c["family"],
@@ -731,7 +745,7 @@ def prepare(
             name=f"{run.run_key}-churn-selection",
             objective_metric="pr_auc",
             split_spec_json=spec.to_dict(),
-            feature_set_version="fsv=1",
+            feature_set_version=FEATURE_SET_VERSION,
         )
     )
     session.flush()
@@ -746,7 +760,7 @@ def prepare(
         mlflow_version=mlflow_version, params=selection.selected.candidate.params,
         feature_set_version=FEATURE_SET_VERSION, training_data_ref=features_out["uri"],
         threshold=threshold,
-        governance_status="challenger" if mlflow_version else "candidate",
+        governance_status="challenger" if mlflow_version and not overridable else "candidate",
         # Both were computed and then left out of the row: the card was written to disk and
         # `model_card_uri` stayed NULL on all 19 versions; no hash was ever recorded at all.
         model_card_uri=str(card_path),
@@ -790,13 +804,25 @@ def prepare(
     # asking someone to approve a promotion the acceptance policy just refused would invite
     # them to overrule it without saying so - which is how a model that did not win gets
     # deployed anyway.
+    if overridable:
+        state["approval_id"] = None
+        state["override"] = {"eligible": True, "failed_rules": selection.failed_rules,
+                             "reason": selection.reason}
+        write_state(store, run, state)
+        say("select", f"ESCALATE: {selection.reason}. The candidate is registered; promoting it "
+                      "despite the failed check needs two approvers (PRD section 30)", False)
+        pipeline._persist_budget()
+        pipeline.finish("ESCALATED", ok=False, reason=selection.reason)
+        return PhaseResult(False, "ESCALATED", selection.reason, state)
+
     if selection.outcome != "PROPOSE_PROMOTION":
         state["approval_id"] = None
         write_state(store, run, state)
         say("select", f"{selection.outcome}: no promotion is proposed, so no approval is "
                       "requested; the challenger is kept for shadow scoring", True)
         pipeline._persist_budget()
-        pipeline._advance("SELECTED", stage="select")
+        # The run is already SELECTED (above); advancing again recorded SELECTED -> SELECTED,
+        # fourteen times in the audit trail before the transition table was enforced.
         return PhaseResult(True, "SELECTED", selection.reason, state)
 
     # -- request approval -------------------------------------------------------
@@ -861,6 +887,25 @@ def publish(
         .order_by(Approval.requested_at.desc())
     ).scalars().first()
     proposed = state.get("selection_outcome") == "PROPOSE_PROMOTION"
+    # PRD section 30: a promotion despite a failed check is decided by a group of approvals,
+    # one per required role, and goes ahead only when every one of them has approved.
+    approval_ref: str | None = None
+    approved_by: str | None = None
+    if (state.get("override") or {}).get("eligible"):
+        shares = session.execute(
+            select(Approval).where(
+                Approval.run_id == run.id,
+                Approval.policy_action == "model.promote_with_failed_check",
+            ).order_by(Approval.requested_at.desc())
+        ).scalars().all()
+        group = [a for a in shares if shares and a.group_id == shares[0].group_id]
+        if not group or pipeline.governance.group_status(group[0]) != "approved":
+            return PhaseResult(False, run.state,
+                               "the promotion despite a failed check is not approved by every "
+                               "required approver")
+        approval, proposed = group[0], True
+        approval_ref = str(group[0].group_id)
+        approved_by = ",".join(str(a.decided_by) for a in group)
     if approval is None and proposed:
         return PhaseResult(False, run.state, "no promotion request exists for this run")
     if approval is not None and approval.status == "pending":
@@ -896,7 +941,8 @@ def publish(
     if approved and mlflow_version:
         promoted = registry.promote(
             state["model_name"], mlflow_version,
-            approval_id=str(approval.id), approved_by=str(approval.decided_by),  # type: ignore[union-attr]
+            approval_id=approval_ref or str(approval.id),  # type: ignore[union-attr]
+            approved_by=approved_by or str(approval.decided_by),  # type: ignore[union-attr]
         )
         say("deploy", f"champion -> v{mlflow_version} "
                       f"(previous {promoted['previous_champion']})", True)

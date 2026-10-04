@@ -475,6 +475,12 @@ class Approval(Base):
     requested_at: Mapped[dt.datetime] = _now()
     decided_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # The governance action this row decides (NULL on rows written before it was recorded,
+    # which keep the mapping from `action_type`); for one share of an all-of approval, the only
+    # role that may decide it; and the rows that together are one decision.
+    policy_action: Mapped[str | None] = mapped_column(String(64))
+    required_role: Mapped[str | None] = mapped_column(String(32))
+    group_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
 
     __table_args__ = (
         CheckConstraint(

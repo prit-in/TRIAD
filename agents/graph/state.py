@@ -58,27 +58,37 @@ TERMINAL_STATES = {"COMPLETED", "ABORTED", "REJECTED_INPUT", "CANCELLED"}
 
 # The transitions the orchestrator will accept, from PRD sections 12.2 and 12.3. A move that
 # is not listed is a bug in the orchestrator, not a new behaviour to allow at run time.
+#
+# Enforced by `queue.set_state`, through which every transition passes. It was defined and never
+# called, and had drifted from the runs it described: they go PLANNED -> FEATURES_READY (code
+# generation, validation and execution are recorded per stage, in `code_artifacts` and
+# `executions`, rather than as run states), a retried or resumed task restarts its phase at
+# PROFILED, the stranded-run reaper fails a run in any live state, and a promotion despite a
+# failed check (PRD section 30) moves an ESCALATED run to APPROVAL_REQUIRED. Each of those was
+# read from the transitions recorded in `audit_logs`, not assumed.
+_LIVE = {"ESCALATED", "CANCELLED", "FAILED"}
+_RESTART = {"PROFILED"}   # a retried or resumed prepare phase starts again from profiling
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
-    "RECEIVED": {"PROFILED", "REJECTED_INPUT", "ESCALATED", "CANCELLED"},
-    "PROFILED": {"PROFILED", "PLANNED", "ESCALATED", "APPROVAL_REQUIRED", "CANCELLED"},
-    "PLANNED": {"CODE_GENERATED", "ESCALATED", "CANCELLED"},
-    "CODE_GENERATED": {"VALIDATED", "FAILED", "REGENERATING", "ESCALATED", "CANCELLED"},
-    "VALIDATED": {"EXECUTING", "FAILED", "ESCALATED", "CANCELLED"},
-    "EXECUTING": {"FEATURES_READY", "FAILED", "ESCALATED", "CANCELLED"},
-    "FEATURES_READY": {"TRAINING", "ESCALATED", "CANCELLED"},
-    "TRAINING": {"EVALUATED", "ESCALATED", "CANCELLED"},
-    "EVALUATED": {"OPTIMIZING", "SELECTED", "ESCALATED", "CANCELLED"},
-    "OPTIMIZING": {"TRAINING", "ESCALATED", "CANCELLED"},
-    "SELECTED": {"APPROVAL_REQUIRED", "PUBLISHED", "ESCALATED", "CANCELLED"},
-    "APPROVAL_REQUIRED": {"DEPLOYED", "PUBLISHED", "ESCALATED", "CANCELLED"},
-    "DEPLOYED": {"PUBLISHED", "ESCALATED", "CANCELLED"},
+    "RECEIVED": {"PROFILED", "REJECTED_INPUT"} | _LIVE,
+    "PROFILED": {"PROFILED", "PLANNED", "APPROVAL_REQUIRED"} | _LIVE,
+    "PLANNED": {"CODE_GENERATED", "FEATURES_READY"} | _RESTART | _LIVE,
+    "CODE_GENERATED": {"VALIDATED", "REGENERATING"} | _LIVE,
+    "VALIDATED": {"EXECUTING"} | _LIVE,
+    "EXECUTING": {"FEATURES_READY"} | _LIVE,
+    "FEATURES_READY": {"TRAINING"} | _RESTART | _LIVE,
+    "TRAINING": {"EVALUATED"} | _RESTART | _LIVE,
+    "EVALUATED": {"OPTIMIZING", "SELECTED"} | _RESTART | _LIVE,
+    "OPTIMIZING": {"TRAINING"} | _LIVE,
+    "SELECTED": {"APPROVAL_REQUIRED", "PUBLISHED"} | _RESTART | _LIVE,
+    "APPROVAL_REQUIRED": {"DEPLOYED", "PUBLISHED"} | _LIVE,
+    "DEPLOYED": {"PUBLISHED"} | _LIVE,
     "PUBLISHED": {"MONITORING", "COMPLETED", "CANCELLED"},
     "MONITORING": {"COMPLETED", "CANCELLED"},
     "FAILED": {"DIAGNOSING", "ESCALATED", "CANCELLED"},
-    "DIAGNOSING": {"REGENERATING", "RETRYING", "ESCALATED", "CANCELLED"},
-    "REGENERATING": {"RETRYING", "ESCALATED", "CANCELLED"},
-    "RETRYING": {"EXECUTING", "CODE_GENERATED", "ESCALATED", "CANCELLED"},
-    "ESCALATED": {"PLANNED", "ABORTED", "CANCELLED"},
+    "DIAGNOSING": {"REGENERATING", "RETRYING"} | _LIVE,
+    "REGENERATING": {"RETRYING"} | _LIVE,
+    "RETRYING": {"EXECUTING", "CODE_GENERATED"} | _RESTART | _LIVE,
+    "ESCALATED": {"PLANNED", "RETRYING", "APPROVAL_REQUIRED", "ABORTED", "CANCELLED", "FAILED"},
 }
 
 
@@ -87,6 +97,9 @@ class IllegalTransition(Exception):
 
 
 def check_transition(current: str, nxt: str) -> None:
+    """Refuse a move the table does not list. Staying in a state is not a move."""
+    if current == nxt:
+        return
     allowed = ALLOWED_TRANSITIONS.get(current, set())
     if nxt not in allowed:
         raise IllegalTransition(

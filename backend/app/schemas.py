@@ -134,6 +134,15 @@ class RunDetail(RunSummary):
     budget_used: dict[str, Any] = Field(default_factory=dict)
     budget_limits: dict[str, Any] = Field(default_factory=dict)
     pending_approval: PendingApprovalView | None = None
+    # For an escalated run whose candidate failed only a rule a person may override: the
+    # failed rules and the reason, so the page can offer the two-approver path (PRD 30).
+    override: dict[str, Any] | None = None
+
+
+class OverrideRequest(ApiModel):
+    """The written justification PRD section 30 requires for a promotion despite a failed check."""
+
+    note: str = Field(min_length=20, max_length=2000)
 
 
 class DecisionView(ApiModel):
@@ -228,6 +237,11 @@ class ApprovalView(ApiModel):
     requested_at: dt.datetime | None = None
     expires_at: dt.datetime | None = None
     decided_at: dt.datetime | None = None
+    # A share of a decision needing several people: the role that must decide this share, and
+    # the group the shares belong to. NULL for an ordinary single approval.
+    policy_action: str | None = None
+    required_role: str | None = None
+    group_id: uuid.UUID | None = None
 
 
 class RollbackRequest(ApiModel):

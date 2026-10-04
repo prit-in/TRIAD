@@ -391,6 +391,75 @@ def recall_gap(segments: list[Metrics]) -> float:
     return max(recall_gaps(segments).values(), default=0.0)
 
 
+def segment_threshold_review(
+    df: pd.DataFrame,
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    *,
+    segment_col: str,
+    threshold: float,
+    min_rows: int = 50,
+    min_positives: int = 30,
+) -> dict[str, Any]:
+    """PRD 19.4's first remedy for SEGMENT_RECALL_GAP: what segment-aware thresholds would do.
+
+    For each segment of the failing segmentation: the threshold at which its recall reaches the
+    overall recall at the global threshold, the recall that gives, and the share of the segment
+    it would flag - and, over all rows, how many more customers would be flagged. It is analysis
+    for the person the second remedy escalates to, never a change: an operating threshold per
+    group is a policy decision, and for a protected attribute a contested one.
+    """
+    y_true = np.asarray(y_true).astype(int)
+    y_score = np.asarray(y_score, dtype=float)
+    flagged_global = y_score >= threshold
+    positives_all = int(y_true.sum())
+    target = (float((flagged_global & (y_true == 1)).sum() / positives_all)
+              if positives_all else float("nan"))
+    segments: list[dict[str, Any]] = []
+    flagged_aware = 0
+    for value in sorted(df[segment_col].dropna().unique().tolist(), key=str):
+        mask = (df[segment_col] == value).fillna(False).to_numpy(dtype=bool)
+        rows, positives = int(mask.sum()), int(y_true[mask].sum())
+        hits_global = int((flagged_global[mask] & (y_true[mask] == 1)).sum())
+        entry: dict[str, Any] = {
+            "segment": f"{segment_col}={value}", "rows": rows, "positives": positives,
+            "recall_at_global_threshold": round(hits_global / positives, 4) if positives else None,
+        }
+        if rows < min_rows or positives < min_positives or np.isnan(target):
+            entry["insufficient_data"] = True
+            flagged_aware += int(flagged_global[mask].sum())
+            segments.append(entry)
+            continue
+        positive_scores = np.sort(y_score[mask][y_true[mask] == 1])[::-1]
+        k = max(1, int(np.ceil(target * positives)))
+        segment_threshold = float(positive_scores[k - 1])
+        flagged = y_score[mask] >= segment_threshold
+        flagged_aware += int(flagged.sum())
+        entry.update({
+            "segment_threshold": round(segment_threshold, 6),
+            "recall_at_segment_threshold":
+                round(float((flagged & (y_true[mask] == 1)).sum() / positives), 4),
+            "flagged_share": round(float(flagged.mean()), 4),
+        })
+        segments.append(entry)
+    aware = [s["recall_at_segment_threshold"] for s in segments
+             if "recall_at_segment_threshold" in s]
+    n = len(y_true)
+    return {
+        "segmentation": segment_col,
+        "global_threshold": threshold,
+        "target_recall": None if np.isnan(target) else round(target, 4),
+        "segments": segments,
+        "gap_at_segment_thresholds": round(max(aware) - min(aware), 4) if len(aware) >= 2 else 0.0,
+        "flagged_share_global": round(float(flagged_global.mean()), 4) if n else None,
+        "flagged_share_segment_aware": round(flagged_aware / n, 4) if n else None,
+        "applied": False,
+        "note": "Analysis only (PRD 19.4, first remedy for SEGMENT_RECALL_GAP). Applying an "
+                "operating threshold per group is a decision for the ML Engineer the second "
+                "remedy escalates to.",
+    }
+
+
 def segment_evidence(segments: list[Metrics]) -> dict[str, Any]:
     """What a person needs to judge an AP-6 verdict: each segment, its size, and its recall."""
     return {

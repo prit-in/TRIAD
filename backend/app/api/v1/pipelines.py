@@ -23,10 +23,12 @@ from backend.app import problems
 from backend.app.deps import CurrentUser, DbSession, require_roles
 from backend.app.pagination import clamp_limit, decode_cursor, page
 from backend.app.schemas import (
+    ApprovalView,
     ArtifactView,
     CancelResponse,
     DecisionView,
     LogLine,
+    OverrideRequest,
     Page,
     PendingApprovalView,
     ResumeRequest,
@@ -348,7 +350,117 @@ def get_run(run_ref: str, session: DbSession, user: CurrentUser) -> RunDetail:
         budget_used={"llm_calls": run.llm_calls_used, "llm_cost_usd": run.llm_cost_used},
         budget_limits=run.budget_json or {},
         pending_approval=_pending_approval(session, run),
+        override=_override_offer(run),
     )
+
+
+def _override_offer(run: PipelineRun) -> dict | None:
+    """What an escalated run's candidate failed, if a person may promote it anyway (PRD 30)."""
+    if run.state not in ("ESCALATED", "APPROVAL_REQUIRED"):
+        return None
+    from agents.graph.churn import read_state
+    from triad_core.storage import storage
+
+    try:
+        offer = (read_state(storage(), run).get("override") or {})
+    except (FileNotFoundError, ValueError):
+        return None
+    return offer if offer.get("eligible") else None
+
+
+@router.post(
+    "/pipelines/{run_ref}/override",
+    response_model=list[ApprovalView],
+    status_code=202,
+    summary="Ask two approvers to promote despite a failed check (PRD 30)",
+    dependencies=[Depends(require_roles(*STARTER_ROLES))],
+)
+def request_override(
+    run_ref: str, payload: OverrideRequest, session: DbSession, user: CurrentUser
+) -> list[ApprovalView]:
+    """PRD section 30: "Promotion despite a failed check - two approvers, ML Engineer and
+    Admin - written justification." Only a candidate that failed a calibration or segment
+    rule, and would otherwise have been proposed, is eligible; the requester may approve
+    neither share, and nor may whoever started the run."""
+    from agents.graph.churn import read_state
+    from triad_core.config import settings
+    from triad_core.governance import (
+        EvidenceBundle,
+        GovernanceError,
+        GovernanceService,
+        PolicyDenied,
+    )
+    from triad_core.policy import PolicyEngine
+    from triad_core.storage import storage
+
+    run = _find_run(session, run_ref)
+    if run.state != "ESCALATED":
+        raise problems.conflict(
+            "Run is not escalated",
+            f"Run {run.run_key} is {run.state}; only an ESCALATED run's candidate can be "
+            "promoted despite a failed check.",
+        )
+    offer = _override_offer(run)
+    if offer is None:
+        raise problems.conflict(
+            "Nothing to override",
+            f"Run {run.run_key} escalated without a candidate that may be promoted: only a "
+            "failed calibration or segment rule, on a candidate that beats the champion, can "
+            "be overridden.",
+            problem_type="not-overridable",
+        )
+    already = session.execute(
+        select(Approval).where(
+            Approval.run_id == run.id,
+            Approval.policy_action == "model.promote_with_failed_check",
+            Approval.status.in_(("pending", "approved")),
+        )
+    ).scalars().first()
+    if already is not None:
+        raise problems.conflict("Already requested",
+                                "A promotion despite a failed check is already pending for "
+                                "this run.", problem_type="already-requested")
+
+    store = storage()
+    state = read_state(store, run)
+    selection = state.get("selection") or {}
+    target = f"{state.get('model_name')}:{state.get('mlflow_version') or 'unregistered'}"
+    evidence = EvidenceBundle(
+        action_type="policy_override",
+        target_ref=target,
+        metrics_vs_champion=selection.get("champion_delta")
+        or {"note": "no champion yet: first model"},
+        segment_checks=[{"rule": rule, "result": "failed"}
+                        for rule in offer.get("failed_rules", [])],
+        model_card_uri=str(store.reports_dir(run.run_key) / "model_card.md"),
+        decision_records=[{"outcome": "ESCALATE", "reason": offer.get("reason"),
+                           "failed_rules": offer.get("failed_rules")}],
+        override_note=payload.note.strip(),
+    )
+    evidence_path = store.write_json(
+        store.reports_dir(run.run_key) / "override_evidence.json", evidence.to_dict()
+    )
+    service = GovernanceService(session, PolicyEngine(settings().governance_policy_path))
+    try:
+        shares = service.request_approvals(
+            run, action="model.promote_with_failed_check", target_ref=target,
+            requested_by=str(user.id), evidence=evidence,
+            evidence_uri=store.uri(evidence_path),
+        )
+    except PolicyDenied as exc:
+        raise problems.forbidden(str(exc), problem_type="policy-denied") from exc
+    except GovernanceError as exc:
+        raise problems.unprocessable(str(exc)) from exc
+
+    q.set_state(session, run, "APPROVAL_REQUIRED", stage="approval", actor=str(user.id))
+    audit.record(
+        session, actor_type="user", actor_id=str(user.id), action="override.requested",
+        resource_type="pipeline_run", resource_id=str(run.id), run_id=run.id,
+        outcome="requested",
+        details={"failed_rules": offer.get("failed_rules"), "note": payload.note.strip()[:500],
+                 "approvals": [str(a.id) for a in shares]},
+    )
+    return [ApprovalView.model_validate(a) for a in shares]
 
 
 @router.get(

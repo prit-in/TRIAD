@@ -202,6 +202,11 @@ class SelectionResult:
     test_metrics: Metrics | None = None
     champion_delta: dict[str, float] | None = None
     verdicts: dict[str, AcceptanceVerdict] = field(default_factory=dict)
+    # For an escalation on a rule a person may override (AP-5 calibration, AP-6 segments): the
+    # rules that failed, and whether the candidate would otherwise have been proposed - it
+    # beats the champion with confidence, or there is no champion. PRD section 30.
+    failed_rules: list[str] = field(default_factory=list)
+    override_eligible: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -214,6 +219,8 @@ class SelectionResult:
             "test": self.test_metrics.to_dict() if self.test_metrics else None,
             "champion_delta": self.champion_delta,
             "verdicts": {k: v.to_dict() for k, v in self.verdicts.items()},
+            "failed_rules": self.failed_rules,
+            "override_eligible": self.override_eligible,
         }
 
 
@@ -434,44 +441,43 @@ def select_model(
 
     rules.append("AP-5_remedy_chain")
     verdicts[f"{best.family}@calibrated"] = post
+
+    # A failed calibration or segment rule no longer ends selection here. The candidate is still
+    # scored on the test cutoff and compared with the champion, so the escalation carries what a
+    # promotion despite a failed check needs (PRD section 30: two approvers, an override note,
+    # the metrics against the champion) - and nobody is asked to override a model that would not
+    # have been proposed anyway. Every other rule still stops selection where it fails.
+    failures: list[tuple[str, str]] = []
+    failure_evidence: dict[str, Any] = {}
     if calibration_codes:
-        return SelectionResult(
-            "ESCALATE", best,
+        failures.append((
+            "AP-5",
             f"calibration rules still failing after "
             f"{', '.join(remedies_tried)}: {', '.join(calibration_codes)}",
-            rules,
-            evidence={
-                **post.evidence,
-                "calibration": best.calibration_method,
-                "calibration_note": best.calibration_note,
-                "calibration_remedies_tried": remedies_tried,
-                "ece_after_calibration": best.valid_metrics.get("ece"),
-                "brier_skill_after_calibration": best.valid_metrics.get("brier_skill"),
-                "class_weighting": "removed"
-                if best.candidate.params.get("balance_classes") is False
-                else "balanced",
-            },
-            rejected=rejected, verdicts=verdicts,
-        )
+        ))
+        failure_evidence.update(post.evidence)
 
     # --- AP-6 segment checks --------------------------------------------------
+    segment_info: dict[str, Any] = {}
     if segment_cols:
         segs = segment_metrics(split.valid, y_valid, p_valid, segment_cols=segment_cols,
                                threshold=threshold)
-        from python_ml.triad_ml.evaluate import segment_evidence
+        from python_ml.triad_ml.evaluate import segment_evidence, segment_threshold_review
 
         # The segments themselves, not only the gap: a person deciding this escalation needs
         # to see which groups differ, how large they are, and how many churners each holds.
-        seg_evidence = segment_evidence(segs)
-        gap = seg_evidence["segment_recall_gap"]
+        segment_info = segment_evidence(segs)
+        gap = segment_info["segment_recall_gap"]
         rules.append("AP-6")
         if gap > float(policy.get("AP6_max_segment_recall_gap", 0.10)):
-            worst = max(seg_evidence["segment_recall_gaps"].items(), key=lambda kv: kv[1])[0]
-            return SelectionResult(
-                "ESCALATE", best,
-                f"segment recall gap {gap:.3f} within {worst} exceeds the limit", rules,
-                evidence=seg_evidence, rejected=rejected, verdicts=verdicts,
+            worst = max(segment_info["segment_recall_gaps"].items(), key=lambda kv: kv[1])[0]
+            # PRD 19.4's first remedy, a segment-aware threshold review: what a threshold per
+            # group would do, for the ML Engineer the second remedy escalates to. Not applied.
+            segment_info["segment_threshold_review"] = segment_threshold_review(
+                split.valid, y_valid, p_valid, segment_col=worst, threshold=threshold
             )
+            rules.append("AP-6_threshold_review")
+            failures.append(("AP-6", f"segment recall gap {gap:.3f} within {worst} exceeds the limit"))
 
     # --- stage D: score the test snapshot exactly once ------------------------
     x_test = split.test[num_cols + cat_cols]
@@ -493,19 +499,35 @@ def select_model(
         "ece_after_calibration": best.valid_metrics.get("ece"),
         "brier_skill_after_calibration": best.valid_metrics.get("brier_skill"),
         "selected_role": best.candidate.role,
+        **segment_info,
         **search_evidence,
     }
 
     # --- stage E: compare with the champion on the same cutoff ---------------
-    if champion_scores is None:
+    delta: dict[str, float] | None = None
+    if champion_scores is not None:
+        delta = bootstrap_difference(y_test, p_test, np.asarray(champion_scores, dtype=float))
+        rules.append("AP-8")
+
+    if failures:
+        beats = delta is None or delta["lower_95"] > 0
+        return SelectionResult(
+            "ESCALATE", best, "; ".join(reason for _, reason in failures), rules,
+            evidence={**evidence, **failure_evidence,
+                      "failed_rules": [rule for rule, _ in failures],
+                      "override_eligible": beats},
+            rejected=rejected, test_metrics=test_metrics, champion_delta=delta,
+            verdicts=verdicts, failed_rules=[rule for rule, _ in failures],
+            override_eligible=beats,
+        )
+
+    if delta is None:
         return SelectionResult(
             "PROPOSE_PROMOTION", best, "no champion yet: the first model needs approval",
             rules, evidence=evidence, rejected=rejected, test_metrics=test_metrics,
             verdicts=verdicts,
         )
 
-    delta = bootstrap_difference(y_test, p_test, np.asarray(champion_scores, dtype=float))
-    rules.append("AP-8")
     if delta["lower_95"] > 0:
         return SelectionResult(
             "PROPOSE_PROMOTION", best,

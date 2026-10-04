@@ -405,7 +405,11 @@ def set_state(
     together. `ChurnPipeline._advance` commits at every transition - before it did, this
     docstring claimed a commit that nothing performed.
     """
+    from agents.graph.state import check_transition
+
     previous = run.state
+    # PRD 12.2-12.4: an unlisted move is a bug in the orchestrator, not a behaviour to allow.
+    check_transition(previous, state)
     run.state = state
     if stage is not None:
         run.current_stage = stage

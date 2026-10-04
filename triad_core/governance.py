@@ -51,6 +51,12 @@ class PolicyDenied(GovernanceError):
     status = 403
 
 
+class DuplicateApprover(GovernanceError):
+    """One person may decide only one share of a decision that needs several people."""
+
+    status = 403
+
+
 @dataclass
 class EvidenceBundle:
     """What an approver sees on one page (PRD 30.5, AT-08)."""
@@ -65,6 +71,8 @@ class EvidenceBundle:
     model_card_uri: str | None = None
     decision_records: list[dict[str, Any]] = field(default_factory=list)
     risk_notes: list[str] = field(default_factory=list)
+    # The written justification PRD section 30 requires for a promotion despite a failed check.
+    override_note: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -78,6 +86,7 @@ class EvidenceBundle:
             "model_card_uri": self.model_card_uri,
             "decision_records": self.decision_records,
             "risk_notes": self.risk_notes,
+            "override_note": self.override_note,
         }
 
     def missing(self, required: list[str]) -> list[str]:
@@ -87,7 +96,7 @@ class EvidenceBundle:
         reference ("model_card_uri"), so both spellings satisfy the requirement.
         """
         present = self.to_dict()
-        optional = {"override_note", "usage_history", "cost_estimate", "verified_report",
+        optional = {"usage_history", "cost_estimate", "verified_report",
                     "impact_estimate", "sample_rows", "schema_diff", "label_impact_analysis"}
         out: list[str] = []
         for name in required:
@@ -121,7 +130,29 @@ class GovernanceService:
         evidence_uri: str,
         context: dict[str, Any] | None = None,
     ) -> Approval:
-        """Create an approval request. Refuses if the policy forbids the action outright."""
+        """Create an approval request; for an all-of action, the first of its shares."""
+        return self.request_approvals(
+            run, action=action, target_ref=target_ref, requested_by=requested_by,
+            evidence=evidence, evidence_uri=evidence_uri, context=context,
+        )[0]
+
+    def request_approvals(
+        self,
+        run: PipelineRun,
+        *,
+        action: str,
+        target_ref: str,
+        requested_by: str,
+        evidence: EvidenceBundle,
+        evidence_uri: str,
+        context: dict[str, Any] | None = None,
+    ) -> list[Approval]:
+        """Create the approval request(s). Refuses if the policy forbids the action outright.
+
+        An action whose policy names `approvers_all_of` becomes one row per role, sharing a
+        `group_id`: each must be approved, by a person holding that role, and no person may
+        decide two of them. Any other action is a single row any listed approver may decide.
+        """
         decision = self.policy.check(action, context=context or {})
         if decision.verdict is Verdict.DENY:
             audit.record(
@@ -145,39 +176,48 @@ class GovernanceService:
             )
 
         hours = float(self.policy.defaults().get("approval_expiry_hours", 72))
-        approval = Approval(
-            run_id=run.id,
-            action_type=_action_type(action),
-            target_ref=target_ref,
-            requested_by=requested_by,
-            evidence_uri=evidence_uri,
-            status="pending",
-            expires_at=utcnow() + dt.timedelta(hours=hours),
-        )
-        self.session.add(approval)
-        self.session.flush()
-
-        audit.record(
-            self.session,
-            actor_type="agent",
-            actor_id=requested_by,
-            action="approval.requested",
-            resource_type="approval",
-            resource_id=str(approval.id),
-            run_id=run.id,
-            details={"action": action, "target": target_ref,
-                     "approvers": decision.approvers or decision.approvers_all_of,
-                     "expires_at": approval.expires_at.isoformat()},
-        )
-        self.session.add(
-            Event(
-                event_type="approval.requested",
+        shares: list[str | None] = list(decision.approvers_all_of) or [None]
+        group_id = uuid.uuid4() if len(shares) > 1 else None
+        approvals: list[Approval] = []
+        for role in shares:
+            approval = Approval(
                 run_id=run.id,
-                payload={"approval_id": str(approval.id), "action_type": approval.action_type,
-                         "target_ref": target_ref},
+                action_type=_action_type(action),
+                target_ref=target_ref,
+                requested_by=requested_by,
+                evidence_uri=evidence_uri,
+                status="pending",
+                expires_at=utcnow() + dt.timedelta(hours=hours),
+                policy_action=action,
+                required_role=role,
+                group_id=group_id,
             )
-        )
-        return approval
+            self.session.add(approval)
+            self.session.flush()
+            approvals.append(approval)
+
+            audit.record(
+                self.session,
+                actor_type="agent" if requested_by.startswith("agent:") else "user",
+                actor_id=requested_by,
+                action="approval.requested",
+                resource_type="approval",
+                resource_id=str(approval.id),
+                run_id=run.id,
+                details={"action": action, "target": target_ref,
+                         "approvers": [role] if role else decision.approvers,
+                         "group_id": str(group_id) if group_id else None,
+                         "expires_at": approval.expires_at.isoformat()},
+            )
+            self.session.add(
+                Event(
+                    event_type="approval.requested",
+                    run_id=run.id,
+                    payload={"approval_id": str(approval.id),
+                             "action_type": approval.action_type, "target_ref": target_ref},
+                )
+            )
+        return approvals
 
     # -- deciding --------------------------------------------------------------
     def decide(
@@ -204,10 +244,18 @@ class GovernanceService:
         if self.expire_if_due(approval):
             raise NothingPending("the approval request has expired and counts as rejected")
 
-        policy_action = action or _policy_action(approval.action_type)
+        policy_action = approval.policy_action or action or _policy_action(approval.action_type)
         decision = self.policy.check(policy_action)
-        allowed_roles = set(decision.approvers) | set(decision.approvers_all_of)
-        if allowed_roles and approver.role not in allowed_roles and approver.role != "admin":
+        # One share of an all-of approval may be decided only by its own role - an admin does
+        # not stand in for the ML Engineer, or "two approvers" would be one person twice.
+        allowed_roles = (
+            {approval.required_role} if approval.required_role
+            else set(decision.approvers) | set(decision.approvers_all_of)
+        )
+        admin_may_stand_in = approval.required_role is None
+        if allowed_roles and approver.role not in allowed_roles and not (
+            admin_may_stand_in and approver.role == "admin"
+        ):
             audit.record_and_commit(
                 self.session,
                 actor_type="user",
@@ -224,8 +272,39 @@ class GovernanceService:
                 f"allowed: {sorted(allowed_roles)}"
             )
 
-        # Separation of duties (PRD 30.5): the approver must differ from the requester.
-        if decision.separation_of_duties and _same_actor(approval.requested_by, approver):
+        if approval.group_id is not None:
+            others = self.session.execute(
+                select(Approval).where(Approval.group_id == approval.group_id,
+                                       Approval.id != approval.id)
+            ).scalars().all()
+            if any(o.decided_by == approver.id for o in others):
+                audit.record_and_commit(
+                    self.session,
+                    actor_type="user",
+                    actor_id=str(approver.id),
+                    action="approval.duplicate_approver_refused",
+                    resource_type="approval",
+                    resource_id=str(approval.id),
+                    run_id=approval.run_id,
+                    outcome="refused",
+                    details={"group_id": str(approval.group_id)},
+                )
+                raise DuplicateApprover(
+                    f"user {approver.id} already decided another share of this decision; "
+                    "it needs a different person"
+                )
+
+        # Separation of duties (PRD 30.5): the approver must differ from the requester - and,
+        # for a promotion, from whoever started the run it promotes.
+        run = self.session.get(PipelineRun, approval.run_id)
+        requesters = [approval.requested_by]
+        if run is not None and run.triggered_by and approval.action_type in (
+            "model_promotion", "policy_override"
+        ):
+            requesters.append(run.triggered_by)
+        if decision.separation_of_duties and any(
+            _same_actor(r, approver) for r in requesters
+        ):
             audit.record_and_commit(
                 self.session,
                 actor_type="user",
@@ -296,6 +375,24 @@ class GovernanceService:
         ).scalars().all()
         return sum(1 for a in pending if self.expire_if_due(a))
 
+    def group_status(self, approval: Approval) -> str:
+        """The status of the decision an approval belongs to.
+
+        A single approval is its own status. A group is approved only when every share is,
+        rejected or expired as soon as any share is, and pending otherwise.
+        """
+        if approval.group_id is None:
+            return approval.status
+        shares = self.session.execute(
+            select(Approval).where(Approval.group_id == approval.group_id)
+        ).scalars().all()
+        for share in shares:
+            self.expire_if_due(share)
+        statuses = {s.status for s in shares}
+        if statuses & {"rejected", "expired"}:
+            return "rejected"
+        return "approved" if statuses == {"approved"} else "pending"
+
     def pending_for(self, run_id: uuid.UUID) -> list[Approval]:
         return list(
             self.session.execute(
@@ -333,7 +430,7 @@ def _action_type(policy_action: str) -> str:
     """Map a policy action name onto the approvals table's constrained action_type."""
     return {
         "model.promote": "model_promotion",
-        "model.promote_with_failed_check": "model_promotion",
+        "model.promote_with_failed_check": "policy_override",
         "cleaning.execute": "destructive_cleaning",
         "schema.change": "schema_change",
         "churn_definition.change": "definition_change",

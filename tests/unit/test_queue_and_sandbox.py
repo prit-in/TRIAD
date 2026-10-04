@@ -272,7 +272,10 @@ class TestQueue:
         from triad_core.audit import verify_chain
 
         run = self._run("chain")
-        for state in ("PROFILED", "PLANNED", "EXECUTING", "COMPLETED"):
+        # The lifecycle a published run actually takes. It walked PLANNED -> EXECUTING ->
+        # COMPLETED before the transition table was enforced; both moves are illegal.
+        for state in ("PROFILED", "PLANNED", "FEATURES_READY", "TRAINING", "EVALUATED",
+                      "SELECTED", "PUBLISHED", "COMPLETED"):
             q.set_state(self.session, run, state)
         result = verify_chain(self.session)
         assert result.ok, f"chain broken at {result.broken_at_id}: {result.reason}"

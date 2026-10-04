@@ -31,6 +31,7 @@ from triad_core import audit
 from triad_core.config import settings
 from triad_core.governance import (
     CommentRequired,
+    DuplicateApprover,
     GovernanceService,
     NotAuthorised,
     NothingPending,
@@ -229,8 +230,11 @@ def _decide(
                                 problem_type="nothing-pending") from exc
     except PolicyDenied as exc:
         raise problems.forbidden(str(exc), problem_type="policy-denied") from exc
+    except DuplicateApprover as exc:
+        raise problems.forbidden(str(exc), problem_type="duplicate-approver") from exc
 
-    enqueue_publish(session, decided)
+    enqueue_publish(session, decided,
+                    decision_status=_governance(session).group_status(decided))
     return ApprovalView.model_validate(decided)
 
 
