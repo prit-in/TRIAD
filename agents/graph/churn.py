@@ -64,10 +64,64 @@ class PhaseResult:
     state: str
     reason: str = ""
     details: dict[str, Any] = field(default_factory=dict)
+    # Set when the phase stopped on a decision rather than an error: the acceptance policy's
+    # reason code (PRD 19.4), e.g. SEGMENT_RECALL_GAP. The worker records it on the task in
+    # place of the error classifier's verdict, which has nothing to match in a policy reason
+    # and filed every such escalation as UNKNOWN.
+    reason_code: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {"ok": self.ok, "state": self.state, "reason": self.reason,
-                "details": self.details}
+                "details": self.details, "reason_code": self.reason_code}
+
+
+def record_approval_on_card(store: Storage, run: PipelineRun, approvals: list[Any],
+                            override: dict[str, Any] | None) -> None:
+    """PRD 17.10 and section 30: the card says who approved the promotion and, for a promotion
+    despite a failed check, which rule failed and the written justification.
+
+    The card is written in `prepare`, before anyone has decided, so its `approval` section was
+    always empty, and a model promoted over a failed AP-6 carried a card that did not say so.
+    """
+    from python_ml.triad_ml.registry import ModelCard, write_model_card
+
+    card_path = store.reports_dir(run.run_key) / "model_card.json"
+    if not card_path.exists():
+        return
+    card = ModelCard(**json.loads(card_path.read_text(encoding="utf-8")))
+    decided = [a.decided_at for a in approvals if a.decided_at]
+    card.approval = {
+        "approval_ids": [str(a.id) for a in approvals],
+        "decided_by": [str(a.decided_by) for a in approvals],
+        "roles": [a.required_role for a in approvals if a.required_role],
+        "decided_at": max(decided).isoformat() if decided else None,
+        "comments": [a.decision_note for a in approvals if a.decision_note],
+    }
+    override = override or {}
+    if override.get("eligible"):
+        bundle = store.reports_dir(run.run_key) / "override_evidence.json"
+        note = (json.loads(bundle.read_text(encoding="utf-8")).get("override_note")
+                if bundle.exists() else None)
+        rules = ", ".join(override.get("failed_rules") or [])
+        card.approval |= {
+            "type": "promotion despite a failed check (PRD section 30)",
+            "failed_rules": override.get("failed_rules"),
+            "reason": override.get("reason"),
+            "override_note": note,
+        }
+        card.known_limitations.append(
+            f"Promoted despite failing {rules}: {override.get('reason')}. "
+            "Approved by an ML Engineer and an Admin; the justification is in the Approval "
+            "section."
+        )
+    write_model_card(card, card_path.with_suffix(".md"))
+
+
+def _reason_code(selection: Any) -> str | None:
+    """The first acceptance reason code behind an escalation, the selected candidate's first."""
+    chosen = selection.verdicts.get(selection.selected.family) if selection.selected else None
+    verdicts = [chosen] if chosen else list(selection.verdicts.values())
+    return next((code for v in verdicts for code in v.reason_codes), None)
 
 
 # --- durable state between the two phases --------------------------------------
@@ -536,7 +590,8 @@ def prepare(
     if selection.outcome == "ESCALATE" and not overridable:
         pipeline.finish("ESCALATED", ok=False, reason=selection.reason)
         return PhaseResult(False, "ESCALATED", selection.reason,
-                           {"selection": selection.to_dict()})
+                           {"selection": selection.to_dict()},
+                           reason_code=_reason_code(selection))
 
     if not overridable:
         pipeline._advance("SELECTED", stage="select")
@@ -813,7 +868,8 @@ def prepare(
                       "despite the failed check needs two approvers (PRD section 30)", False)
         pipeline._persist_budget()
         pipeline.finish("ESCALATED", ok=False, reason=selection.reason)
-        return PhaseResult(False, "ESCALATED", selection.reason, state)
+        return PhaseResult(False, "ESCALATED", selection.reason, state,
+                           reason_code=_reason_code(selection))
 
     if selection.outcome != "PROPOSE_PROMOTION":
         state["approval_id"] = None
@@ -891,6 +947,7 @@ def publish(
     # one per required role, and goes ahead only when every one of them has approved.
     approval_ref: str | None = None
     approved_by: str | None = None
+    deciders: list[Approval] = []
     if (state.get("override") or {}).get("eligible"):
         shares = session.execute(
             select(Approval).where(
@@ -903,7 +960,7 @@ def publish(
             return PhaseResult(False, run.state,
                                "the promotion despite a failed check is not approved by every "
                                "required approver")
-        approval, proposed = group[0], True
+        approval, proposed, deciders = group[0], True, group
         approval_ref = str(group[0].group_id)
         approved_by = ",".join(str(a.decided_by) for a in group)
     if approval is None and proposed:
@@ -948,6 +1005,7 @@ def publish(
                       f"(previous {promoted['previous_champion']})", True)
         monitor.set_status(model_version, "champion",
                            promoted_by=approval.decided_by if approval else None)
+        record_approval_on_card(store, run, deciders or [approval], state.get("override"))
         pipeline._advance("DEPLOYED", stage="deploy")
 
         champion = registry.load(state["model_name"], "champion",

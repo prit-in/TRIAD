@@ -98,6 +98,15 @@ def test_secrets_and_identifiers_never_reach_the_model() -> None:
     assert set(report.masked_counts) >= {"<EMAIL>", "<CARD>", "<SECRET>", "<DB_URL>"}
 
 
+def test_run_keys_and_timestamps_are_not_mistaken_for_phone_numbers() -> None:
+    """The run timeline is served through `mask`, and showed every run key as `run-<PHONE>`."""
+    for text in ["--run-key=run-2026-10-07-001", "2026-10-07T19:24:00.983589+00:00"]:
+        masked, _ = mask(text)
+        assert masked == text
+    masked, _ = mask("call 020 7946 0958 or 9876543210")
+    assert "7946" not in masked and "9876543210" not in masked
+
+
 def test_a_customer_identifier_is_pseudonymous_and_stable() -> None:
     first, second = mask_customer_ref("C-000123"), mask_customer_ref("C-000123")
     assert first == second, "a customer must be followable across runs"

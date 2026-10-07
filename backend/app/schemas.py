@@ -174,6 +174,23 @@ class ArtifactView(ApiModel):
     gate_results: dict[str, Any] = Field(default_factory=dict)
 
 
+class ExecutionView(ApiModel):
+    """One execution and, for a Spark job, every stage it ran (FR-036)."""
+
+    id: uuid.UUID
+    stage: str
+    engine: str
+    status: str
+    exit_code: int | None = None
+    duration_ms: int | None = None
+    started_at: dt.datetime | None = None
+    finished_at: dt.datetime | None = None
+    spark_app_id: str | None = None
+    # `{"totals": {...}, "stages": [...]}` as the job's listener measured them; absent for an
+    # execution that ran no Spark job, or ran before per-stage metrics were recorded.
+    spark: dict[str, Any] | None = None
+
+
 class LogLine(ApiModel):
     at: dt.datetime | None = None
     stage: str | None = None

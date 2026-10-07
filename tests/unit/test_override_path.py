@@ -310,6 +310,125 @@ def test_the_run_detail_offers_the_override(client, db_session, people, tmp_stor
     assert detail.json()["override"]["failed_rules"] == ["AP-6"]
 
 
+def _with_measured_state(store, run) -> None:
+    """An eligible run whose selection evidence carries the gaps, the review and calibration."""
+    from agents.graph.churn import write_state
+
+    review = {"segmentation": "tenure_band", "gap_at_segment_thresholds": 0.04,
+              "note": "Analysis only.",
+              "segments": [{"segment": "tenure_band=under 6 months", "rows": 900,
+                            "positives": 120, "recall_at_global_threshold": 0.16}]}
+    write_state(store, run, {
+        "model_name": "churn_classifier", "mlflow_version": "9", "selection_outcome": "ESCALATE",
+        "selection": {
+            "champion_delta": {"mean": 0.08, "lower_95": 0.07, "upper_95": 0.1},
+            "evidence": {"segment_recall_gaps": {"tenure_band": 0.331, "country": 0.07},
+                         "segment_threshold_review": review,
+                         "ece_after_calibration": 0.019, "calibration": "isotonic"},
+        },
+        "override": {"eligible": True, "failed_rules": ["AP-6"],
+                     "reason": "segment recall gap 0.331 within tenure_band exceeds the limit"},
+    })
+
+
+def test_approvers_read_the_measurements_not_a_file_path(
+    client, db_session, people, tmp_store
+) -> None:
+    """PRD 30.5. The bundle said only "AP-6 failed", and the page printed its storage path."""
+    run = _escalated_run(db_session, people["starter"])
+    _with_measured_state(tmp_store, run)
+    shares = client.post(f"/api/v1/pipelines/{run.run_key}/override",
+                         headers=_auth(people["requester"]), json=NOTE).json()
+
+    response = client.get(f"/api/v1/approvals/{shares[0]['id']}/evidence",
+                          headers=_auth(people["ml"]))
+    assert response.status_code == 200, response.text
+    bundle = response.json()
+    check = bundle["segment_checks"][0]
+    assert check["rule"] == "AP-6" and check["recall_gaps"]["tenure_band"] == 0.331
+    assert check["threshold_review"]["gap_at_segment_thresholds"] == 0.04
+    assert bundle["calibration"] == {"calibration": "isotonic", "ece_after_calibration": 0.019}
+    assert bundle["override_note"] == NOTE["note"]
+    assert bundle["risk_notes"][0].startswith("segment recall gap 0.331")
+
+
+def test_evidence_is_read_inside_the_data_root_only(client, db_session, people, tmp_store) -> None:
+    run = _escalated_run(db_session, people["starter"])
+    share = _shares(GovernanceService(db_session, PolicyEngine(settings().governance_policy_path)),
+                    run, people["requester"])[0]
+    share.evidence_uri = "file:///etc/passwd"
+    db_session.flush()
+    response = client.get(f"/api/v1/approvals/{share.id}/evidence", headers=_auth(people["ml"]))
+    assert response.status_code == 404
+
+
+def test_the_card_records_who_approved_and_what_they_overrode(
+    db_session, service, people, tmp_store
+) -> None:
+    """PRD 17.10 and section 30: the card is written before anyone decides, so the approval
+    and the failed rule were never on it."""
+    from agents.graph.churn import record_approval_on_card
+    from python_ml.triad_ml.registry import ModelCard, write_model_card
+
+    run = _escalated_run(db_session, people["starter"])
+    folder = tmp_store.reports_dir(run.run_key)
+    write_model_card(ModelCard(
+        model_name="churn_classifier", version="9", algorithm="hist_gb", intended_use="ranking",
+        limits=[], churn_definition="no order in 90 days", horizon_days=90,
+        training_cutoffs=["2026-01-01"], feature_set_version="fsv=2", candidate_comparison=[],
+        metrics={}, calibration={}, segment_results=[], top_drivers=[], driver_method="shap",
+        known_limitations=["one cutoff is one season"],
+    ), folder / "model_card.md")
+    tmp_store.write_json(folder / "override_evidence.json", {"override_note": NOTE["note"]})
+    shares = _shares(service, run, people["requester"])
+    service.decide(_share(shares, "ml_engineer").id, approver=people["ml"], approved=True,
+                   comment="metrics against the champion read")
+    service.decide(_share(shares, "admin").id, approver=people["admin"], approved=True,
+                   comment="justification accepted")
+
+    record_approval_on_card(tmp_store, run, shares, {
+        "eligible": True, "failed_rules": ["AP-6"],
+        "reason": "segment recall gap 0.331 within tenure_band exceeds the limit"})
+
+    import json as _json
+
+    card = _json.loads((folder / "model_card.json").read_text(encoding="utf-8"))
+    assert sorted(card["approval"]["roles"]) == ["admin", "ml_engineer"]
+    assert card["approval"]["failed_rules"] == ["AP-6"]
+    assert card["approval"]["override_note"] == NOTE["note"]
+    assert card["known_limitations"][-1].startswith("Promoted despite failing AP-6")
+    markdown = (folder / "model_card.md").read_text(encoding="utf-8")
+    assert "## Approval" in markdown and NOTE["note"] in markdown
+
+
+def test_a_promoted_run_says_what_it_was_promoted_despite(
+    client, db_session, people, tmp_store
+) -> None:
+    run = _escalated_run(db_session, people["starter"])
+    _with_state(tmp_store, run, eligible=True)
+    for state in ("APPROVAL_REQUIRED", "DEPLOYED", "PUBLISHED"):
+        q.set_state(db_session, run, state, stage="deploy")
+    detail = client.get(f"/api/v1/pipelines/{run.run_key}", headers=_auth(people["requester"]))
+    assert detail.json()["override"]["failed_rules"] == ["AP-6"]
+
+
+def test_a_policy_escalation_is_recorded_by_its_reason_code() -> None:
+    """The error classifier has nothing to match in "segment recall gap ... exceeds the limit",
+    and filed all ten such escalations as UNKNOWN."""
+    from types import SimpleNamespace
+
+    from agents.graph.churn import _reason_code
+    from python_ml.triad_ml.evaluate import AcceptanceVerdict
+
+    selection = SimpleNamespace(
+        selected=SimpleNamespace(family="hist_gb"),
+        verdicts={"logreg": AcceptanceVerdict(False, ["PR_AUC_BELOW_FLOOR"]),
+                  "hist_gb": AcceptanceVerdict(False, ["SEGMENT_RECALL_GAP"])})
+    assert _reason_code(selection) == "SEGMENT_RECALL_GAP"
+    selection.selected = None
+    assert _reason_code(selection) == "PR_AUC_BELOW_FLOOR"
+
+
 # --- the segment threshold review (PRD 19.4) -----------------------------------------------
 
 

@@ -27,6 +27,7 @@ from backend.app.schemas import (
     ArtifactView,
     CancelResponse,
     DecisionView,
+    ExecutionView,
     LogLine,
     OverrideRequest,
     Page,
@@ -355,8 +356,10 @@ def get_run(run_ref: str, session: DbSession, user: CurrentUser) -> RunDetail:
 
 
 def _override_offer(run: PipelineRun) -> dict | None:
-    """What an escalated run's candidate failed, if a person may promote it anyway (PRD 30)."""
-    if run.state not in ("ESCALATED", "APPROVAL_REQUIRED"):
+    """What an escalated run's candidate failed, if a person may promote it anyway (PRD 30) -
+    and, once it has been, what it was promoted despite. A published run kept showing its
+    escalation reason as an error, with nothing to say two approvers had accepted it."""
+    if run.state not in ("ESCALATED", "APPROVAL_REQUIRED", "DEPLOYED", "PUBLISHED", "COMPLETED"):
         return None
     from agents.graph.churn import read_state
     from triad_core.storage import storage
@@ -425,16 +428,30 @@ def request_override(
     state = read_state(store, run)
     selection = state.get("selection") or {}
     target = f"{state.get('model_name')}:{state.get('mlflow_version') or 'unregistered'}"
+    # PRD 30.5: what the two approvers decide on, on one page. The bundle used to say only
+    # "AP-6 failed": the gaps that failed it, the segment-aware threshold review (PRD 19.4) and
+    # the calibration were all in the run's evaluation and none of it reached the approvers.
+    measured = selection.get("evidence") or {}
+    review = measured.get("segment_threshold_review") or {}
+    failed = offer.get("failed_rules", [])
     evidence = EvidenceBundle(
         action_type="policy_override",
         target_ref=target,
         metrics_vs_champion=selection.get("champion_delta")
         or {"note": "no champion yet: first model"},
-        segment_checks=[{"rule": rule, "result": "failed"}
-                        for rule in offer.get("failed_rules", [])],
+        segment_checks=[
+            {"rule": rule, "result": "failed",
+             **({"recall_gaps": measured.get("segment_recall_gaps"), "threshold_review": review}
+                if rule == "AP-6" else {})}
+            for rule in failed
+        ],
+        calibration={key: measured[key] for key in (
+            "calibration", "ece_after_calibration", "brier_skill_after_calibration",
+            "calibration_remedies_tried") if key in measured},
         model_card_uri=str(store.reports_dir(run.run_key) / "model_card.md"),
         decision_records=[{"outcome": "ESCALATE", "reason": offer.get("reason"),
-                           "failed_rules": offer.get("failed_rules")}],
+                           "failed_rules": failed}],
+        risk_notes=[note for note in (offer.get("reason"), review.get("note")) if note],
         override_note=payload.note.strip(),
     )
     evidence_path = store.write_json(
@@ -493,6 +510,28 @@ def run_artifacts(run_ref: str, session: DbSession) -> list[ArtifactView]:
         .order_by(CodeArtifact.created_at)
     ).scalars().all()
     return [ArtifactView.model_validate(r) for r in rows]
+
+
+@router.get(
+    "/pipelines/{run_ref}/executions",
+    response_model=list[ExecutionView],
+    summary="Executions and their per-stage Spark metrics (FR-036)",
+    dependencies=[Depends(require_roles(*STARTER_ROLES))],
+)
+def run_executions(run_ref: str, session: DbSession) -> list[ExecutionView]:
+    run = _find_run(session, run_ref)
+    rows = session.execute(
+        select(Execution).where(Execution.run_id == run.id).order_by(Execution.started_at)
+    ).scalars().all()
+    return [
+        ExecutionView(
+            id=e.id, stage=_stage_label(e), engine=e.engine, status=e.status,
+            exit_code=e.exit_code, duration_ms=e.duration_ms, started_at=e.started_at,
+            finished_at=e.finished_at, spark_app_id=e.spark_app_id,
+            spark=(e.metrics_json or {}).get("spark"),
+        )
+        for e in rows
+    ]
 
 
 @router.get(

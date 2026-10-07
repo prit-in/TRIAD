@@ -248,7 +248,7 @@ class Worker:
                 diagnosis = classify(result.reason)
                 q.fail(
                     session, task.id,
-                    error_class=diagnosis.error_class.value,
+                    error_class=result.reason_code or diagnosis.error_class.value,
                     fingerprint=diagnosis.fingerprint,
                     escalate=result.state == "ESCALATED",
                 )

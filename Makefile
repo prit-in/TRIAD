@@ -70,10 +70,10 @@ lint: ## ruff + bandit + secret scan
 	$(DEV) bash -lc "ruff check . && ruff format --check . && bandit -q -r backend agents python_ml triad_core -x '*/tests/*' && detect-secrets scan --baseline .secrets.baseline"
 
 scala-test: ## Compile and test the Scala jobs
-	$(DEV) bash -lc "cd scala_spark && sbt -batch test"
+	$(DEV) bash -c "cd scala_spark && sbt -batch test"
 
 scala-package: ## Build the thin JAR used by spark-submit
-	$(DEV) bash -lc "cd scala_spark && sbt -batch jobs/package"
+	$(DEV) bash -c "cd scala_spark && sbt -batch core/package jobs/package"
 
 demo: ## Run the scripted demonstration end to end
 	$(DEV) python scripts/run_demo.py

@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as dt
 import math
 import re
+import statistics
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -62,6 +63,9 @@ class ColumnProfile:
     quantiles: dict[str, float] = field(default_factory=dict)
     top_values: list[dict[str, Any]] = field(default_factory=list)
     outlier_count: int | None = None
+    # Bin edges (this version's quantiles) and the share of rows in each bin, kept so the next
+    # version can be binned the same way and compared by PSI (FR-022).
+    bins: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -157,11 +161,14 @@ def profile_dataframe(
     sample_fraction: float = 1.0,
     approx_distinct_rsd: float = 0.02,
     exact_distinct_max_rows: int = 2_000_000,
+    reference: dict[str, Any] | None = None,
 ) -> Profile:
     """Compute the full profile in a small number of Spark passes.
 
     Cheap exact metrics (row count, nulls) always use all data; distinct counts are
-    approximate above `exact_distinct_max_rows` (UC-02 alternative flow).
+    approximate above `exact_distinct_max_rows` (UC-02 alternative flow). `reference` is the
+    previous version's profile document; with it, each numeric column is checked for a
+    distribution shift against that version (FR-022).
     """
     from pyspark.sql import functions as F
 
@@ -209,6 +216,9 @@ def profile_dataframe(
             quantile_map[name] = {
                 f"p{int(q * 100)}": v for q, v in zip(quantiles, values, strict=False)
             }
+    bins_map = bin_shares(working, {
+        name: sorted({v for v in q.values() if v is not None}) for name, q in quantile_map.items()
+    })
 
     # --- top values for categorical-ish columns ------------------------------
     top_map: dict[str, list[dict[str, Any]]] = {}
@@ -267,6 +277,7 @@ def profile_dataframe(
                 quantiles=quantile_map.get(name, {}),
                 top_values=top_map.get(name, []),
                 outlier_count=outliers,
+                bins=bins_map.get(name, {}),
             )
         )
 
@@ -282,6 +293,8 @@ def profile_dataframe(
         columns, row_count, duplicate_rows, key_duplicate_rows, key_columns,
         optional_columns=optional_columns or frozenset(),
     )
+    anomalies, stability = detect_anomalies(working, columns, key_columns, reference)
+    issues.extend(anomalies)
     score, dims = quality_score(columns, row_count, duplicate_rows, key_duplicate_rows, issues)
 
     if sample_fraction < 1.0:
@@ -302,6 +315,7 @@ def profile_dataframe(
         schema_hash=sha256_text(canonical_json(sorted(fields))),
         computed_at=dt.datetime.now(dt.UTC).isoformat(),
         sample_fraction=sample_fraction,
+        population_stability=stability,
     )
 
 
@@ -488,6 +502,158 @@ def quality_score(
     }
     score = 0.35 * completeness + 0.25 * uniqueness + 0.30 * validity + 0.10 * consistency
     return round(max(0.0, min(1.0, score)), 4), dims
+
+
+# --- Anomaly detection (FR-022) -----------------------------------------------
+#
+# Three kinds, each reported with the evidence that raised it: a day whose volume is out of line
+# with the others, a row breaking a business rule, and a column whose distribution has moved
+# since the previous version. A volume anomaly or a shift is a fact about the population, not a
+# defect in the data, so it is reported as `info` and never lowers the quality score; acting on
+# drift is the drift monitor's job (FR-081). A rule breach is a defect - cleaning will quarantine
+# those rows - and is a warning like any other validity problem.
+
+VOLUME_Z = 3.5         # modified z-score fence (Iglewicz and Hoaglin)
+VOLUME_MIN_DAYS = 14   # fewer whole days than this is not a baseline
+SHIFT_PSI = 0.10       # the conventional "moderate shift" line; 0.25 is "major"
+# The rules cleaning enforces (CleaningRules.standardTransactionRules), so a breach seen here
+# is a row the clean stage will quarantine, counted before it happens.
+BUSINESS_RULES = (
+    ("price", "NON_POSITIVE_PRICE", "price must be positive", lambda c: c <= 0),
+    ("quantity", "ZERO_QUANTITY", "quantity must not be zero", lambda c: c == 0),
+)
+_EVENT_DAY_COLUMNS = ("order_date", "event_date", "order_ts", "event_ts", "session_start")
+
+
+def bin_shares(df: DataFrame, edges: dict[str, list[float]]) -> dict[str, dict[str, Any]]:
+    """Share of each column's non-null rows in (-inf, e0], (e0, e1], ..., (ek, inf): one pass.
+
+    Counted, not read off the quantile levels: a column with ties (most quantities are 1) has
+    far more than 25% of its rows at or below its 25th percentile.
+    """
+    from pyspark.sql import functions as F
+
+    aggs: list[Any] = []
+    for name, cuts in edges.items():
+        col = F.col(f"`{name}`").cast("double")
+        aggs.append(F.count(col).alias(f"n__{name}"))
+        aggs += [F.sum((col <= cut).cast("long")).alias(f"le{i}__{name}") for i, cut in enumerate(cuts)]
+    if not aggs:
+        return {}
+    row = df.agg(*aggs).collect()[0].asDict()
+    out: dict[str, dict[str, Any]] = {}
+    for name, cuts in edges.items():
+        n = int(row[f"n__{name}"] or 0)
+        if n == 0:
+            continue
+        at_or_below = [int(row[f"le{i}__{name}"] or 0) for i in range(len(cuts))] + [n]
+        shares = [(b - a) / n for a, b in zip([0, *at_or_below[:-1]], at_or_below, strict=True)]
+        out[name] = {"edges": list(cuts), "shares": [round(x, 6) for x in shares]}
+    return out
+
+
+def population_stability_index(expected: list[float], actual: list[float], eps: float = 1e-4) -> float:
+    """PSI (Eq. 7) over shared bins; `eps` keeps an empty bin finite."""
+    return sum((a - e) * math.log((a + eps) / (e + eps)) for e, a in zip(expected, actual, strict=True))
+
+
+def daily_volume_anomalies(df: DataFrame, column: str) -> Issue | None:
+    """Days whose row count is an outlier against the median day (modified z-score > 3.5).
+
+    The first and last days are left out: an extract window cuts them, so they are short by
+    construction, and flagging them every time would make the signal useless.
+    """
+    from pyspark.sql import functions as F
+
+    rows = df.groupBy(F.to_date(F.col(f"`{column}`")).alias("day")).count().collect()
+    days = sorted((r["day"], int(r["count"])) for r in rows if r["day"] is not None)[1:-1]
+    if len(days) < VOLUME_MIN_DAYS:
+        return None
+    counts = [c for _, c in days]
+    median = statistics.median(counts)
+    mad = statistics.median(abs(c - median) for c in counts)
+    # MAD is 0 when over half the days have the same count; Iglewicz and Hoaglin fall back to the
+    # mean absolute deviation, scaled to match.
+    scale = mad / 0.6745 if mad > 0 else 1.253314 * statistics.mean(abs(c - median) for c in counts)
+    if scale == 0:
+        return None
+    flagged = [
+        {"day": day.isoformat(), "rows": c, "z": round((c - median) / scale, 2)}
+        for day, c in days
+        if abs(c - median) / scale > VOLUME_Z
+    ]
+    if not flagged:
+        return None
+    return Issue(
+        "VOLUME_ANOMALY",
+        "info",
+        column,
+        f"{len(flagged)} of {len(days)} days have a row count far from the median day "
+        f"({median:g} rows)",
+        {"median_daily_rows": median, "scale": round(scale, 3), "z_fence": VOLUME_Z,
+         "days_checked": len(days), "days": flagged[:20]},
+    )
+
+
+def detect_anomalies(
+    df: DataFrame,
+    columns: list[ColumnProfile],
+    key_columns: list[str],
+    reference: dict[str, Any] | None = None,
+) -> tuple[list[Issue], dict[str, float]]:
+    """FR-022: volume anomalies, business-rule breaches, and shift against `reference`."""
+    from pyspark.sql import functions as F
+
+    issues: list[Issue] = []
+    by_name = {c.name: c for c in columns}
+    numeric = {c.name for c in columns if c.bins}
+
+    day_column = next((n for n in _EVENT_DAY_COLUMNS if n in by_name), None) or next(
+        (c.name for c in columns if c.semantic_type in ("timestamp", "date")), None)
+    if day_column:
+        volume = daily_volume_anomalies(df, day_column)
+        if volume:
+            issues.append(volume)
+
+    rules = [(name, code, text, test) for name, code, text, test in BUSINESS_RULES
+             if name in by_name and by_name[name].physical_type != "string"]
+    if rules:
+        counts = df.agg(*[
+            F.sum(test(F.col(f"`{name}`")).cast("long")).alias(name) for name, _, _, test in rules
+        ]).collect()[0].asDict()
+        for name, code, text, test in rules:
+            breaches = int(counts[name] or 0)
+            if not breaches:
+                continue
+            evidence: dict[str, Any] = {"rule": text, "rows": breaches}
+            key = next((k for k in key_columns if k in by_name), None)
+            if key:
+                evidence["examples"] = [
+                    r[key] for r in df.where(test(F.col(f"`{name}`"))).select(f"`{key}`").limit(5).collect()
+                ]
+            issues.append(Issue(f"RULE_BREACH.{name}", "warning", name,
+                                f"{breaches} rows break the rule: {text} ({code})", evidence))
+
+    stability: dict[str, float] = {}
+    if reference:
+        before = {c["name"]: c["bins"] for c in reference.get("columns", [])
+                  if c.get("bins", {}).get("edges") and c["name"] in numeric}
+        now = bin_shares(df, {name: bins["edges"] for name, bins in before.items()})
+        for name, bins in now.items():
+            psi = round(population_stability_index(before[name]["shares"], bins["shares"]), 4)
+            stability[name] = psi
+            if psi >= SHIFT_PSI:
+                issues.append(Issue(
+                    f"DISTRIBUTION_SHIFT.{name}",
+                    "info",
+                    name,
+                    f"{name} has shifted since version {reference.get('version_no')} "
+                    f"(PSI {psi:.3f}, {'major' if psi >= 0.25 else 'moderate'})",
+                    {"psi": psi, "reference_version": reference.get("version_no"),
+                     "reference_shares": before[name]["shares"], "current_shares": bins["shares"],
+                     "edges": before[name]["edges"]},
+                ))
+    return issues, stability
 
 
 # --- Version comparison (FR-015) ----------------------------------------------

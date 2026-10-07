@@ -35,7 +35,11 @@ _PII_PATTERNS = [
     # the last four digits of a card, in the clear, in something about to be sent to a model.
     # The most specific pattern runs first.
     (re.compile(r"(?<!\d)\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}(?!\d)"), "<CARD>"),
-    (re.compile(r"(?<!\d)(?:\+\d{1,3}[ -]?)?(?:\d[ -]?){9,13}\d(?!\d)"), "<PHONE>"),
+    # An ISO date is not a phone number, and run keys and timestamps start with one:
+    # `run-2026-10-07-001` has eleven digits and was served on the run timeline as
+    # `run-<PHONE>`. A number that begins like a date is left alone.
+    (re.compile(r"(?<!\d)(?!\d{4}-\d{2}-\d{2})(?:\+\d{1,3}[ -]?)?(?:\d[ -]?){9,13}\d(?!\d)"),
+     "<PHONE>"),
 ]
 
 # Chat-template control tokens. These are a different class of injection from the phrases

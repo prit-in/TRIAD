@@ -958,3 +958,30 @@ def test_an_upload_cannot_write_outside_its_landing_folder(
     landing = store.root / "uploads" / "upload_probe"
     if response.status_code in (200, 201):
         assert (landing / "escaped.csv").is_file(), "kept, under its basename, in the landing folder"
+
+
+def test_executions_serve_their_spark_stage_metrics(client, users, db_session) -> None:
+    """FR-036: the per-stage metrics a job recorded are readable per execution; an execution
+    that ran no Spark job has none rather than zeros."""
+    from agents.graph import queue as q
+    from triad_core.models import Execution
+
+    run = q.create_run(db_session, pipeline_name=_pipeline(), trigger_type="manual",
+                       triggered_by=str(users["data_engineer"].id))
+    spark = {"totals": {"stages": 2, "tasks": 6, "shuffle_read_bytes": 2048},
+             "stages": [{"stage_id": 0, "num_tasks": 4}, {"stage_id": 1, "num_tasks": 2}]}
+    db_session.add_all([
+        Execution(run_id=run.id, stage="features", engine="scala_spark", status="succeeded",
+                  exit_code=0, duration_ms=1200, metrics_json={"output_rows": "10", "spark": spark}),
+        Execution(run_id=run.id, stage="profile", engine="spark", status="succeeded"),
+    ])
+    db_session.flush()
+
+    response = client.get(f"/api/v1/pipelines/{run.run_key}/executions",
+                          headers=_auth(users["data_engineer"]))
+    assert response.status_code == 200, response.text
+    by_stage = {e["stage"]: e for e in response.json()}
+    assert by_stage["features"]["spark"] == spark
+    assert by_stage["profile"]["spark"] is None
+    assert client.get(f"/api/v1/pipelines/{run.run_key}/executions",
+                      headers=_auth(users["viewer"])).status_code == 403

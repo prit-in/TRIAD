@@ -9,7 +9,8 @@
  * The document itself is fetched with the bearer token and rendered in a sandboxed frame. It
  * cannot be an `<iframe src>`: the endpoint is authenticated and a frame sends no header. The
  * sandbox has no permissions at all — the report is static HTML and has no reason to run a
- * script, reach the network, or navigate the page that embeds it.
+ * script, reach the network, or navigate the page that embeds it. PDF export prints the same
+ * document from a second frame (`PdfButton`).
  */
 
 import { useEffect, useState } from "react";
@@ -87,7 +88,12 @@ function ReportDetail({ report }: { report: Report }) {
     <Panel
       title={`${report.report_type} report — ${report.run_id.slice(0, 8)}…`}
       provenance="Model output"
-      actions={<DownloadLink report={report} />}
+      actions={
+        <>
+          <DownloadLink report={report} />
+          {report.format === "html" && <PdfButton report={report} />}
+        </>
+      }
     >
       <Tabs
         label="Report detail"
@@ -199,6 +205,60 @@ function DownloadLink({ report }: { report: Report }) {
       >
         {busy ? "Fetching…" : "Download HTML"}
       </button>
+      <Problem error={problem} />
+    </>
+  );
+}
+
+/**
+ * Save as PDF (FR-072: "HTML and PDF export; exports match the on-screen report").
+ *
+ * The PDF is printed by the browser from the very document the page shows, so it cannot drift
+ * from it - a second renderer on the server would be a second report to keep in step. Printing
+ * needs a script, and the frame that displays the report runs none, so the print happens in a
+ * separate, invisible frame: `allow-scripts allow-modals` and no `allow-same-origin`, which
+ * leaves the document an opaque origin that cannot reach this page, its token or the API. The
+ * only script in it is the one added here.
+ */
+function PdfButton({ report }: { report: Report }) {
+  const [doc, setDoc] = useState<{ html: string; key: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<Error | null>(null);
+
+  return (
+    <>
+      <button
+        type="button"
+        className="secondary"
+        disabled={busy}
+        title="Opens the print dialog; choose Save as PDF"
+        onClick={() => {
+          setBusy(true);
+          api
+            .reportHtml(report.id)
+            .then((html) => {
+              const hook = "<script>addEventListener('load', () => print());</script>";
+              const printable = html.includes("</body>")
+                ? html.replace("</body>", `${hook}</body>`)
+                : html + hook;
+              setDoc({ html: printable, key: Date.now() });
+              setProblem(null);
+            })
+            .catch((error: Error) => setProblem(error))
+            .finally(() => setBusy(false));
+        }}
+      >
+        {busy ? "Preparing…" : "Save as PDF"}
+      </button>
+      {doc && (
+        <iframe
+          key={doc.key}
+          className="print-frame"
+          title="Printable report"
+          sandbox="allow-scripts allow-modals"
+          srcDoc={doc.html}
+        />
+      )}
       <Problem error={problem} />
     </>
   );

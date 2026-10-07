@@ -10,7 +10,8 @@ import scala.util.{Failure, Success, Try}
  * The fixed half of every generated Spark job (PRD sections 21.2, 25).
  *
  * `TriadJob` owns argument parsing, the SparkSession, contract-driven input reading, output
- * schema validation, staging writes, metrics and structured error reporting. A generated
+ * schema validation, staging writes, metrics (per-stage Spark metrics included, FR-036) and
+ * structured error reporting. A generated
  * artifact only ever supplies `transform`, inside declared slot markers, so the I/O and
  * governance surface is never generated.
  */
@@ -39,6 +40,9 @@ trait TriadJob {
   final def main(args: Array[String]): Unit = {
     val cfg = JobConfig.parse(args)
     val spark = buildSession(cfg)
+    // Registered before the first read, so every stage the job runs is measured (FR-036).
+    val stageMetrics = new StageMetricsListener
+    spark.sparkContext.addSparkListener(stageMetrics)
     val started = System.nanoTime()
     var metrics = Map.empty[String, String]
 
@@ -58,42 +62,46 @@ trait TriadJob {
       validated
     }
 
+    val durationMs = (System.nanoTime() - started) / 1000000L
+    val sparkAppId = Try(spark.sparkContext.applicationId).getOrElse("unknown")
+    // Stop before reporting: stopping drains the listener bus, and until it has drained the
+    // last stage's metrics may still be queued (StageMetricsListener).
+    Try(spark.stop())
+
     result match {
       case Success(validated) =>
-        val durationMs = (System.nanoTime() - started) / 1000000L
         val report = JobReport(
           job = name,
           runKey = cfg.runKey,
           status = "succeeded",
           durationMs = durationMs,
-          sparkAppId = spark.sparkContext.applicationId,
+          sparkAppId = sparkAppId,
           outputPath = cfg.outputPath,
           rowCount = validated.rowCount,
           schema = validated.schemaMap,
           metrics = metrics,
-          error = None
+          error = None,
+          stages = stageMetrics.stages
         )
         JobReport.write(report, cfg)
-        spark.stop()
 
       case Failure(err) =>
-        val durationMs = (System.nanoTime() - started) / 1000000L
         val report = JobReport(
           job = name,
           runKey = cfg.runKey,
           status = "failed",
           durationMs = durationMs,
-          sparkAppId = Try(spark.sparkContext.applicationId).getOrElse("unknown"),
+          sparkAppId = sparkAppId,
           outputPath = cfg.outputPath,
           rowCount = -1L,
           schema = Map.empty,
           metrics = metrics,
-          error = Some(StructuredError.from(err))
+          error = Some(StructuredError.from(err)),
+          stages = stageMetrics.stages
         )
         JobReport.write(report, cfg)
         // Structured error on stderr so the Execution Agent never parses a stack trace.
         System.err.println("TRIAD_JOB_ERROR " + report.errorJson)
-        spark.stop()
         sys.exit(1)
     }
   }
@@ -174,7 +182,8 @@ final case class JobReport(
     rowCount: Long,
     schema: Map[String, String],
     metrics: Map[String, String],
-    error: Option[StructuredError]
+    error: Option[StructuredError],
+    stages: Seq[StageMetric] = Seq.empty
 ) {
   def errorJson: String = error.map(_.toJson).getOrElse("{}")
 
@@ -187,7 +196,8 @@ final case class JobReport(
       s""""status":"$status","duration_ms":$durationMs,""" +
       s""""spark_app_id":"${JsonEscape(sparkAppId)}","output_path":"${JsonEscape(outputPath)}",""" +
       s""""row_count":$rowCount,"schema":{$schemaJson},"metrics":{$metricsJson},""" +
-      s""""error":$errorJson,"finished_at":"${Instant.now().toString}"}"""
+      s""""error":$errorJson,"spark_stages":${stages.map(_.toJson).mkString("[", ",", "]")},""" +
+      s""""finished_at":"${Instant.now().toString}"}"""
   }
 }
 

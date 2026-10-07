@@ -356,3 +356,24 @@ class TestRunKeyAllocation:
         first = self._create(db_session, "same")
         again = self._create(db_session, "same")
         assert first.id == again.id
+
+
+def test_spark_stage_metrics_are_summed_and_kept_per_stage() -> None:
+    """FR-036: what the job's listener measured, stored on the execution beside its own metrics."""
+    from agents.graph.pipeline import spark_stage_summary
+
+    stages = [
+        {"stage_id": 0, "num_tasks": 4, "duration_ms": 900, "shuffle_write_bytes": 2048,
+         "shuffle_read_bytes": 0, "memory_spill_bytes": 0, "disk_spill_bytes": 0, "task_skew": 1.2},
+        {"stage_id": 1, "num_tasks": 2, "duration_ms": 300, "shuffle_write_bytes": 0,
+         "shuffle_read_bytes": 2048, "memory_spill_bytes": 512, "disk_spill_bytes": 256,
+         "task_skew": 4.5, "failed": False},
+    ]
+    summary = spark_stage_summary(stages)["spark"]
+    assert summary["stages"] == stages
+    totals = summary["totals"]
+    assert (totals["stages"], totals["tasks"], totals["duration_ms"]) == (2, 6, 1200)
+    assert totals["shuffle_read_bytes"] == totals["shuffle_write_bytes"] == 2048
+    assert totals["memory_spill_bytes"] + totals["disk_spill_bytes"] == 768
+    assert totals["max_task_skew"] == 4.5 and totals["failed_stages"] == 0
+    assert spark_stage_summary(None) == {} and spark_stage_summary([]) == {}

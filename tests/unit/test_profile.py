@@ -176,3 +176,64 @@ def test_sampling_keeps_exact_row_count(spark) -> None:
     profile = profile_dataframe(df, dataset="big", sample_fraction=0.2)
     assert profile.row_count == 5000
     assert profile.sample_fraction == 0.2
+
+
+# --- FR-022: seeded anomalies raise issues with evidence ---------------------------
+
+
+def _orders(spark, *, days: int = 30, per_day: int = 20, spike_day: int | None = None,
+            bad_prices: int = 0, price_shift: float = 0.0):
+    import datetime as dt
+
+    rows = []
+    for d in range(days):
+        n = per_day * (6 if d == spike_day else 1)
+        for _ in range(n):
+            k = len(rows)
+            rows.append((f"O{k:05d}", dt.date(2026, 1, 1) + dt.timedelta(days=d),
+                         -5.0 if k < bad_prices else 10.0 + (k % 50) + price_shift, 1 + k % 3))
+    return spark.createDataFrame(rows, "order_id string, order_date date, price double, quantity int")
+
+
+def test_a_seeded_volume_spike_is_reported_with_the_day(spark) -> None:
+    profile = profile_dataframe(_orders(spark, spike_day=12), dataset="orders",
+                                key_columns=["order_id"])
+    volume = next(i for i in profile.issues if i.id == "VOLUME_ANOMALY")
+    assert volume.severity == "info"
+    assert [d["day"] for d in volume.evidence["days"]] == ["2026-01-13"]
+    assert volume.evidence["days"][0]["rows"] == 120
+
+
+def test_steady_volume_raises_nothing(spark) -> None:
+    profile = profile_dataframe(_orders(spark), dataset="orders", key_columns=["order_id"])
+    assert not [i for i in profile.issues if i.id in ("VOLUME_ANOMALY",) or i.id.startswith("RULE_BREACH")]
+
+
+def test_seeded_non_positive_prices_are_a_rule_breach_with_examples(spark) -> None:
+    profile = profile_dataframe(_orders(spark, bad_prices=4), dataset="orders",
+                                key_columns=["order_id"])
+    breach = next(i for i in profile.issues if i.id == "RULE_BREACH.price")
+    assert breach.severity == "warning"
+    assert breach.evidence["rows"] == 4
+    assert sorted(breach.evidence["examples"]) == ["O00000", "O00001", "O00002", "O00003"]
+
+
+def test_a_shifted_distribution_is_measured_against_the_previous_version(spark) -> None:
+    before = profile_dataframe(_orders(spark), dataset="orders", version_no=1).to_dict()
+    same = profile_dataframe(_orders(spark), dataset="orders", reference=before)
+    moved = profile_dataframe(_orders(spark, price_shift=30.0), dataset="orders", reference=before)
+
+    assert same.population_stability["price"] == pytest.approx(0.0, abs=1e-6)
+    assert not [i for i in same.issues if i.id.startswith("DISTRIBUTION_SHIFT")]
+    shift = next(i for i in moved.issues if i.id == "DISTRIBUTION_SHIFT.price")
+    assert shift.evidence["psi"] >= 0.25 and shift.evidence["reference_version"] == 1
+    assert shift.severity == "info", "a shift is reported, not held against the quality score"
+    assert moved.quality_score == same.quality_score
+
+
+def test_bin_shares_count_ties_rather_than_trusting_quantile_levels(spark) -> None:
+    from dataeng.profile import bin_shares
+
+    df = spark.createDataFrame([(1.0,)] * 80 + [(5.0,)] * 20, "q double")
+    shares = bin_shares(df, {"q": [1.0, 5.0]})["q"]["shares"]
+    assert shares == [0.8, 0.2, 0.0]

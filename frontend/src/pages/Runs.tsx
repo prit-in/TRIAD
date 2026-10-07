@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import type {
   Artifact,
   Decision,
   DecisionAlternative,
+  Execution,
   LogLine,
   RunDetail,
 } from "../api";
@@ -100,6 +101,9 @@ export function Runs() {
   );
 }
 
+/** States in which a run's model has been promoted. */
+const PROMOTED_STATES = ["DEPLOYED", "PUBLISHED", "COMPLETED"];
+
 /** States a run cannot leave. FAILED is one: a failed task now fails its run (queue.fail). */
 const FINISHED_STATES = ["COMPLETED", "PUBLISHED", "CANCELLED", "ABORTED", "REJECTED_INPUT", "FAILED"];
 
@@ -181,7 +185,17 @@ export function RunDetailPage() {
                 </span>
               )}
             </p>
-            {run.data.error_summary && <p className="problem">{run.data.error_summary}</p>}
+            {run.data.override && PROMOTED_STATES.includes(run.data.state) ? (
+              // Promoted despite a failed check: the reason it escalated is now the reason two
+              // approvers accepted, not an error the run is still in.
+              <p className="waiting-note">
+                Promoted despite a failed check ({run.data.override.failed_rules.join(", ")}):{" "}
+                {run.data.override.reason}. An ML Engineer and an Admin each approved it —{" "}
+                <Link to="/approvals">see the decision</Link>.
+              </p>
+            ) : (
+              run.data.error_summary && <p className="problem">{run.data.error_summary}</p>
+            )}
             {run.data.pending_approval && (
               <p className="waiting-note">
                 {run.data.state === "APPROVAL_REQUIRED" && run.data.override
@@ -275,6 +289,8 @@ export function RunDetailPage() {
           <Empty what="decisions" />
         )}
       </Panel>
+
+      <SparkExecutions runId={runId} />
 
       <Panel title="Generated code" provenance="Measured">
         {artifacts.problem ? (
@@ -465,4 +481,109 @@ function RejectedOptions({ options }: { options: DecisionAlternative[] }) {
  *  substituting a placeholder value for a measurement that was never taken. */
 function metric(value: number | null | undefined) {
   return typeof value === "number" ? value.toFixed(4) : "not measured";
+}
+
+/**
+ * FR-036: what Spark did in each job - its stages, tasks, shuffle, spill and task skew - as the
+ * job's own listener measured them. Executions recorded before per-stage metrics existed (or
+ * that ran no Spark job) are left out rather than shown as zeros.
+ */
+function SparkExecutions({ runId }: { runId: string }) {
+  const executions = useLoad<Execution[]>(() => api.runExecutions(runId), [runId]);
+  const [open, setOpen] = useState<string | null>(null);
+  const measured = (executions.data ?? []).filter((e) => e.spark);
+
+  return (
+    <Panel title="Spark execution" provenance="Measured">
+      {executions.problem ? (
+        <Problem error={executions.problem} />
+      ) : measured.length === 0 ? (
+        <Empty what="Spark stage metrics" />
+      ) : (
+        <table className="spark">
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>Wall clock</th>
+              <th>Spark stages</th>
+              <th>Tasks</th>
+              <th>Shuffle read</th>
+              <th>Shuffle write</th>
+              <th>Spill</th>
+              <th title="Slowest task over the median task, worst stage">Worst skew</th>
+            </tr>
+          </thead>
+          <tbody>
+            {measured.map((e) => {
+              const t = e.spark!.totals;
+              const spill = (t.memory_spill_bytes ?? 0) + (t.disk_spill_bytes ?? 0);
+              return (
+                <Fragment key={e.id}>
+                  <tr>
+                    <td>
+                      <button className="link" aria-expanded={open === e.id}
+                              onClick={() => setOpen(open === e.id ? null : e.id)}>
+                        {e.stage}
+                      </button>{" "}
+                      {e.status !== "succeeded" && <State value={e.status.toUpperCase()} />}
+                    </td>
+                    <td>{e.duration_ms === null ? "—" : `${(e.duration_ms / 1000).toFixed(1)}s`}</td>
+                    <td>{t.stages}</td>
+                    <td>{t.tasks}</td>
+                    <td>{bytes(t.shuffle_read_bytes)}</td>
+                    <td>{bytes(t.shuffle_write_bytes)}</td>
+                    <td className={spill > 0 ? "warn" : undefined}>{bytes(spill)}</td>
+                    <td className={(t.max_task_skew ?? 1) >= 3 ? "warn" : undefined}>
+                      {(t.max_task_skew ?? 1).toFixed(1)}×
+                    </td>
+                  </tr>
+                  {open === e.id && (
+                    <tr className="spark-stages">
+                      <td colSpan={8}>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Stage</th>
+                              <th>Operation</th>
+                              <th>Tasks</th>
+                              <th>Duration</th>
+                              <th>Shuffle read</th>
+                              <th>Shuffle write</th>
+                              <th>Spill</th>
+                              <th>Skew</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {e.spark!.stages.map((st) => (
+                              <tr key={`${st.stage_id}-${st.attempt}`}>
+                                <td>{st.stage_id}{st.attempt > 0 ? ` (retry ${st.attempt})` : ""}</td>
+                                <td className="mono" title={st.name}>{st.name.split(" at ")[0]}</td>
+                                <td>{st.num_tasks}</td>
+                                <td>{(st.duration_ms / 1000).toFixed(2)}s</td>
+                                <td>{bytes(st.shuffle_read_bytes)}</td>
+                                <td>{bytes(st.shuffle_write_bytes)}</td>
+                                <td>{bytes(st.memory_spill_bytes + st.disk_spill_bytes)}</td>
+                                <td>{st.task_skew.toFixed(1)}×</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </Panel>
+  );
+}
+
+function bytes(value: number | undefined): string {
+  if (!value) return "0";
+  const units = ["B", "KB", "MB", "GB"];
+  const power = Math.min(units.length - 1, Math.floor(Math.log(value) / Math.log(1024)));
+  return `${(value / 1024 ** power).toFixed(power === 0 ? 0 : 1)} ${units[power]}`;
 }

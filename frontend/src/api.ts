@@ -123,6 +123,8 @@ export const api = {
   runDecisions: (id: string) => request<Decision[]>(`/pipelines/${id}/decisions`),
   runArtifacts: (id: string) => request<Artifact[]>(`/pipelines/${id}/artifacts`),
   runLogs: (id: string) => request<LogLine[]>(`/pipelines/${id}/logs`),
+  /** FR-036: each execution, with every Spark stage its job ran. */
+  runExecutions: (id: string) => request<Execution[]>(`/pipelines/${id}/executions`),
   cancelRun: (id: string) => request<{ run_id: string; state: string }>(
     `/pipelines/${id}/cancel`, { method: "POST" },
   ),
@@ -135,6 +137,8 @@ export const api = {
   models: () => request<ModelSummary[]>("/models"),
   model: (ref: string) => request<ModelDetail>(`/models/${ref}`),
   approvals: (status = "pending") => request<Approval[]>(`/approvals?status=${status}`),
+  /** PRD 30.5: the evidence bundle a request is decided on, not just where it is stored. */
+  approvalEvidence: (id: string) => request<EvidenceBundle>(`/approvals/${id}/evidence`),
   decide: (id: string, approved: boolean, comment: string) =>
     request<Approval>(`/approvals/${id}/decision`, {
       method: "POST",
@@ -414,6 +418,80 @@ export interface Approval {
   policy_action: string | null;
   required_role: string | null;
   group_id: string | null;
+}
+
+/** One Spark stage as the job's listener measured it (FR-036). */
+export interface SparkStage {
+  stage_id: number;
+  attempt: number;
+  name: string;
+  num_tasks: number;
+  duration_ms: number;
+  executor_run_time_ms: number;
+  jvm_gc_time_ms: number;
+  input_bytes: number;
+  output_bytes: number;
+  shuffle_read_bytes: number;
+  shuffle_write_bytes: number;
+  memory_spill_bytes: number;
+  disk_spill_bytes: number;
+  median_task_ms: number;
+  max_task_ms: number;
+  task_skew: number;
+  failed: boolean;
+}
+
+export interface Execution {
+  id: string;
+  stage: string;
+  engine: string;
+  status: string;
+  exit_code: number | null;
+  duration_ms: number | null;
+  started_at: string | null;
+  finished_at: string | null;
+  spark_app_id: string | null;
+  spark: {
+    totals: Record<string, number>;
+    stages: SparkStage[];
+  } | null;
+}
+
+export interface ThresholdReviewSegment {
+  segment: string;
+  rows?: number;
+  positives?: number;
+  recall_at_global_threshold?: number | null;
+  segment_threshold?: number;
+  recall_at_segment_threshold?: number;
+  flagged_share?: number;
+  insufficient_data?: boolean;
+}
+
+export interface EvidenceBundle {
+  action_type: string;
+  target_ref: string;
+  metrics_vs_champion: { mean?: number; lower_95?: number; upper_95?: number; note?: string };
+  segment_checks: {
+    rule: string;
+    result: string;
+    recall_gaps?: Record<string, number>;
+    threshold_review?: {
+      segmentation?: string;
+      global_threshold?: number;
+      target_recall?: number;
+      gap_at_segment_thresholds?: number;
+      flagged_share_global?: number;
+      flagged_share_segment_aware?: number;
+      segments?: ThresholdReviewSegment[];
+      note?: string;
+    };
+  }[];
+  calibration: Record<string, unknown>;
+  decision_records: Record<string, unknown>[];
+  risk_notes: string[];
+  override_note: string | null;
+  model_card_uri: string | null;
 }
 
 export interface Alert {

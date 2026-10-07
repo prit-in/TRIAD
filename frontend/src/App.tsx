@@ -11,6 +11,7 @@ import { Monitoring } from "./pages/Monitoring";
 import { Audit } from "./pages/Audit";
 import { Reports } from "./pages/Reports";
 import { Settings } from "./pages/Settings";
+import { Notifications } from "./notifications";
 
 const PAGES: { to: string; label: string; end: boolean; adminOnly?: boolean }[] = [
   { to: "/", label: "Dashboard", end: true },
@@ -45,6 +46,7 @@ export function App() {
             </NavLink>
           ))}
         </nav>
+        <Notifications user={user} />
         <span className="who">
           {user.display_name} <span className="role">{user.role.replace("_", " ")}</span>
           <button className="link" onClick={signOut}>

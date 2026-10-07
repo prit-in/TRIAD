@@ -45,7 +45,7 @@ from triad_core.governance import EvidenceBundle, GovernanceService
 from triad_core.ids import content_hash, utcnow
 from triad_core.models import CodeArtifact, Metric, PipelineRun
 from triad_core.policy import PolicyEngine, Verdict
-from triad_core.storage import Storage, storage
+from triad_core.storage import Storage, StorageError, storage
 
 SCALA_ROOT = settings().repo_root / "scala_spark"
 
@@ -379,6 +379,7 @@ class ChurnPipeline:
                 dataset=dataset,
                 key_columns=self._key_columns(dataset),
                 optional_columns=self._optional_columns(dataset),
+                reference=self._previous_profile(artifact["uri"]),
             )
             path = self.storage.write_json(
                 self.storage.root / "profiles" / f"{self.run.run_key}_{dataset}.json",
@@ -409,6 +410,35 @@ class ChurnPipeline:
             self._record_metric("quality_score", outcome.outputs.get("quality_score"))
             self._attach_profile_to_version(uri, outcome.outputs)
         return outcome.outputs if outcome.ok else {}
+
+    def _previous_profile(self, uri: str) -> dict[str, Any] | None:
+        """The profile of the version before the one at `uri`, for the shift check (FR-022).
+
+        The nearest earlier version of the same dataset that was profiled; `None` for a first
+        version, an unregistered path, or a profile that can no longer be read - the check is
+        then skipped, which the profile records by having no `population_stability` entries.
+        """
+        from triad_core.models import DatasetVersion
+
+        version = self.session.execute(
+            select(DatasetVersion).where(DatasetVersion.storage_uri == uri)
+        ).scalars().first()
+        if version is None:
+            return None
+        previous = self.session.execute(
+            select(DatasetVersion)
+            .where(DatasetVersion.dataset_id == version.dataset_id,
+                   DatasetVersion.version_no < version.version_no,
+                   DatasetVersion.profile_uri.is_not(None))
+            .order_by(DatasetVersion.version_no.desc())
+        ).scalars().first()
+        if previous is None:
+            return None
+        try:
+            document = json.loads(self.storage.path(previous.profile_uri).read_text(encoding="utf-8"))
+        except (OSError, ValueError, StorageError):
+            return None
+        return {**document, "version_no": previous.version_no}
 
     def _attach_profile_to_version(self, uri: str, outputs: dict[str, Any]) -> None:
         """Write the profile back onto the version row it describes.
@@ -681,7 +711,8 @@ class ChurnPipeline:
                     "schema": report.get("schema", {}),
                     "job_metrics": report.get("metrics", {}),
                 }
-                payload["metrics"] = report.get("metrics", {})
+                payload["metrics"] = {**report.get("metrics", {}),
+                                      **spark_stage_summary(report.get("spark_stages"))}
                 payload["spark_app_id"] = report.get("spark_app_id")
                 if report.get("status") != "succeeded":
                     payload["ok"] = False
@@ -853,6 +884,30 @@ def _newest_jar(folder: Path) -> Path | None:
         return None
     jars = sorted(folder.glob("*.jar"), key=lambda p: p.stat().st_mtime)
     return jars[-1] if jars else None
+
+
+_SUMMED = ("duration_ms", "executor_run_time_ms", "jvm_gc_time_ms", "input_bytes", "output_bytes",
+           "shuffle_read_bytes", "shuffle_write_bytes", "memory_spill_bytes", "disk_spill_bytes")
+
+
+def spark_stage_summary(stages: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """FR-036: every stage the job ran, as Spark's listener measured it, plus the totals.
+
+    Nested under one `spark` key so the job's own metrics - row accounting, feature
+    availability, read by name elsewhere - stay flat beside it. `max_task_skew` is the worst
+    stage's slowest task over its median task; spill of any size means a stage ran out of
+    execution memory and wrote to disk.
+    """
+    if not stages:
+        return {}
+    totals: dict[str, Any] = {key: sum(int(st.get(key) or 0) for st in stages) for key in _SUMMED}
+    totals |= {
+        "stages": len(stages),
+        "tasks": sum(int(st.get("num_tasks") or 0) for st in stages),
+        "failed_stages": sum(1 for st in stages if st.get("failed")),
+        "max_task_skew": max(float(st.get("task_skew") or 1.0) for st in stages),
+    }
+    return {"spark": {"totals": totals, "stages": stages}}
 
 
 def _structured_error(output: str) -> str:

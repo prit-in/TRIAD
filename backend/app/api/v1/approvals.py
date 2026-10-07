@@ -8,7 +8,9 @@ what any of them mean. The policy file decides who may decide what.
 
 from __future__ import annotations
 
+import json
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
@@ -85,6 +87,30 @@ def get_approval(approval_id: uuid.UUID, session: DbSession, user: CurrentUser) 
     if approval is None:
         raise problems.not_found("Approval", str(approval_id))
     return ApprovalView.model_validate(approval)
+
+
+@router.get(
+    "/approvals/{approval_id}/evidence",
+    summary="The evidence bundle the request is decided on (PRD 30.5)",
+    dependencies=[Depends(APPROVAL_READERS)],
+)
+def approval_evidence(approval_id: uuid.UUID, session: DbSession,
+                      user: CurrentUser) -> dict[str, Any]:
+    """The bundle itself, not its URI. `evidence_uri` names a file under the data root, which
+    no approver can open from a browser, so the page could only print a path - and an approver
+    deciding without the measurements is deciding blind. Read through `Storage.path`, which
+    refuses anything outside the data root."""
+    from triad_core.storage import StorageError, storage
+
+    approval = session.get(Approval, approval_id)
+    if approval is None:
+        raise problems.not_found("Approval", str(approval_id))
+    if not approval.evidence_uri:
+        raise problems.not_found("Evidence for approval", str(approval_id))
+    try:
+        return json.loads(storage().path(approval.evidence_uri).read_text(encoding="utf-8"))
+    except (StorageError, OSError, ValueError) as exc:
+        raise problems.not_found("Evidence for approval", str(approval_id)) from exc
 
 
 @router.post(
