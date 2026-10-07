@@ -72,9 +72,11 @@ intervals before such a platform is used on small data.
 - **Security.** Transport encryption is not configured in the local deployment, the container
   engine is not rootless, and deleting an entire run's audit chain is not detected by chain
   verification alone.
-- **Unimplemented requirements.** Eight Should or Could requirements are not met (Section 4),
-  among them caching decisions, a Spark configuration optimization loop, anomaly detection in
-  cleaning, and PDF export.
+- **Unimplemented requirements.** Five Should or Could requirements are not met (Section 4):
+  relational database ingestion, a streaming connector, automated feature suggestions, caching
+  decisions, and typed Dataset operations; and category vocabularies are normalized but cannot
+  yet be edited by a person. The configuration optimization loop that is built tunes one setting
+  and compares single runs, so its records show whether a change moved the clock, not why.
 
 ---
 

@@ -30,12 +30,16 @@ the agent literature most often lacks [@wang2024agents].
 
 ## 21.3 Self-evolving pipelines
 
-TRIAD adapts within bounds: an allowlisted Spark setting after a diagnosed failure, hyperparameters
-within a budget, a retrain when monitoring fires. A larger step is a pipeline that improves its own
-configuration from its execution history - the Spark tuning loop the requirements describe and
-this implementation does not have [@herodotou2020tuning] [@lin2023sparktuning] - and, further out,
-one that proposes new feature definitions and templates for a person to review, with each proposal
-passing the same gates and hygiene rules as hand-written work.
+TRIAD adapts within bounds: an allowlisted Spark setting after a diagnosed failure, a shuffle
+partition count changed between runs from the previous run's stage measurements, hyperparameters
+within a budget, a retrain when monitoring fires. The between-run loop is deliberately small - one
+setting, two rules, a single run on each side of every comparison - and its before-and-after
+records can say only whether the clock moved beyond noise. The next step is a pipeline that tunes
+several allowlisted settings jointly from its execution history [@herodotou2020tuning]
+[@lin2023sparktuning], with repeated runs per configuration so that an effect can be told from
+run-to-run variation; and, further out, one that proposes new feature definitions and templates
+for a person to review, with each proposal passing the same gates and hygiene rules as
+hand-written work.
 
 ## 21.4 Federated and multi-party data science
 
@@ -65,4 +69,5 @@ decisions rather than data, and people whose decisions feed back into the polici
 
 - Noise floors: `experiments/EXP-5/calibration_noise_floor.json`;
   `experiments/policy_floors/segment_gap_noise_floor.json`.
-- No provider: ADR-0003. Allowlisted adaptation: `agents/policies/governance.yaml`. FR-037 not met.
+- No provider: ADR-0003. Allowlisted adaptation: `agents/policies/governance.yaml`. Between-run
+  loop: FR-037, one setting, `agents/optimizer.py` (DEC-31).

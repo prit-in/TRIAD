@@ -61,14 +61,36 @@ E: AP-8 against the champion: paired bootstrap, equation (10)
    elif no champion or AP-8 holds: PROPOSE; else KEEP the champion
 ```
 
+**Algorithm 4. The between-run configuration loop (one setting, FR-037).**
+
+```text
+on starting stage s of a run of pipeline P:
+  e <- the latest successful execution of s in an earlier run of P that recorded stage metrics
+  if none: k <- 8; run s; stop
+  k <- e.shuffle_partitions
+  if e spilled any bytes and k < 64:              k' <- min(2k, 64)   (OPT-1)
+  elif median reduce-stage task < 50 ms and k > 2: k' <- max(k/2, 2)   (OPT-2)
+  else: run s with k; stop
+  record the change k -> k' with e's measurements; run s with k'
+  record before (e) and after (this run): faster, slower, or within +/-10% of e's wall clock
+```
+
+The loop never changes a setting during a run, never leaves the allowlist's range, and on a
+replay reuses the replayed run's value, because a replay exists to reproduce a run rather than
+improve on it. Its comparison is between two single runs, which is why a difference inside the
+noise band is recorded as no difference.
+
 ## B. Spark configuration
 
 Every generated job is submitted as `spark-submit --master local[2] --class <generated object>
 --jars <core library>` with `spark.ui.enabled=false`, `spark.driver.memory=1g`,
 `spark.sql.ansi.enabled=true`, `spark.sql.session.timeZone=UTC`, and
-`spark.sql.parquet.outputTimestampType=TIMESTAMP_MICROS`, eight shuffle partitions unless a remedy
-raises them, and `SPARK_LOCAL_IP=127.0.0.1` because the container has no network. Spark 4.1.3,
-Scala 2.13.17, and Java 17 come from the pinned toolchain image.
+`spark.sql.parquet.outputTimestampType=TIMESTAMP_MICROS`, eight shuffle partitions on a stage's
+first run and the optimisation loop's value after that (Algorithm 4), which a failure remedy may
+still raise within a run, and `SPARK_LOCAL_IP=127.0.0.1` because the container has no network.
+Every job registers the stage-metrics listener before its first read and stops Spark before it
+writes its report, so that every stage's measurements are complete. Spark 4.1.3, Scala 2.13.17,
+and Java 17 come from the pinned toolchain image.
 
 **Resource profiles** (equation (4); clamped to 4 CPUs and 3 GB on the evaluation workstation):
 
@@ -92,6 +114,11 @@ Scala 2.13.17, and Java 17 come from the pinned toolchain image.
 | Task lease / worker poll | 300 s / 1 s |
 | Scheduler tick | 300 s |
 | Retraining cooldown | 7 days |
+| Volume anomaly | modified z-score above 3.5 against the median day; at least 14 whole days |
+| Distribution shift | PSI at least 0.10 (moderate) or 0.25 (major) on the previous version's bins |
+| Rule breaches reported | non-positive price, zero quantity (the rules cleaning quarantines on) |
+| Shuffle partitions (loop) | 2 to 64; doubled on spill, halved below a 50 ms median reduce task |
+| Before-and-after noise band | 10% of the earlier run's wall clock |
 | Minimum profile quality to plan | 0.70 |
 | Cleaning passes | 2 |
 | Risk bands | high at or above 0.66, medium at or above 0.33 |
@@ -140,3 +167,7 @@ object FeatureJob extends TriadJob {
   `agents/policies/governance.yaml`; lease and poll: worker start-up log line.
 - Template: `scala_spark/jobs/src/main/scala/triad/jobs/FeatureJob.scala`.
 - Generator defaults: `datasets/synthetic/generator.py` (`GeneratorConfig`).
+- Algorithm 4 and the loop settings: `agents/optimizer.py` (`QUOTA`, `TINY_TASK_MS`, `NOISE`),
+  `ChurnPipeline._plan_shuffle_partitions`; DEC-31. Listener: `TriadJob.scala`, DEC-29.
+- Anomaly settings: `dataeng/profile.py` (`VOLUME_Z`, `VOLUME_MIN_DAYS`, `SHIFT_PSI`,
+  `BUSINESS_RULES`); DEC-30.

@@ -61,7 +61,14 @@ practices [@amershi2019se4ml] [@wan2020mlchange], with a review of the challenge
 industrial large-scale systems [@lwakatare2020industrial]. A systematic review frames
 these as open software engineering problems [@giray2021se4ml]. Testing learned systems is
 surveyed separately [@zhang2022mltesting], as is assuring each lifecycle stage
-[@ashmore2021assuring] and making production pipelines robust [@bodor2025mlopsrobust]. This
+[@ashmore2021assuring] and making production pipelines robust [@bodor2025mlopsrobust]. Two
+failure modes recur in this literature and shape TRIAD's design directly. Leakage between training
+and evaluation data measurably inflates reported prediction performance [@rosenblatt2024leakage],
+which is why the platform's split and feature hygiene are enforced by code rather than left to
+convention. And a deployed model meets data whose distribution changes; one line of work on
+concept drift detects it by partitioning the input space into regions with k-means and comparing
+the data's distribution over those regions [@hu2021drift], and TRIAD's binned population
+stability index is a simpler member of the same family. This
 literature agrees on what should be done - versioned data and models, automated validation,
 monitored deployments - and reports that it is often not done, because it is laborious.
 
@@ -121,7 +128,10 @@ notions and discuss why they cannot, in general, all be satisfied at once [@mehr
 datasheets make the context of a model and its data explicit [@mitchell2019modelcards]
 [@gebru2021datasheets]. Calibration - whether a predicted probability of 0.3 means three in ten -
 is reviewed in its own right [@silvafilho2023calibration] and is decisive wherever probabilities
-drive actions.
+drive actions. At the organizational level, risk-management frameworks for AI systems
+[@nist2023airmf] and catalogues of responsible-AI patterns that collect governance and
+engineering practices [@lu2024rai] describe the controls an operator is expected to have; TRIAD
+implements a subset of them as executable policy rather than as process documentation.
 
 ## 3.9 Customer churn prediction
 
@@ -132,7 +142,11 @@ the accuracy of trees [@decaigny2018churn], and recency, frequency, and monetary
 remain the backbone of customer-base analysis [@fader2005rfm]. Recent work applies a range of
 learners to churn [@lalwani2022churn], a review surveys the methods and their business use
 [@manzoor2024churnreview], and churn models have
-been built on Spark for data too large for one machine [@ahmad2019churnbigdata]. What this work
+been built on Spark for data too large for one machine [@ahmad2019churnbigdata]. The setting
+varies widely - from telecommunications, where churn prediction has been integrated with customer
+segmentation in one framework [@wu2021churntelco], to subscription-like businesses such as home
+appliance rental [@rental2023churn] - and the pairing with segmentation matters here, because a
+model that performs well overall can still serve one segment of customers much worse than another. What this work
 adds is not a new churn model but the governance around one: point-in-time features, a temporal
 split with a gap, calibration, segment checks, and a champion comparison, all enforced.
 

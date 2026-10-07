@@ -76,6 +76,19 @@ retraining triggers transfer, but an adversary changes the input distribution on
 fixed PSI thresholds of Section 11 would be the weakest part of the transfer, and the injection
 defences of Section 12 would face content written specifically to defeat them.
 
+## 18.7 What every transfer would ask of the platform
+
+Read across the five domains, the same three needs recur, and they are where the conceptual
+designs above would meet the limits of the implemented one. First, most of the domains produce
+events continuously, and TRIAD reads batches of files: the streaming connector its requirements
+describe is not built. Second, each domain has its own groups for the segment check - patients,
+neighbourhoods, plants, network zones - which the acceptance policy can name as configuration but
+someone accountable in that domain has to choose. Third, every domain would inherit the small-sample
+behaviour of fixed thresholds reported in Section 15, so the interval-based rules proposed in
+Section 21 would matter more in a hospital or a city than in this retail case. The profile's
+volume and shift checks of Section 7 are, by contrast, the part most directly reusable: a silent
+change of a source is a risk in every row of Table 13.
+
 **Table 13. Domain-Specific Use Cases** *(conceptual: none of rows 2 to 6 was implemented or
 measured)*
 
