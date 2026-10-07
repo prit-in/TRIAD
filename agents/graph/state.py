@@ -97,8 +97,14 @@ class IllegalTransition(Exception):
 
 
 def check_transition(current: str, nxt: str) -> None:
-    """Refuse a move the table does not list. Staying in a state is not a move."""
-    if current == nxt:
+    """Refuse a move the table does not list. Staying in a state is not a move.
+
+    CANCELLED is reachable from every state, as PRD 12.3 says ("Any state can also move to
+    CANCELLED on a user request"); whether a *person* may cancel a finished run is the cancel
+    endpoint's rule, not the machine's. The experiments' clean-up relies on it: they cancel the
+    run they drove whatever it ended in, REJECTED_INPUT included.
+    """
+    if current == nxt or nxt == "CANCELLED":
         return
     allowed = ALLOWED_TRANSITIONS.get(current, set())
     if nxt not in allowed:

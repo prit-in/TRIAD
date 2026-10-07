@@ -20,7 +20,7 @@ W = 880
 
 
 def row(d: Diagram, prefix: str, labels: list[str], y: int, *, kind: str = "neutral",
-        x0: int = 20, x1: int = W - 20, h: int = 56, gap: int = 14, size: int = 16,
+        x0: int = 20, x1: int = W - 20, h: int = 56, gap: int = 32, size: int = 16,
         dashed: bool = False, bold: bool = False) -> list[str]:
     n = len(labels)
     w = int((x1 - x0 - gap * (n - 1)) / n)
@@ -44,7 +44,7 @@ def fig01() -> Diagram:
                        "Machine learning operations\n(pipelines, registries, monitoring)",
                        "Governed agentic data science\n(agents propose, rules decide)"],
               60, kind="white", h=80)
-    chain(d, ids, labels=["scale", "operations", "automation"])
+    chain(d, ids)
     row(d, "b", ["Bottleneck: one machine's memory", "Bottleneck: people and pipelines",
                  "Bottleneck: laborious discipline", "Open question: what may an agent decide?"],
         170, kind="neutral", h=56, size=14)

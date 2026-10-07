@@ -182,6 +182,7 @@ removed, not adapted.
 
 | Topic | Disagreement | Resolution |
 | --- | --- | --- |
+| Total length | The plan's per-section minimums sum to about 18 670 words, while its own statistics table gives a total of 10 000–15 000 | **Resolved by the team (08-10-2026): each section follows its own range**; a total above 15 000, and small overruns within a section, are acceptable and are noted in `MANUSCRIPT_COMPLIANCE_CHECKLIST.md` |
 | Abstract length | Team plan: "Executive Summary and Abstract" 450–750 words. Template: abstract 150–250 words | Two parts. A **150–250-word abstract** that meets every IEEE rule, and an **executive summary** with Table 1, so the section as a whole is 450–750 words |
 | Reference count | Team plan 70–120; guidelines "minimum 30–50" | The guidelines set the floor and the plan sets the target. Aim for 70 or more **only as far as real, relevant, verifiable sources exist**; never below 50. No citation is added to reach a number |
 | Figure count | Plan 25–35 and names 32; template's List of Figures has 20 rows | The list is extended; the plan governs |

@@ -55,6 +55,14 @@ def test_staying_in_a_state_is_not_a_move() -> None:
     check_transition("SELECTED", "SELECTED")
 
 
+@pytest.mark.parametrize("current", ["REJECTED_INPUT", "COMPLETED", "FAILED", "PUBLISHED",
+                                     "APPROVAL_REQUIRED", "RECEIVED"])
+def test_any_state_may_be_cancelled(current: str) -> None:
+    """PRD 12.3. The experiments cancel the run they drove, whatever state it ended in - a
+    REJECTED_INPUT run included, which the table alone would have refused."""
+    check_transition(current, "CANCELLED")
+
+
 def test_every_target_is_a_state_the_table_knows() -> None:
     known = set(ALLOWED_TRANSITIONS) | {"COMPLETED", "ABORTED", "REJECTED_INPUT", "CANCELLED"}
     for current, targets in ALLOWED_TRANSITIONS.items():

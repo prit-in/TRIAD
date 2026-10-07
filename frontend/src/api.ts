@@ -126,6 +126,12 @@ export const api = {
   cancelRun: (id: string) => request<{ run_id: string; state: string }>(
     `/pipelines/${id}/cancel`, { method: "POST" },
   ),
+  /** PRD section 30: promote an escalated candidate anyway. One approval per required role. */
+  requestOverride: (runKey: string, note: string) =>
+    request<Approval[]>(`/pipelines/${runKey}/override`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
   models: () => request<ModelSummary[]>("/models"),
   model: (ref: string) => request<ModelDetail>(`/models/${ref}`),
   approvals: (status = "pending") => request<Approval[]>(`/approvals?status=${status}`),
@@ -320,6 +326,8 @@ export interface RunDetail extends RunSummary {
     target_ref: string | null;
     expires_at: string | null;
   } | null;
+  /** Set while an escalated run's candidate failed only a rule a person may override. */
+  override?: { eligible: boolean; failed_rules: string[]; reason: string } | null;
 }
 
 export interface Decision {
@@ -401,6 +409,11 @@ export interface Approval {
   requested_at: string | null;
   expires_at: string | null;
   decided_at: string | null;
+  /** One share of a decision needing several people: the role that must decide it and the
+   *  group its shares belong to. Null for an ordinary single approval. */
+  policy_action: string | null;
+  required_role: string | null;
+  group_id: string | null;
 }
 
 export interface Alert {

@@ -43,7 +43,8 @@ form label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   margin-top: 0.25rem;
   padding: 0.5rem 0.6rem;
@@ -54,6 +55,7 @@ select {
 }
 
 select { width: auto; }
+textarea { resize: vertical; }
 
 button {
   margin-top: 1rem;

@@ -184,8 +184,10 @@ export function RunDetailPage() {
             {run.data.error_summary && <p className="problem">{run.data.error_summary}</p>}
             {run.data.pending_approval && (
               <p className="waiting-note">
-                Waiting on a decision for {run.data.pending_approval.target_ref} —{" "}
-                <Link to="/approvals">go to approvals</Link>
+                {run.data.state === "APPROVAL_REQUIRED" && run.data.override
+                  ? `Promotion despite a failed check (${run.data.override.failed_rules.join(", ")}) is waiting for both approvers: an ML Engineer and an Admin must each approve their own share`
+                  : `Waiting on a decision for ${run.data.pending_approval.target_ref}`}{" "}
+                — <Link to="/approvals">go to approvals</Link>
               </p>
             )}
             <table>
@@ -226,6 +228,10 @@ export function RunDetailPage() {
           </>
         )}
       </Panel>
+
+      {run.data?.state === "ESCALATED" && run.data.override && (
+        <OverrideRequest runId={runId} override={run.data.override} onRequested={run.refresh} />
+      )}
 
       <Panel
         title="Agent decisions"
@@ -330,6 +336,81 @@ export function RunDetailPage() {
   );
 }
 
+/**
+ * PRD section 30: promotion despite a failed check - two approvers, ML Engineer and Admin, and a
+ * written justification. Offered only where the server says the candidate may be promoted anyway
+ * (`run.override`: it failed a calibration or segment rule and beat the champion). Every rule
+ * stated here is enforced by the server; the page only says them before anyone asks.
+ */
+function OverrideRequest({
+  runId,
+  override,
+  onRequested,
+}: {
+  runId: string;
+  override: NonNullable<RunDetail["override"]>;
+  onRequested: () => void;
+}) {
+  const toast = useToast();
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<Error | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    setProblem(null);
+    try {
+      const shares = await api.requestOverride(runId, note.trim());
+      toast(
+        `Asked for ${shares.length} approvals: ${shares
+          .map((share) => (share.required_role ?? "any approver").replaceAll("_", " "))
+          .join(" and ")}.`,
+      );
+      onRequested();
+    } catch (error) {
+      // Shown verbatim: "already requested", the wrong role or a run that moved on are the
+      // server's refusals, and rewording them would hide which rule applied.
+      setProblem(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel title="Promotion despite a failed check" provenance="Governed">
+      <p>
+        The candidate failed <strong>{override.failed_rules.join(", ")}</strong>: {override.reason}.
+        It is registered as a candidate, not promoted.
+      </p>
+      <p className="muted">
+        Promoting it anyway needs two approvers, an ML Engineer and an Admin, each approving their
+        own share. Neither may be the person who asks or whoever started this run, and one person
+        cannot approve both shares. A rejection of either returns the run to escalated.
+      </p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <label>
+          Written justification (at least 20 characters)
+          <textarea
+            value={note}
+            rows={4}
+            maxLength={2000}
+            onChange={(e) => setNote(e.target.value)}
+          />
+        </label>
+        {/* The server refuses a shorter note too; disabling here only saves a round trip. */}
+        <button type="submit" disabled={busy || note.trim().length < 20}>
+          {busy ? "Working…" : "Request both approvals"}
+        </button>
+      </form>
+      <Problem error={problem} />
+    </Panel>
+  );
+}
 
 /** The options a decision refused, and why.
  *

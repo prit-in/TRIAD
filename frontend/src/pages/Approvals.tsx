@@ -60,6 +60,9 @@ function Request({ approval, onDecided }: { approval: Approval; onDecided: () =>
       <header>
         <strong>{approval.action_type.replaceAll("_", " ")}</strong>
         <span className="mono">{approval.target_ref}</span>
+        {approval.required_role && (
+          <span className="pill busy">requires: {approval.required_role.replaceAll("_", " ")}</span>
+        )}
         <span className={`pill ${approval.status === "approved" ? "good" : pending ? "waiting" : "bad"}`}>
           {approval.status}
         </span>
@@ -69,6 +72,12 @@ function Request({ approval, onDecided }: { approval: Approval; onDecided: () =>
         {when(approval.expires_at)} ·{" "}
         <Link to={`/runs/${approval.run_id}`}>the run</Link>
       </p>
+      {approval.group_id && (
+        <p className="muted">
+          One of the shares of a decision that needs every share approved, each by a different
+          person. A rejection of any share refuses the whole decision.
+        </p>
+      )}
       {approval.evidence_uri && (
         <p className="muted">Evidence bundle: <span className="mono">{approval.evidence_uri}</span></p>
       )}
