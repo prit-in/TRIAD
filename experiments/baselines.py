@@ -30,6 +30,7 @@ leakage-safe as the pipeline. A baseline that leaked would beat P for the wrong 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 # name -> what it means. The definitions match the catalogue entries of the same names.
@@ -213,6 +214,29 @@ def _call(target: str, kwargs: dict[str, Any]) -> Any:
     return getattr(importlib.import_module(module), name)(**kwargs)
 
 
+class IsolatedProcessKilled(RuntimeError):
+    """The spawned process died without returning: in practice, the kernel's OOM killer."""
+
+    def __init__(self, target: str, elapsed_s: float, oom_kills: int | None) -> None:
+        self.elapsed_s = elapsed_s
+        self.oom_kills = oom_kills
+        cause = (f"the container's cgroup recorded {oom_kills} out-of-memory kill(s) meanwhile"
+                 if oom_kills else "no out-of-memory kill was recorded by the cgroup")
+        super().__init__(f"{target} was killed after {elapsed_s:.0f}s without returning; {cause}")
+
+
+def cgroup_oom_kills() -> int | None:
+    """This container's cumulative OOM-kill count (cgroup v2 `memory.events`), if readable."""
+    try:
+        for line in Path("/sys/fs/cgroup/memory.events").read_text(encoding="ascii").splitlines():
+            key, _, value = line.partition(" ")
+            if key == "oom_kill":
+                return int(value)
+    except (OSError, ValueError):
+        return None
+    return None
+
+
 def run_isolated(target: str, /, **kwargs: Any) -> Any:
     """Run `module:function(**kwargs)` in a freshly spawned interpreter and return its result.
 
@@ -221,9 +245,21 @@ def run_isolated(target: str, /, **kwargs: Any) -> Any:
     Spark's memory was not in it at all. A spawned process starts with nothing, so the mark it
     reports is this baseline's own; the timings are taken inside the call, so the cost of
     spawning is not in them.
+
+    A process the kernel kills raises no exception of its own - a cgroup out-of-memory kill is
+    SIGKILL - so it surfaces here as a broken pool, which is turned into `IsolatedProcessKilled`
+    carrying the cgroup's OOM-kill count, so a caller can record the failure as a result.
     """
     import concurrent.futures as cf
     import multiprocessing as mp
+    import time
+    from concurrent.futures.process import BrokenProcessPool
 
-    with cf.ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context("spawn")) as pool:
-        return pool.submit(_call, target, kwargs).result()
+    before, started = cgroup_oom_kills(), time.perf_counter()
+    try:
+        with cf.ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context("spawn")) as pool:
+            return pool.submit(_call, target, kwargs).result()
+    except BrokenProcessPool as exc:
+        after = cgroup_oom_kills()
+        kills = after - before if before is not None and after is not None else None
+        raise IsolatedProcessKilled(target, time.perf_counter() - started, kills) from exc

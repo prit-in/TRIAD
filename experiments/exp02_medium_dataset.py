@@ -38,7 +38,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from experiments.baselines import run_isolated
+from experiments.baselines import BaselineResult, IsolatedProcessKilled, run_isolated
 from experiments.harness import Experiment
 
 MONTHS = 24
@@ -46,7 +46,10 @@ SEED = 42
 DATA_START = "2024-01-01"
 # Customers per rung. Rows grow faster than customers: each customer contributes a stream of
 # order lines over 24 months, so 12 000 customers is roughly a quarter of a million lines.
-LADDER = (400, 1_500, 6_000, 20_000)
+# The first run stopped at 20 000, where both configurations still finished and B2 peaked at
+# 1 065 MB; the ladder now climbs until one gives out inside the 3 GB container (ADR-0002),
+# which on that growth is expected between 50 000 and 100 000 customers.
+LADDER = (400, 1_500, 6_000, 20_000, 50_000, 100_000, 200_000)
 
 
 def month_starts(start: str, months: int) -> list[pd.Timestamp]:
@@ -114,8 +117,32 @@ def _bytes_on_disk(root: Path) -> int:
     return sum(f.stat().st_size for f in root.rglob("*.parquet"))
 
 
-def run() -> Experiment:
+def generate(source: str, customers: int) -> float:
+    """Write one rung's dataset; run in its own process so its memory leaves with it."""
     from datasets.synthetic.generator import GeneratorConfig, SyntheticGenerator
+
+    t0 = time.perf_counter()
+    SyntheticGenerator(
+        GeneratorConfig(customers=customers, months=MONTHS, seed=SEED, start_date=DATA_START)
+    ).write(Path(source))
+    return time.perf_counter() - t0
+
+
+def _measured(target: str, baseline: str, **kwargs) -> BaselineResult:
+    """A baseline's result, or - when the kernel killed it - that failure, as a result.
+
+    "Failures beyond memory limits are recorded as results" (PRD 32.1). An out-of-memory kill
+    at the container's limit is SIGKILL, which no `except MemoryError` inside the baseline can
+    see; it is caught here, with the cgroup's OOM-kill count as the evidence of what it was.
+    """
+    try:
+        return run_isolated(target, **kwargs)
+    except IsolatedProcessKilled as exc:
+        return BaselineResult(baseline=baseline, ok=False, wall_clock_s=exc.elapsed_s,
+                              detail=f"killed: {exc}")
+
+
+def run() -> Experiment:
     from triad_core.storage import storage
 
     store = storage()
@@ -163,19 +190,26 @@ def run() -> Experiment:
         for customers in LADDER:
             trial = exp.trial(f"customers_{customers}")
             source = root / f"n{customers}"
-            t0 = time.perf_counter()
-            SyntheticGenerator(
-                GeneratorConfig(customers=customers, months=MONTHS, seed=SEED,
-                                start_date=DATA_START)
-            ).write(source)
-            trial.record("generate_s", round(time.perf_counter() - t0, 1), "s")
+            try:
+                generated_s = run_isolated("experiments.exp02_medium_dataset:generate",
+                                           source=str(source), customers=customers)
+            except IsolatedProcessKilled as exc:
+                trial.ok = False
+                trial.detail = f"{customers} customers: generating the data itself failed ({exc})"
+                exp.limitation(
+                    f"The ladder stopped at {customers} customers because generating the dataset "
+                    f"exceeded what the container holds ({exc}); neither configuration was run "
+                    "on it."
+                )
+                break
+            trial.record("generate_s", round(generated_s, 1), "s")
             trial.record("customers", customers)
             trial.record("bytes_on_disk", _bytes_on_disk(source), "bytes")
 
             # Each baseline in a process of its own: a high-water mark read in this process
             # would carry the generator's peak and every earlier size's.
-            b2 = run_isolated("experiments.baseline_b2:run",
-                              root=source, cutoffs=groups, seed=SEED)
+            b2 = _measured("experiments.baseline_b2:run", "B2",
+                           root=source, cutoffs=groups, seed=SEED)
             trial.record("b2_completed", b2.ok)
             trial.record("b2_wall_clock_s", round(b2.wall_clock_s, 1), "s")
             trial.record("b2_peak_rss_mb", b2.peak_rss_mb, "MB")
@@ -183,8 +217,8 @@ def run() -> Experiment:
             trial.record("b2_test_pr_auc", b2.test_pr_auc)
             trial.observations["b2"] = b2.to_dict()
 
-            b3 = run_isolated("experiments.baseline_b3:run_with_own_session",
-                              root=source, cutoffs=groups, seed=SEED)
+            b3 = _measured("experiments.baseline_b3:run_with_own_session", "B3",
+                           root=source, cutoffs=groups, seed=SEED)
             trial.record("b3_completed", b3.ok)
             trial.record("b3_wall_clock_s", round(b3.wall_clock_s, 1), "s")
             trial.record("b3_peak_rss_mb", b3.peak_rss_mb, "MB",

@@ -738,11 +738,12 @@ class ChurnPipeline:
                 columns=columns,
             )
 
+        partitions, planned = self._plan_shuffle_partitions(stage)
         outcome = self.runner.run_stage(
             StageRequest(
                 stage=stage,
                 agent_name="code_generation",
-                inputs={"shuffle_partitions": 8},
+                inputs={"shuffle_partitions": partitions},
                 generate=generate,
                 validate=validate,
                 execute=execute,
@@ -796,12 +797,84 @@ class ChurnPipeline:
                 }
                 return {}
             outcome.outputs["uri"] = commit.value["uri"]
+            self._record_setting_outcome(stage, planned)
             self._persist_budget()
             return outcome.outputs
 
         self.result.escalation = {"stage": stage, "reason": outcome.reason,
                                   "diagnoses": outcome.diagnoses}
         return {}
+
+    # -- configuration optimisation (FR-037) ------------------------------------------------
+    def _plan_shuffle_partitions(self, stage: str) -> tuple[int, dict[str, Any] | None]:
+        """This stage's shuffle partitions, and the change behind them if there is one.
+
+        The value the last measured run of this pipeline used for this stage, changed when what
+        that run measured calls for it (`agents.optimizer.suggest`). A replay takes the value the
+        replayed run used, unchanged: it exists to reproduce a run, not to improve on it.
+        """
+        from agents.optimizer import DEFAULT_PARTITIONS, measured, suggest
+        from triad_core.models import Execution
+
+        query = select(Execution).where(Execution.stage == stage,
+                                        Execution.status == "succeeded")
+        if self.replay_of is not None:
+            query = query.where(Execution.run_id == self.replay_of.id)
+        else:
+            query = query.join(PipelineRun, PipelineRun.id == Execution.run_id).where(
+                PipelineRun.pipeline_name == self.run.pipeline_name,
+                Execution.run_id != self.run.id,
+                Execution.metrics_json.has_key("spark"),
+            )
+        previous = self.session.execute(
+            query.order_by(Execution.finished_at.desc().nulls_last())
+        ).scalars().first()
+        if previous is None:
+            return DEFAULT_PARTITIONS, None
+        before = measured(previous)
+        if self.replay_of is not None:
+            return before["shuffle_partitions"], None
+        change = suggest((previous.metrics_json or {}).get("spark"), before["shuffle_partitions"])
+        if change is None:
+            return before["shuffle_partitions"], None
+        self.runner.record_decision(
+            agent="optimization",
+            decision_type="spark_setting",
+            decision=f"{stage}: {change.setting} {change.before} -> {change.after}",
+            summary=change.reason,
+            evidence={"stage": stage, "change": change.to_dict(), "before": before},
+            policy_rules=[change.rule, "FR-037"],
+        )
+        return change.after, {"change": change, "before": before}
+
+    def _record_setting_outcome(self, stage: str, planned: dict[str, Any] | None) -> None:
+        """The after half of a setting change's before-and-after record (PRD section 30)."""
+        if planned is None:
+            return
+        from agents.optimizer import compare, measured
+        from triad_core.models import Execution
+
+        execution = self.session.execute(
+            select(Execution).where(Execution.run_id == self.run.id, Execution.stage == stage,
+                                    Execution.status == "succeeded")
+            .order_by(Execution.finished_at.desc().nulls_last())
+        ).scalars().first()
+        if execution is None:
+            return
+        change, after = planned["change"], measured(execution)
+        comparison = compare(planned["before"], after)
+        self.runner.record_decision(
+            agent="optimization",
+            decision_type="spark_setting_outcome",
+            decision=(f"{stage}: {change.setting} {change.before} -> {change.after}: "
+                      f"{comparison['verdict']}"),
+            summary=("Before and after, one run each: a difference inside the noise band is "
+                     "not evidence that the setting mattered."),
+            evidence={"stage": stage, "change": change.to_dict(), "before": planned["before"],
+                      "after": after, "comparison": comparison},
+            policy_rules=[change.rule, "FR-037"],
+            outcome="measured",
+        )
 
     def _check_stage_policy(
         self, action: str, stage: str, outputs: dict[str, Any], has_quarantine: bool

@@ -94,7 +94,26 @@ with a reason code such as MISCALIBRATED or SEGMENT_RECALL_GAP. Every verdict is
 record carrying the rules applied, the evidence they were judged on, and the candidates that were
 rejected and why. A run that proposes nothing does not ask anyone to approve anything.
 
-## 8.6 Explanations
+## 8.6 When a rule fails: review, then a governed override
+
+A candidate that fails a calibration rule (AP-5) or a segment rule (AP-6) is not discarded
+midway. Selection still scores it once on the test cutoff and compares it with the champion, so
+whoever decides next has the whole picture. For a segment failure the platform also performs
+the first remedy the policy names for SEGMENT_RECALL_GAP - a segment-aware threshold review - as
+analysis only: for each segment it finds the threshold at which that segment would reach the
+recall the global threshold achieves overall, and reports the gap and the share of customers
+flagged at those thresholds. On a 10 000-customer run the tenure-band gap was 0.331, because
+customers in their first six months have too little history to score well; segment thresholds
+would have narrowed it to 0.037 while flagging 17.6% of customers instead of 15.25%. The review
+is never applied automatically, because an operating threshold per group is a policy decision.
+
+Such a candidate can still be promoted, but only if it beat the champion (the AP-8 interval lies
+above zero) and only through the two-approver path of Section 12: a written justification, and
+one approval each from an ML Engineer and an Admin. On that run the candidate beat the champion
+by 0.085 PR-AUC (95% interval 0.073 to 0.099) and was promoted this way, and its model card now
+records the failed rule, the justification, and the approvers.
+
+## 8.7 Explanations
 
 Every scored customer receives reasons alongside a probability. For tree ensembles the reasons
 are TreeSHAP attributions [@lundberg2020trees]; for logistic regression they are the exact
@@ -116,3 +135,11 @@ drove it.
 - AP-1 to AP-8: PRD section 17.6; DEC-01, DEC-02, DEC-19, DEC-26.
 - Explanations: `python_ml/triad_ml/predict.py` (SHAP TreeExplainer; coefficients x
   standardised inputs; permutation importance; "unavailable").
+- Section 8.6: `segment_threshold_review` in `python_ml/triad_ml/evaluate.py`; selection past
+  AP-5/AP-6 in `train.py` (DEC-27); run-2026-10-07-001 `reports/<run>/run_state.json`
+  (`segment_recall_gaps.tenure_band` 0.3307, `gap_at_segment_thresholds` 0.0366,
+  `flagged_share_global` 0.1525, `flagged_share_segment_aware` 0.176, champion delta 0.0851
+  [0.0726, 0.0993]); approvals group 65eef591. The card's approval section was backfilled on
+  08-10-2026 by `record_approval_on_card` from the stored approval rows, because the run predates
+  that function; its evidence bundle likewise predates the enriched bundle (it carried the note
+  and the champion delta, while the threshold review was in `evaluation.json`).

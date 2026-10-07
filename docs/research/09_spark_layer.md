@@ -83,13 +83,32 @@ later stage could read. And the orchestration task that drives the run holds a l
 worker is killed, the lease expires, the task is re-queued, and the next claim resumes the run,
 which was observed when the worker was restarted in the middle of a run.
 
-## 9.4 Optimization techniques
+## 9.4 Measuring what a job did
+
+Every job records each Spark stage it ran: its duration, task count, bytes read and written by
+the shuffle, bytes spilled from execution memory to disk, garbage-collection time, and task skew,
+defined as the slowest task's duration over the median task's. The measurements come from a Spark
+listener that the job's fixed half registers before its first read, not from Spark's monitoring
+endpoint, because a sandboxed job has no network and no user interface to ask. Listener events
+are delivered asynchronously, so the job stops Spark - which drains them - before it writes its
+report; written earlier, the last stage could be missing. The stages are stored on the job's
+execution record and drawn on the run page, so a slow stage can be told apart from a skewed or
+spilling one without opening a log.
+
+## 9.5 Optimization techniques
 
 Table 6 lists the Spark optimization techniques the platform uses or exposes, and states plainly
 which are not implemented. The literature on Spark tuning [@herodotou2020tuning]
-[@cheng2021sparkcloud] [@lin2023sparktuning] shows that configuration matters a great deal; TRIAD's
-position is that an agent may change a small allowlist of settings in response to a diagnosed
-failure, and that a general tuning loop (FR-037) is future work.
+[@cheng2021sparkcloud] [@lin2023sparktuning] shows that configuration matters a great deal; TRIAD
+lets an agent change settings in two bounded ways. Within a run, a diagnosed failure may trigger
+an allowlisted remedy (Section 6.4). Between runs, an optimisation loop reads the stage
+measurements of the previous run of the same pipeline and stage and changes one setting, the
+shuffle partition count, inside a quota of 2 to 64: it doubles the count when a stage spilled,
+and halves it when the reduce stages' median task finished in under 50 ms, where per-task
+overhead outweighs the work. The change applies to the next run only and is recorded twice -
+once with the measurements that motivated it, and again after the run with a before-and-after
+comparison. Because each side of that comparison is a single run, a wall-clock difference
+within ten percent is recorded as no difference rather than as an improvement.
 
 **Table 6. Spark Optimization Techniques**
 
@@ -97,7 +116,7 @@ failure, and that a general tuning loop (FR-037) is future work.
 | --- | --- | --- |
 | Local mode for small inputs | LR-07 routes inputs below 1 GB to `local[N]`, same job, same code | Applied on every run here |
 | Adaptive query execution | Spark 4 default; skew-join handling switched on by the skew remedy | Applied; remedy allowlisted |
-| Shuffle partition count | Fixed per stage; raised by the shuffle remedy | Allowlisted (`spark.sql.shuffle.partitions`) |
+| Shuffle partition count | Set per stage by the optimisation loop; raised by the shuffle remedy | Applied within 2-64 (`spark.sql.shuffle.partitions`) |
 | Broadcast joins | Threshold changeable per job | Allowlisted (`spark.sql.autoBroadcastJoinThreshold`) |
 | Executor memory | Raised by the out-of-memory remedy | Allowlisted; driver memory deliberately not |
 | Columnar storage | Parquet with microsecond timestamps and a manifest per output | Applied |
@@ -105,10 +124,11 @@ failure, and that a general tuning loop (FR-037) is future work.
 | No Python UDFs on event data | LR-03; typed Scala instead | Enforced by routing |
 | No unbounded driver collection | LR-09; the static scan of gate 2 refuses it | Enforced |
 | Thin JARs | Jobs packaged without Spark; the core library passed with `--jars` | Applied |
+| Per-stage execution metrics | Shuffle bytes, spill and task skew for every stage (FR-036) | Applied on every job |
+| Configuration optimization loop | One setting, from the previous run's measurements (FR-037) | Applied; before-and-after recorded |
 | Caching decisions | Deciding what to persist between actions (FR-035) | Not implemented |
-| Configuration optimization loop | Searching settings from execution metrics (FR-037) | Not implemented |
 
-## 9.5 Cluster deployment
+## 9.6 Cluster deployment
 
 The same jobs run against a standalone Spark cluster when the routing configuration names one,
 and the compose definition includes an optional Spark master and worker for that purpose. The
@@ -129,3 +149,7 @@ do so with `local[N]` instead (Section 13).
 - Equation (5): `agents/graph/pipeline.py` `dry_run`; `pipelines/churn_v1.yaml` `validation:`.
 - Allowlist: `agents/policies/governance.yaml` `spark.config_change`. Thin JARs: DEC-04.
 - Lease recovery: run-2026-10-03-002 (worker restarted mid-run). Cluster profile: `docker/compose.yaml`.
+- Section 9.4: `scala_spark/core/.../StageMetrics.scala`, `TriadJob.scala` (stop before report),
+  `StageMetricsSpec` (TC-036), `GET /pipelines/{id}/executions`; DEC-29.
+- Section 9.5 loop: `agents/optimizer.py` (OPT-1, OPT-2, quota, 10% noise band),
+  `ChurnPipeline._plan_shuffle_partitions`, `tests/unit/test_optimizer.py`; DEC-31.

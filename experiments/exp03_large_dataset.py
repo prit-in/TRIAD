@@ -47,12 +47,24 @@ PARALLELISM = (1, 2, 4)
 REPEATS = 2   # a warm repeat, so one unlucky run does not become the result
 
 
+def _core_jar() -> str:
+    """The packaged core library, which carries the FR-036 stage-metrics listener."""
+    from agents.graph.pipeline import SCALA_ROOT, _newest_jar
+
+    jar = _newest_jar(SCALA_ROOT / "core" / "target" / "scala-2.13")
+    if jar is None:
+        raise RuntimeError("no packaged triad-core JAR: run `make scala-package` first")
+    return str(jar)
+
+
 def _spark(cores: int):
     from pyspark.sql import SparkSession
 
     session = (
         SparkSession.builder.appName(f"triad-exp03-local{cores}")
         .master(f"local[{cores}]")
+        # The JVM side of the measurement: `triad.core.StageMetricsListener` (FR-036).
+        .config("spark.jars", _core_jar())
         .config("spark.sql.ansi.enabled", "true")
         .config("spark.sql.session.timeZone", "UTC")
         .config("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
@@ -84,19 +96,34 @@ def _fixed_cost(cores: int) -> float:
         spark.stop()
 
 
-def _feature_build(cores: int, source: Path, groups: dict[str, Any]) -> tuple[float, int]:
-    """One timed run of the shuffle-heavy feature build at this parallelism."""
+def _feature_build(
+    cores: int, source: Path, groups: dict[str, Any]
+) -> tuple[float, int, list[dict[str, Any]]]:
+    """One timed run of the shuffle-heavy feature build at this parallelism, with every Spark
+    stage it ran as the FR-036 listener measured it. The stages are read after `stop()`, which
+    drains the listener bus; read before, the last stage's events may still be queued."""
+    import json
+
     from experiments import baseline_b3
 
     spark = _spark(cores)
+    listener = spark._jvm.triad.core.StageMetricsListener()
+    spark.sparkContext._jsc.sc().addSparkListener(listener)
     try:
         t0 = time.perf_counter()
         frame = baseline_b3.build_features(
             spark, source, sorted({c for group in groups.values() for c in group})
         )
-        return time.perf_counter() - t0, len(frame)
+        elapsed, rows = time.perf_counter() - t0, len(frame)
     finally:
         spark.stop()
+    return elapsed, rows, json.loads(listener.toJson())
+
+
+def _stage_totals(stages: list[dict[str, Any]]) -> dict[str, Any]:
+    from agents.graph.pipeline import spark_stage_summary
+
+    return (spark_stage_summary(stages).get("spark") or {}).get("totals") or {}
 
 
 def run() -> Experiment:
@@ -115,6 +142,8 @@ def run() -> Experiment:
         independent_variable="Spark parallelism (local[N])",
         dependent_measures=[
             "wall_clock_s", "fixed_cost_s", "work_s", "speed_up_vs_1_core", "rows_built",
+            "shuffle_read_bytes", "shuffle_write_bytes", "spill_bytes", "max_task_skew",
+            "executor_run_time_s", "core_utilisation",
         ],
         config={
             "customers": CUSTOMERS, "months": MONTHS, "seed": SEED,
@@ -136,12 +165,6 @@ def run() -> Experiment:
             "scaling. `local[N]` varies the same knob - cores available to the work - inside "
             "one JVM, so there is no network shuffle and no cross-machine spill. The numbers "
             "below describe intra-node scaling only."
-        )
-        exp.limitation(
-            "Shuffle bytes and spill are not reported. They come from Spark event logs, which "
-            "are disabled in this environment; enabling them per run and parsing them was out "
-            "of scope for this experiment and the measurement is simply absent rather than "
-            "approximated."
         )
 
         source = root / "source"
@@ -177,12 +200,36 @@ def run() -> Experiment:
                          note="a trivial job at this parallelism: JVM start-up plus planning")
 
             runs: list[float] = []
+            measured: list[list[dict[str, Any]]] = []
             rows = 0
             for _ in range(REPEATS):
-                elapsed, rows = _feature_build(cores, source, groups)
+                elapsed, rows, stages = _feature_build(cores, source, groups)
                 runs.append(elapsed)
+                measured.append(stages)
             best = min(runs)          # the least-contended run, not the mean
             work = max(0.0, best - fixed)
+
+            # FR-036, from the best run: what the work consisted of. Executor run time is the
+            # sum of every task's time, so dividing it by wall clock times cores says how busy
+            # the cores were - the quantity a speed-up below the core ratio is made of.
+            totals = _stage_totals(measured[runs.index(best)])
+            run_time_s = (totals.get("executor_run_time_ms") or 0) / 1000.0
+            trial.record("spark_stages", totals.get("stages"))
+            trial.record("spark_tasks", totals.get("tasks"))
+            trial.record("shuffle_read_bytes", totals.get("shuffle_read_bytes"), "bytes")
+            trial.record("shuffle_write_bytes", totals.get("shuffle_write_bytes"), "bytes")
+            trial.record("spill_bytes", (totals.get("memory_spill_bytes") or 0)
+                         + (totals.get("disk_spill_bytes") or 0), "bytes")
+            trial.record("max_task_skew", totals.get("max_task_skew"),
+                         note="slowest task over the median task, worst stage")
+            trial.record("jvm_gc_time_s", round((totals.get("jvm_gc_time_ms") or 0) / 1000.0, 2),
+                         "s")
+            trial.record("executor_run_time_s", round(run_time_s, 2), "s",
+                         note="the sum of every task's run time")
+            trial.record("core_utilisation",
+                         round(run_time_s / (best * cores), 3) if best > 0 else None,
+                         note="executor run time over wall clock x cores")
+            trial.observations["stages"] = measured[runs.index(best)]
 
             trial.record("wall_clock_s", round(best, 2), "s", note="best of the repeats")
             trial.record("all_runs_s", [round(r, 2) for r in runs], "s")
@@ -238,11 +285,17 @@ def run() -> Experiment:
                     if doubling is not None else
                     ". The 2-to-4 ratio could not be computed."
                 )
-                + " Sub-linear scaling is the expected observation and is what the numbers "
-                "show; the window aggregations shuffle, and shuffling does not halve when the "
-                "cores double. This is intra-node scaling inside one JVM, not distributed "
-                "workers, and the 100 GB tier was not run - see the limitations, which also "
-                "record that shuffle bytes and spill are absent rather than approximated."
+                + ". Core utilisation (executor run time over wall clock x cores): "
+                + ", ".join(f"local[{c}] {t.get('core_utilisation')}" for c, t in arms.items())
+                + "; shuffle written: "
+                + ", ".join(f"local[{c}] {t.get('shuffle_write_bytes')} bytes"
+                            for c, t in arms.items())
+                + "; spill: "
+                + ", ".join(f"local[{c}] {t.get('spill_bytes')} bytes" for c, t in arms.items())
+                + ". Sub-linear scaling is the expected observation; the window aggregations "
+                "shuffle, and shuffling does not halve when the cores double. This is intra-node "
+                "scaling inside one JVM, not distributed workers, and the 100 GB tier was not "
+                "run - see the limitations."
             ),
         )
         return exp

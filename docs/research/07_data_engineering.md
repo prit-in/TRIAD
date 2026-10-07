@@ -40,6 +40,16 @@ stated in the code and constant across versions, so that $Q$ is comparable over 
 an absolute measure of fitness. A second version of a source is also compared with the first:
 added and removed columns, type changes, and shifts in distribution.
 
+The profile also looks for three kinds of anomaly, each reported with the evidence that raised
+it. A day whose row count lies more than 3.5 robust standard deviations from the median day is a
+volume anomaly; the first and last days are excluded, because an extract window cuts them short.
+A row that breaks a rule cleaning enforces, such as a non-positive price, is a rule breach,
+reported with its count and example keys before cleaning quarantines it. And each numeric column
+is binned on the previous version's quantiles, so that a population stability index, equation
+(7) in Section 11, of 0.10 or more marks a distribution shift. Only a rule breach lowers $V$: a
+volume anomaly or a shift describes a different population, not defective data, and acting on
+drift belongs to the retraining rules of Section 11.
+
 ## 7.3 Cleaning without deletion
 
 Cleaning runs as a generated Scala job whose single slot holds the cleaning plan, composed from a
@@ -127,6 +137,11 @@ Section 15 reports how often each happened under injected faults.
 ## Evidence (not part of the manuscript)
 
 - Quality score (1): `dataeng/profile.py`, function computing the four dimensions (FR-015).
+- Anomalies (FR-022): `dataeng/profile.py` `detect_anomalies`, `daily_volume_anomalies`
+  (modified z-score 3.5, Iglewicz-Hoaglin, first and last day excluded), `BUSINESS_RULES` (the
+  rules of `CleaningRules.standardTransactionRules`), `bin_shares` and
+  `population_stability_index` (threshold 0.10); severities DEC-30; seeded tests in
+  `tests/unit/test_profile.py`.
 - Row accounting (2): `CleaningRules.scala` (`balanced`, `requireBalanced`).
 - Contracts: `pipelines/contracts/*.yaml`; enforcement at ingest found unreachable and fixed by
   EXP-4. Identifier nulls: DEC-08. Cleaning policy gate: DEC-12.

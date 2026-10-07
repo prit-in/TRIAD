@@ -38,7 +38,12 @@ from typing import Any
 
 from experiments.harness import Experiment
 
-CUSTOMERS = 400
+# 2 000, not the 400 of the first run. At 400 customers the validation split had 324 rows,
+# where a perfectly calibrated model exceeds AP-5's ECE limit 40-46% of the time
+# (`experiments/calibration_noise_floor.py`); at about 1 600 rows that share is about 0%, so
+# the calibration verdict describes the model rather than the sample. Chosen from the noise
+# floor, which involves no model and no test data - not from any result of this experiment.
+CUSTOMERS = 2_000
 MONTHS = 24
 SEED = 42
 DATA_START = "2024-01-01"
@@ -144,7 +149,10 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
             trial.record("stop_reason", prepared.reason[:300])
             trial.observations["details"] = prepared.details
 
-        state = prepared.details if prepared.ok else {}
+        # An escalated run carries its selection too: since DEC-27 a candidate that failed a
+        # calibration or segment rule is still scored once on the test cutoff, so its own test
+        # PR-AUC exists and is read below, beside the policy's verdict on it.
+        state = prepared.details or {}
         selection = state.get("selection") or {}
         # `to_dict` writes `selected_family`, `test` and `valid` - not the attribute names.
         chosen_family = selection.get("selected_family")
@@ -185,10 +193,10 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
         trial.observations["quarantine_by_rule"] = clean_metrics.get("quarantined_by_rule")
 
         # --- the model: PR-AUC and calibration ----------------------------------
-        # Absent when the run escalated, and absent is what gets recorded. A condition whose
-        # model the acceptance policy refused has no test PR-AUC, and inventing one - or
-        # reading the last good model's - would be the whole point of this experiment thrown
-        # away.
+        # The selected candidate's own figures, scored once on the sealed test cutoff, whether
+        # or not the acceptance policy then accepted it; the policy's verdict is recorded beside
+        # them. Absent only when selection stopped before scoring (a floor or leakage rule), and
+        # then absent is what gets recorded - never the last good model's.
         test_metrics = (selection.get("test") or {}).get("values", {}) or {}
         # The winner's validation metrics are not in the serialised selection - `rejected`
         # holds the families that lost. The test split is what the hypothesis is about, so the
@@ -199,6 +207,11 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
         trial.record("test_ece", _round(test_metrics.get("ece")))
         trial.record("churn_rate", _round(state.get("cutoffs", {}).get("churn_rate")))
         trial.record("selection_outcome", selection.get("outcome"))
+        trial.record("failed_rules", selection.get("failed_rules") or [])
+        trial.record("valid_rows",
+                     (((selection.get("verdicts") or {}).get(chosen_family) or {})
+                      .get("evidence") or {}).get("ece_n_rows"),
+                     note="the split AP-5's ECE is measured on")
         trial.record("quality_score", _round(state.get("quality_score")))
         trial.observations["selection"] = selection
 
@@ -224,7 +237,9 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
         trial.record("wall_clock_s", round(time.perf_counter() - started, 1), "s")
         q.set_state(session, run, "CANCELLED", actor="exp05")
 
-    trial.ok = bool(trial.get("prepare_ok"))
+    # A condition succeeded as a measurement when it produced the model's test figures, which
+    # an escalated run now does; whether the policy accepted the model is `prepare_ok`.
+    trial.ok = bool(trial.get("prepare_ok")) or isinstance(trial.get("test_pr_auc"), (int, float))
     stopped = next(
         (m.value for m in trial.measurements if m.name == "stop_reason"), ""
     )
@@ -276,7 +291,7 @@ def run() -> Experiment:
         for name, overrides in CONDITIONS.items():
             _run_one(exp, name, overrides)
 
-        ok = [t for t in exp.trials if t.get("prepare_ok")]
+        ok = [t for t in exp.trials if t.ok]
         if not ok:
             exp.conclude(
                 status="failed",
@@ -349,7 +364,12 @@ def run() -> Experiment:
                 + f". Row accounting balanced in every completed condition: {balanced}, so no "
                 "rows were lost silently at any null rate. Quarantine rises with the key-null "
                 f"rate: {quarantine_rises}. "
-                "Approval requests: "
+                "Policy outcome: "
+                + ", ".join(f"{t.condition} {t.get('selection_outcome')}"
+                            + (f" ({', '.join(t.get('failed_rules'))})"
+                               if t.get("failed_rules") else "")
+                            for t in ok)
+                + ". Approval requests: "
                 + ", ".join(f"{t.condition}={t.get('approval_requests')}" for t in ok)
                 + ". The 5% limit in the cleaning.execute policy is compared against "
                 "rows_affected_pct, recorded above for each condition."

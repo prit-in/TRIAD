@@ -6,16 +6,17 @@ reading the code and the tests rather than by reading the earlier status documen
 **The point of this document is the "not met" column.** A traceability matrix that maps every
 requirement to a tick is a matrix nobody checked.
 
-Verified on 23-09-2026 against commit `b46d8f5`, with 473 unit tests, 84 security tests,
-21 Scala tests and 9 smoke checks passing, and with all ten experiments run.
+Verified on 08-10-2026: 725 Python tests passing (unit, security and smoke; one smoke check
+skipped because it needs the Docker CLI inside the test container) and 33 Scala tests passing,
+on the code committed that day. The experiments are re-run on the same code (EXPERIMENTS.md).
 
 ## Summary
 
 | Category | Count | Met | Partly met | Not met |
 | --- | --- | --- | --- | --- |
 | Functional — Must | 65 | 65 | 0 | 0 |
-| Functional — Should | 16 | 7 | 3 | 6 |
-| Functional — Could | 3 | 1 | 0 | 2 |
+| Functional — Should | 16 | 11 | 1 | 4 |
+| Functional — Could | 3 | 2 | 0 | 1 |
 | Acceptance tests (AT) | 16 | 12 | 1 | 3 |
 | Agentic acceptance (ATC) | 18 | 14 | 1 | 3 |
 | Experiments (EXP) | 10 | 10 run | — | 0 |
@@ -55,7 +56,7 @@ gates it claims were called by nothing at all.
 | FR-016..019 | Nulls, duplicates, quarantine, safe conversion | met | `CleaningRules.scala`; `CleaningRulesSpec` TC-016..TC-023 |
 | FR-020 | Text and unit normalisation | met | `CleaningRules.normaliseText`; TC-020 |
 | FR-021 | Category vocabulary management | **partly met** (Should) | Values are normalised and unseen categories are handled, but there is no managed vocabulary a person can edit |
-| FR-022 | Anomaly detection in cleaning | **not met** (Should) | Rule-based quarantine only |
+| FR-022 | Anomaly detection in cleaning | met since 08-10-2026 | The profiler reports daily volume anomalies (modified z-score beyond 3.5), breaches of the rules cleaning quarantines on (non-positive price, zero quantity, with example keys), and PSI shift against the previous version's own bins, each as an issue with its evidence (DEC-30). Seeded anomalies: `tests/unit/test_profile.py` (spike day, four bad prices, a shifted price, ties) |
 | FR-023 | Row accounting and cleaning report | met | `input = output + quarantined + removed_duplicates`, enforced in the job and reported. Observed: 18333 + 649 + 172 = 19154 |
 
 ### Features and labels (FR-024 to FR-030)
@@ -76,8 +77,8 @@ gates it claims were called by nothing at all.
 | --- | --- | --- | --- |
 | FR-031..034 | Distributed transformations, joins, windows, partitioning | met | `scala_spark/`, run on real data at every demo run |
 | FR-035 | Caching decisions | **not met** (Should) | Nothing decides what to cache |
-| FR-036 | Execution metrics and shuffle analysis | **partly met** (Should) | `executions` records duration, exit code, Spark application id and job metrics; there is no shuffle analysis |
-| FR-037 | Configuration optimisation loop | **not met** (Should) | The budget counts optimisation cycles; no loop spends them |
+| FR-036 | Execution metrics and shuffle analysis | met since 08-10-2026 | `TriadJob` registers `StageMetricsListener`; every stage's duration, tasks, shuffle read/write, spill, GC time and task skew (slowest over median task) is stored on its execution and served by `GET /pipelines/{id}/executions`, drawn on the run page (DEC-29). `StageMetricsSpec` (TC-036), `test_spark_stage_metrics_are_summed_and_kept_per_stage`, `test_executions_serve_their_spark_stage_metrics` |
+| FR-037 | Configuration optimisation loop | met since 08-10-2026 | `agents/optimizer.py`: shuffle partitions changed from the previous run's measured stages (OPT-1 spill, OPT-2 tiny reduce tasks), within 2-64, applied to the next run only, each change recorded with its before-and-after comparison (DEC-31). `tests/unit/test_optimizer.py`. The loop does not spend the budget's optimisation cycles, which count model tuning |
 | FR-038 | Template-based Scala generation | met | `agents/codegen/templates.py`; out-of-slot changes are a checked property |
 | FR-039 | DataFrame and Spark SQL operations | met | the three job templates |
 | FR-040 | Typed Dataset operations | **not met** (Should) | Everything is untyped `DataFrame` |
@@ -128,7 +129,7 @@ gates it claims were called by nothing at all.
 | FR-069 | Execution timeline | met | `/pipelines/{id}/logs`, redacted; the run page |
 | FR-070 | Agent decision log | met | `/pipelines/{id}/decisions`; the run page |
 | FR-071 | Business report with claim verification | met | **no digit reaches the report without a fact sheet entry**; `tests/unit/test_reports.py` |
-| FR-072 | Report export | **partly met** (Should) | HTML is served, shown in a sandboxed frame on the Report page and downloadable from it; PDF is not produced, and the page says so where the PDF button would be rather than offering one that 404s |
+| FR-072 | Report export | met since 08-10-2026 | HTML is served, shown in a sandboxed frame and downloadable; PDF is printed by the browser from the same document, in a separate sandboxed frame, so the export matches the on-screen report by construction (DEC-32). The server stores HTML only |
 
 ### Orchestration and governance (FR-073 to FR-084)
 
@@ -145,7 +146,7 @@ gates it claims were called by nothing at all.
 | FR-081 | Drift detection | met | PSI with KS and chi-square; `tests/unit/test_drift.py` |
 | FR-082 | Cancel and resume | met | both endpoints, with ownership and state checks |
 | FR-083 | Memoisation and incremental reruns | met | `StageRunner._memo_key` over stage, inputs and config hash |
-| FR-084 | Internal notifications | **not met** (Could) | Alerts are stored and served; nothing delivers them anywhere |
+| FR-084 | Internal notifications | met since 08-10-2026 (in-app) | `frontend/src/notifications.tsx`: a bell polls pending approvals and open alerts every 15 s while the tab is visible, counts what waits on this role, and announces new arrivals; checked in the browser on 08-10-2026. The optional webhook is not built |
 
 ## Acceptance tests
 

@@ -27,12 +27,12 @@ How to read it:
 | FR-009..015 profiling, outliers, duplicates, quality score | M03 | `dataeng/profile.py` | `tests/unit/test_profile.py` | 7, Eq. 1 | profile JSON per version | met |
 | FR-016..020, FR-023 cleaning, quarantine, row accounting | M04, M06 | `scala_spark/core/.../CleaningRules.scala`, generated `CleanJob_*` | `CleaningRulesSpec.scala`, `GeneratedJobsFixtureSpec.scala` | 7, Table 5, Eq. 2 | EXP-5 (accounting balanced at every null rate) | met |
 | FR-021 category vocabulary | M04 | normalisation in `CleaningRules.scala` | `CleaningRulesSpec.scala` | 7 (limitation stated) | - | partly met |
-| FR-022 anomaly detection | M03, M04 | - | - | 20 | - | not met |
+| FR-022 anomaly detection | M03, M04 | `dataeng/profile.py` (`detect_anomalies`, `bin_shares`) | `tests/unit/test_profile.py` (seeded spike, breaches, shift) | 7, Eq. 7 | issues with evidence in every profile | met (DEC-30) |
 | FR-025..030 churn features, point-in-time, labels | M05, M06 | `ChurnTransforms.scala`, `LabelJob.scala`, `agents/graph/churn.py` | `ChurnTransformsSpec.scala`, `FeatureCatalogueSpec.scala`, `test_feature_hygiene.py` | 7, 8 | feature catalogue; EXP-9 (leakage) | met |
 | FR-031..034 Spark transformations, joins, windows, partitioning | M05, M06 | `ChurnTransforms.scala`, `TriadJob.scala` | `ChurnTransformsSpec.scala` | 9, Table 6 | EXP-2, EXP-3 | met |
 | FR-035 caching decisions | M05 | - | - | 20 | - | not met |
-| FR-036 execution metrics and shuffle analysis | M05, M16 | `TriadJob.scala`, `StageMetrics.scala`, `executions.metrics_json` | `StageMetricsSpec.scala` | 9, 15 | per-stage metrics on every execution | in progress (08-10-2026) |
-| FR-037 configuration optimisation loop | M11 | - | - | 20, 21 | - | not met |
+| FR-036 execution metrics and shuffle analysis | M05, M16 | `TriadJob.scala`, `StageMetrics.scala`, `/pipelines/{id}/executions` | `StageMetricsSpec.scala` (TC-036), `test_api.py`, `test_queue_and_sandbox.py` | 9, 13, 15 | per-stage metrics on every execution; EXP-3 | met (DEC-29) |
+| FR-037 configuration optimisation loop | M11 | `agents/optimizer.py`, `ChurnPipeline._plan_shuffle_partitions` | `tests/unit/test_optimizer.py` | 9, 11 | `spark_setting` and `spark_setting_outcome` decision records | met (DEC-31) |
 | FR-038, FR-039, FR-041 template generation, compile, package | M06, M08 | `agents/codegen/`, `scala_spark/build.sbt` | `test_codegen.py`, `GeneratedJobsFixtureSpec.scala` | 6, 9 | gate results on every `code_artifacts` row | met |
 | FR-040 typed Dataset operations | M06 | - | - | 9 (stated as untyped) | - | not met |
 | FR-042, FR-056 mediated job submission | M06, M07 | `sandbox/runner.py`, `sandbox/service.py` (ADR-0004) | `test_sandbox_runner.py`, `tests/security/test_sandbox_isolation.py` | 9, 12, Eq. 4 | sandbox containers with no network, read-only inputs | met |
@@ -48,16 +48,16 @@ How to read it:
 | FR-063 untrusted content | M08 | `agents/llm/` | `test_injection.py` | 12 | - | met |
 | FR-064..068, FR-071 reports, charts, claim check | M14 | `python_ml/triad_ml/reports.py` | `test_reports.py` | 10, 17 | claim-checked reports in `reports/` | met |
 | FR-069 execution timeline | M15 | `frontend/src/pages/Runs.tsx`, `/pipelines/{id}/logs` | `test_api.py` | 11 | run page timeline | met |
-| FR-072 report export | M14, M15 | HTML download; PDF printed from the same document (`frontend/src/pages/Reports.tsx`) | browser check | 10 | - | in progress (08-10-2026) |
+| FR-072 report export | M14, M15 | HTML download; PDF printed from the same document (`frontend/src/pages/Reports.tsx`) | browser check | 10 | - | met (DEC-32) |
 | FR-073, PRD 12.2-12.4 enforced state machine | M07 | `agents/graph/state.py`, `queue.set_state` | `test_state_machine.py` | 6, 11 | transitions in `audit_logs` | met |
 | FR-074 triggers and scheduling | M07 | `agents/scheduler.py`, `agents/retraining.py` | `test_triggers.py`, `test_worker.py` | 11 | trigger type on every run | met |
-| FR-075, PRD 30 approvals and promotion despite a failed check | M18 | `triad_core/governance.py`, `backend/app/api/v1/approvals.py`, `pipelines.py` | `test_governance.py`, `test_override_path.py` | 12, 17 | approvals with `group_id`; `override_evidence.json` | met |
+| FR-075, PRD 30 approvals and promotion despite a failed check | M18 | `triad_core/governance.py`, `backend/app/api/v1/approvals.py` (incl. `/approvals/{id}/evidence`), `pipelines.py`, `frontend/src/pages/Approvals.tsx` | `test_governance.py`, `test_override_path.py` | 12, 17 | approvals with `group_id`; `override_evidence.json`; the override recorded on the model card; run-2026-10-07-001 | met |
 | FR-076, FR-077 registry aliases, rollback, experiment tracking | M12 | `python_ml/triad_ml/registry.py`, MLflow | `test_ml.py`, `test_audit_findings_2026_10.py` | 8, 10 | champion and challenger aliases; model cards | met |
 | FR-078 tamper-evident audit | M17 | `triad_core/audit.py` | `test_governance.py`, `tests/security/test_refusals_are_audited.py` | 12 | `/audit-logs/verify` | met |
 | FR-079 authentication and roles | M01 | `backend/app/security.py`, `deps.py` | `tests/security/test_endpoint_authorisation.py` | 12, Table 7 | role checks on every endpoint | met |
 | FR-080, FR-081 monitoring and drift | M16 | `agents/monitoring.py`, `python_ml/triad_ml/drift.py` | `test_monitoring.py`, `test_drift.py` | 10, Eq. 7 | EXP-7 (PSI under seeded drift) | met |
 | FR-082, FR-083 cancel, resume, memoisation | M07 | `queue.py`, `pipeline.py` | `test_queue_and_sandbox.py` | 11 | replayed runs | met |
-| FR-084 in-app notifications | M15 | `frontend/src/notifications.tsx` (polls approvals and alerts) | browser check | 12 | - | in progress (08-10-2026) |
+| FR-084 in-app notifications | M15 | `frontend/src/notifications.tsx` (polls approvals and alerts) | browser check, 08-10-2026 | 12 | - | met, in-app only; webhook not built |
 | FR-004, FR-008 JDBC ingestion, streaming connector | M02 | - | - | 20, 21 | - | not met |
 | ST-05 TLS | - | - | - | 12, 20 | - | not met |
 | ST-06, ST-07 sandbox egress and limits | M06 | `sandbox/runner.py` | `tests/security/test_sandbox_isolation.py` | 12 | ADR-0004 | met |
@@ -72,5 +72,5 @@ How to read it:
 - A row marked **not met** is never described as built. It appears in Section 20 (Challenges and
   Limitations) or Section 21 (Future Research Directions), and where a reader would expect it - for
   example JDBC ingestion in Section 7 - with one sentence saying it is not built.
-- Rows marked **in progress** are being built on 08-10-2026; this file and
-  `REQUIREMENTS_TRACEABILITY.md` are updated when their tests pass, and not before.
+- A status changes here only after `REQUIREMENTS_TRACEABILITY.md` has changed, and that file
+  changes only when a requirement's test passes.
