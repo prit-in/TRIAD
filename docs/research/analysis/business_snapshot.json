@@ -1,0 +1,182 @@
+{
+  "run": "run-2026-10-07-001",
+  "state": "PUBLISHED",
+  "model": "churn_classifier v18",
+  "algorithm": "hist_gb",
+  "governance_status": "champion",
+  "test_cutoff_rows": 6814,
+  "test_prevalence": 0.28470795421191664,
+  "test_values": {
+    "pr_auc": 0.6967371301812506,
+    "roc_auc": 0.8395699461480866,
+    "precision": 0.7457912457912458,
+    "recall": 0.45670103092783504,
+    "threshold": 0.5355648535564853,
+    "lift_at_10pct": 2.9811314470835795,
+    "lift_at_20pct": 2.5073639863551445,
+    "brier_skill": 0.32114691951674235,
+    "ece": 0.018674796293330263
+  },
+  "cumulative_gain": [
+    {
+      "cumulative_gain": 0.167526,
+      "k": 0.05,
+      "lift": 3.347568
+    },
+    {
+      "cumulative_gain": 0.297938,
+      "k": 0.1,
+      "lift": 2.981131
+    },
+    {
+      "cumulative_gain": 0.406186,
+      "k": 0.15,
+      "lift": 2.708169
+    },
+    {
+      "cumulative_gain": 0.501546,
+      "k": 0.2,
+      "lift": 2.507364
+    },
+    {
+      "cumulative_gain": 0.584536,
+      "k": 0.25,
+      "lift": 2.337458
+    },
+    {
+      "cumulative_gain": 0.65567,
+      "k": 0.3,
+      "lift": 2.185781
+    },
+    {
+      "cumulative_gain": 0.713402,
+      "k": 0.35,
+      "lift": 2.038206
+    },
+    {
+      "cumulative_gain": 0.760825,
+      "k": 0.4,
+      "lift": 1.901783
+    },
+    {
+      "cumulative_gain": 0.806186,
+      "k": 0.45,
+      "lift": 1.791699
+    },
+    {
+      "cumulative_gain": 0.851031,
+      "k": 0.5,
+      "lift": 1.702062
+    },
+    {
+      "cumulative_gain": 0.881959,
+      "k": 0.55,
+      "lift": 1.603433
+    },
+    {
+      "cumulative_gain": 0.908763,
+      "k": 0.6,
+      "lift": 1.514753
+    },
+    {
+      "cumulative_gain": 0.936082,
+      "k": 0.65,
+      "lift": 1.440159
+    },
+    {
+      "cumulative_gain": 0.95,
+      "k": 0.7,
+      "lift": 1.357086
+    },
+    {
+      "cumulative_gain": 0.962371,
+      "k": 0.75,
+      "lift": 1.283287
+    },
+    {
+      "cumulative_gain": 0.978351,
+      "k": 0.8,
+      "lift": 1.222983
+    },
+    {
+      "cumulative_gain": 0.987629,
+      "k": 0.85,
+      "lift": 1.161896
+    },
+    {
+      "cumulative_gain": 0.991753,
+      "k": 0.9,
+      "lift": 1.101875
+    },
+    {
+      "cumulative_gain": 0.996907,
+      "k": 0.95,
+      "lift": 1.049425
+    },
+    {
+      "cumulative_gain": 1.0,
+      "k": 1.0,
+      "lift": 1.0
+    }
+  ],
+  "risk_bands_official": {
+    "medium": 1489,
+    "high": 677,
+    "low": 4648
+  },
+  "champion_delta_pr_auc": {
+    "lower_95": 0.07257208155436892,
+    "mean": 0.08507624333221507,
+    "upper_95": 0.09933536313521238
+  },
+  "segment_threshold_review": {
+    "applied": false,
+    "flagged_share_global": 0.1525,
+    "flagged_share_segment_aware": 0.176,
+    "gap_at_segment_thresholds": 0.0366,
+    "global_threshold": 0.5355648535564853,
+    "note": "Analysis only (PRD 19.4, first remedy for SEGMENT_RECALL_GAP). Applying an operating threshold per group is a decision for the ML Engineer the second remedy escalates to.",
+    "segmentation": "tenure_band",
+    "segments": [
+      {
+        "flagged_share": 0.1473,
+        "positives": 845,
+        "recall_at_global_threshold": 0.4947,
+        "recall_at_segment_threshold": 0.4237,
+        "rows": 2905,
+        "segment": "tenure_band=1-2 years",
+        "segment_threshold": 0.636029
+      },
+      {
+        "flagged_share": 0.1888,
+        "positives": 557,
+        "recall_at_global_threshold": 0.4578,
+        "recall_at_segment_threshold": 0.4578,
+        "rows": 1796,
+        "segment": "tenure_band=6-12 months",
+        "segment_threshold": 0.535565
+      },
+      {
+        "flagged_share": 0.2145,
+        "positives": 378,
+        "recall_at_global_threshold": 0.164,
+        "recall_at_segment_threshold": 0.4603,
+        "rows": 1562,
+        "segment": "tenure_band=under 6 months",
+        "segment_threshold": 0.366609
+      }
+    ],
+    "target_recall": 0.4129
+  },
+  "segment_recall_gaps": {
+    "acquisition_channel": 0.04701309449912805,
+    "country": 0.07058492688413948,
+    "loyalty_tier": 0.05226480836236935,
+    "tenure_band": 0.33065339219185375
+  },
+  "sources": [
+    "reports/run-2026-10-07-001/evaluation.json",
+    "reports/run-2026-10-07-001/run_state.json",
+    "predictions (official set) in the platform database"
+  ]
+}

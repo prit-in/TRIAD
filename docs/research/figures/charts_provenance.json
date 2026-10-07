@@ -1,0 +1,90 @@
+{
+  "Fig 21": [
+    {
+      "file": "experiments/EXP-1/latest.json",
+      "experiment": "EXP-1",
+      "started_at": "2026-09-21T20:48:25.175539+00:00",
+      "status": "partial",
+      "hypothesis_held": true
+    }
+  ],
+  "Fig 22": [
+    {
+      "file": "experiments/EXP-2/latest.json",
+      "experiment": "EXP-2",
+      "started_at": "2026-09-21T20:40:46.148722+00:00",
+      "status": "partial",
+      "hypothesis_held": false
+    },
+    {
+      "file": "experiments/EXP-3/latest.json",
+      "experiment": "EXP-3",
+      "started_at": "2026-10-07T21:57:40.255018+00:00",
+      "status": "partial",
+      "hypothesis_held": false
+    }
+  ],
+  "Fig 23": [
+    {
+      "file": "experiments/EXP-8/latest.json",
+      "experiment": "EXP-8",
+      "started_at": "2026-09-21T20:21:08.922077+00:00",
+      "status": "partial",
+      "hypothesis_held": null
+    }
+  ],
+  "Fig 24": [
+    {
+      "file": "experiments/EXP-1/latest.json",
+      "experiment": "EXP-1",
+      "started_at": "2026-09-21T20:48:25.175539+00:00",
+      "status": "partial",
+      "hypothesis_held": true
+    }
+  ],
+  "Fig 25": [
+    {
+      "file": "experiments/EXP-4/latest.json",
+      "experiment": "EXP-4",
+      "started_at": "2026-09-19T04:49:57.266698+00:00",
+      "status": "partial",
+      "hypothesis_held": true
+    },
+    {
+      "file": "experiments/EXP-6/latest.json",
+      "experiment": "EXP-6",
+      "started_at": "2026-09-19T06:36:29.980726+00:00",
+      "status": "partial",
+      "hypothesis_held": false
+    },
+    {
+      "file": "experiments/EXP-8/latest.json",
+      "experiment": "EXP-8",
+      "started_at": "2026-09-21T20:21:08.922077+00:00",
+      "status": "partial",
+      "hypothesis_held": null
+    },
+    {
+      "file": "experiments/EXP-9/latest.json",
+      "experiment": "EXP-9",
+      "started_at": "2026-10-07T21:56:17.713949+00:00",
+      "status": "completed",
+      "hypothesis_held": true
+    },
+    {
+      "file": "experiments/EXP-10/latest.json",
+      "experiment": "EXP-10",
+      "started_at": "2026-10-07T21:56:39.502992+00:00",
+      "status": "completed",
+      "hypothesis_held": true
+    },
+    {
+      "file": "docs/research/analysis/trust_scores.json"
+    }
+  ],
+  "Fig 28": [
+    {
+      "file": "docs/research/analysis/business_snapshot.json"
+    }
+  ]
+}

@@ -71,15 +71,22 @@ def components(session, run, chain_ok_scopes: set[str] | None) -> dict[str, floa
     out["claims"] = (sum(r.claim_check_status == "passed" for r in checked) / len(checked)
                      if checked else None)
 
+    # A promotion, or a promotion despite a failed check (PRD section 30): every approval that
+    # took effect was decided by someone other than its requester and the run's starter, and the
+    # shares of one override were decided by different people.
     approvals = session.execute(
         select(Approval).where(Approval.run_id == run.id,
-                               Approval.action_type == "model_promotion")
+                               Approval.action_type.in_(("model_promotion", "policy_override")))
     ).scalars().all()
     decided = [a for a in approvals if a.status == "approved"]
+    starter = str(run.triggered_by or "")
+    shares = [str(a.decided_by) for a in decided if a.group_id is not None]
     out["approval"] = (
         None if not decided else
-        float(all(a.decided_by is not None and str(a.decided_by) != str(a.requested_by)
-                  for a in decided))
+        float(all(a.decided_by is not None
+                  and str(a.decided_by) not in (str(a.requested_by), starter)
+                  for a in decided)
+              and len(set(shares)) == len(shares))
     )
 
     stored = all((a.gate_results or {}).get("gates") and any(

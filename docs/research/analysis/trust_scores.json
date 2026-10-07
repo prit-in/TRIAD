@@ -1,0 +1,65 @@
+{
+  "equation": "TS = mean of applicable components (Section 10.5)",
+  "tau": 0.05,
+  "chain_verified": true,
+  "chain_entries": 1834,
+  "runs": [
+    {
+      "run": "run-2026-10-07-001",
+      "state": "PUBLISHED",
+      "trust_score": 1.0,
+      "components": {
+        "chain": 1.0,
+        "gates": 1.0,
+        "calib": 1.0,
+        "claims": 1.0,
+        "approval": 1.0,
+        "lineage": 1.0
+      },
+      "applicable": [
+        "approval",
+        "calib",
+        "chain",
+        "claims",
+        "gates",
+        "lineage"
+      ]
+    },
+    {
+      "run": "run-2026-10-04-006",
+      "state": "ESCALATED",
+      "trust_score": 1.0,
+      "components": {
+        "chain": 1.0,
+        "gates": 1.0,
+        "calib": null,
+        "claims": null,
+        "approval": null,
+        "lineage": 1.0
+      },
+      "applicable": [
+        "chain",
+        "gates",
+        "lineage"
+      ]
+    },
+    {
+      "run": "run-2026-10-04-004",
+      "state": "ESCALATED",
+      "trust_score": 1.0,
+      "components": {
+        "chain": 1.0,
+        "gates": 1.0,
+        "calib": null,
+        "claims": null,
+        "approval": null,
+        "lineage": 1.0
+      },
+      "applicable": [
+        "chain",
+        "gates",
+        "lineage"
+      ]
+    }
+  ]
+}

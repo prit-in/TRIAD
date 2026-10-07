@@ -380,10 +380,11 @@ class TestAuditChainUnderConcurrency:
         from triad_core.models import AuditLog
 
         # A committed run of its own, so the appended entries belong to a chain no other
-        # test or run touches.
+        # test or run touches - under a pipeline name of its own too: as `churn_v1` it joined
+        # that pipeline's run history on every test run, as a cancelled run nobody started.
         with session_scope() as setup:
             run = q.create_run(
-                setup, pipeline_name="churn_v1", trigger_type="manual",
+                setup, pipeline_name="test_audit_race", trigger_type="manual",
                 triggered_by="concurrency-test",
                 idempotency_key=f"audit-race-{uuid.uuid4()}",
             )

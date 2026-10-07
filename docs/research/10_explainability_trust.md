@@ -88,8 +88,9 @@ where $A(r)$ is the set of components that apply to run $r$, and the components 
 - $s_{\mathrm{claims}}$: 1 if the run's report passed its claim check, 0 if it failed; not
   applicable if the run produced no report;
 - $s_{\mathrm{approval}}$: 1 if every promotion in the run was approved by a person other than its
-  requester, 0 if any promotion took effect without such an approval; not applicable if nothing
-  was promoted;
+  requester and the run's starter - and, for a promotion despite a failed check, each required
+  share by a different person - and 0 if any promotion took effect without such an approval; not
+  applicable if nothing was promoted;
 - $s_{\mathrm{lineage}}$: 1 if the run recorded its input versions and every output it published
   has a manifest with a content hash, otherwise 0.
 
