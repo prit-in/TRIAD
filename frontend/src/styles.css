@@ -368,11 +368,15 @@ dialog.confirm h2 { margin-top: 0; }
 
 .toasts { position: fixed; right: 1rem; bottom: 1rem; display: grid; gap: 0.5rem;
           z-index: 50; max-width: 26rem; }
-.toast { background: var(--card); border: 1px solid var(--line); border-left-width: 4px;
+.toast { background: var(--card); border: 1px solid var(--line);
          border-radius: var(--radius); padding: 0.6rem 0.8rem; display: flex;
          align-items: center; gap: 0.75rem; box-shadow: 0 6px 20px rgba(17,24,39,0.12); }
-.toast.good { border-left-color: var(--good); }
-.toast.bad { border-left-color: var(--bad); }
+/* Tone as a tint of the whole toast rather than a stripe down one edge; the message itself says
+   what happened, so the colour only supports it. */
+.toast.good { border-color: color-mix(in srgb, var(--good) 45%, var(--line));
+              background: color-mix(in srgb, var(--good) 7%, var(--card)); }
+.toast.bad { border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+             background: color-mix(in srgb, var(--bad) 7%, var(--card)); }
 .toast button { margin: 0; font-size: 1.1rem; line-height: 1; }
 
 .search input { min-width: 14rem; }
@@ -442,6 +446,7 @@ tr.spark-stages > td { background: var(--bg); padding: 0.5rem 0.75rem; }
 tr.spark-stages table { font-size: 0.85rem; }
 details.evidence { margin: 0.5rem 0; }
 details.evidence > summary { cursor: pointer; color: var(--accent); }
-.override-note { margin: 0.75rem 0; padding: 0.5rem 0.9rem; border-left: 3px solid var(--waiting); background: var(--bg); }
+.override-note { margin: 0.75rem 0; padding: 0.5rem 0.9rem; border: 1px solid var(--line);
+                 border-radius: 6px; background: var(--bg); }
 .risk-notes { margin: 0.5rem 0; padding-left: 1.2rem; }
 .segment-check h4 { margin: 0.9rem 0 0.4rem; font-size: 0.95rem; }
