@@ -11,8 +11,8 @@ the next-generation ecosystem they point towards (Fig. 31).
 The most immediate finding of this work is that acceptance rules written as fixed thresholds on
 point estimates do not behave as intended on the data sizes a single team sees. A perfectly
 calibrated model fails a 0.05 calibration-error limit about half the time on a few hundred rows, and
-a model whose recall is identical in every segment fails a 0.10 recall-gap limit most of the time at
-every size measured here (Section 15). The direction is to express each rule as a statement about an
+a model whose recall is identical in every segment fails a 0.10 recall-gap limit between 40% and
+97% of the time on validation splits of 494 to 8 000 rows (Section 15). The direction is to express each rule as a statement about an
 interval - for instance, refusing a model only when the lower confidence bound of its segment gap
 exceeds the limit, or requiring the upper bound of its calibration error to fall below it - with
 the error rates of both kinds stated alongside the threshold, and to study how such rules interact

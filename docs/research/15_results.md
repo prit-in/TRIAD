@@ -72,6 +72,26 @@ champion alias, a requester approving their own promotion, instructions hidden i
 and a run continuing after its language-model budget was spent. All four were refused, the
 refusals were written to the audit trail, and the hash chain still verified across 101 chains.
 
+## 15.7 The acceptance policy at the sizes it meets
+
+Two of the experiments escalated in ways that raised the question whether the acceptance policy
+was measuring the model or the sample, so the policy's two point-threshold rules were measured
+directly, with no model involved. For calibration, labels were drawn from scores that are
+exactly their own probabilities - a perfectly calibrated predictor by construction - and the
+standard ten-bin calibration error was computed 20 000 times at each split size. At 324 rows, the
+validation size of the first missing-value experiment, it exceeded AP-5's 0.05 limit in 40% to
+46% of draws; at 650 rows in 4% to 7%; from 1 300 rows almost never. The limit is sound, but
+below about a thousand rows it refuses perfectly calibrated models about as often as it accepts
+them. For segment fairness, a model whose recall is identical in every segment was simulated
+with the platform's own segmentations and its rule that a segment needs 50 rows and 30 churners:
+it failed AP-6's 0.10 recall-gap limit in 65.5% of draws at 494 validation rows, 97.1% at 1 000,
+95.1% at 2 000, 80.9% at 4 000, and 39.6% at 8 000. The rate first rises because more segments
+pass the size rule and each is compared with every other, then falls as each segment's recall is
+measured on more churners. A tenure-band gap of 0.331 on 6 263 rows, as in the published run, is
+far outside this noise; a gap of 0.115 on 494 rows, which escalated an earlier run, is well
+inside it. The policy's verdicts are therefore informative at production sizes and unreliable at
+the sizes of a pilot, which is the case for stating such rules as intervals (Section 21).
+
 ---
 
 ## Evidence (not part of the manuscript)
@@ -82,3 +102,7 @@ refusals were written to the audit trail, and the hash chain still verified acro
 - EXP-7: `experiments/EXP-7/latest.json` (07-10-2026 21:57 UTC), `raw/thresholds.json`.
 - EXP-9: `experiments/EXP-9/latest.json` (07-10-2026 21:56 UTC).
 - EXP-10: `experiments/EXP-10/latest.json` (07-10-2026 21:56 UTC).
+- 15.7: `experiments/EXP-5/calibration_noise_floor.json` (20 000 trials per cell; 324 rows:
+  share above 0.05 = 0.421/0.458/0.404 across three concentrations); `experiments/policy_floors/
+  segment_gap_noise_floor.json` (false-alarm rate, all four segmentations: 0.655, 0.971, 0.951,
+  0.809, 0.396); published run's validation rows for AP-5/AP-6: 6 263 (`ece_n_rows`).

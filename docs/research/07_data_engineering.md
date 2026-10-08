@@ -61,6 +61,14 @@ one inflated order counts and revenue and, through the label, made a customer wh
 activity was a cancellation appear retained. That defect was found by auditing the feature
 definitions against the data, and its fix is covered by a hand-checked fixture.
 
+The plan conforms types before any rule reads a value. A column the contract declares numeric
+that arrives as text - prices written as "INR 871.59", for instance - is converted with a safe
+cast after its unit is removed, and the currency code is removed only where it matches the row's
+own currency: an amount in another currency, or one with a thousands separator, is not guessed
+at but quarantined with its original text. Without this step a single text price failed the
+whole job, because comparing text with a number is an error under the ANSI rules the platform
+keeps on.
+
 No rule deletes a row. A row that cannot be used goes to a run-scoped quarantine partition with a
 reason code, and every cleaning job must balance its row accounting,
 
@@ -137,6 +145,8 @@ Section 15 reports how often each happened under injected faults.
 ## Evidence (not part of the manuscript)
 
 - Quality score (1): `dataeng/profile.py`, function computing the four dimensions (FR-015).
+- Type conformance (FR-019, FR-020): `CleaningRules.conformNumeric`, the CleanJob plan; DEC-36;
+  `CleaningRulesSpec` TC-019b/c; EXP-4 price condition.
 - Anomalies (FR-022): `dataeng/profile.py` `detect_anomalies`, `daily_volume_anomalies`
   (modified z-score 3.5, Iglewicz-Hoaglin, first and last day excluded), `BUSINESS_RULES` (the
   rules of `CleaningRules.standardTransactionRules`), `bin_shares` and
