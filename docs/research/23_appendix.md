@@ -45,6 +45,13 @@ for attempt in 1..k:
 escalate with the diagnoses
 ```
 
+The gates run in order of cost. The four static gates take from a fraction of a second to about
+forty seconds and stop most faults before any data is read (Section 15); the fixture and sample
+runs cost a sandbox start each; and only a job that has passed them all runs on the full input.
+The circuit breaker ends a repair loop that is making no progress: an attempt that fails with an
+error fingerprint already seen stops the stage at once, rather than spending the rest of the
+budget on a remedy that has already failed.
+
 **Algorithm 3. Model selection (stages A to E).**
 
 ```text
@@ -60,6 +67,12 @@ E: AP-8 against the champion: paired bootstrap, equation (10)
    if a rule in C failed: ESCALATE (override-eligible if AP-8 holds or there is no champion)
    elif no champion or AP-8 holds: PROPOSE; else KEEP the champion
 ```
+
+AP-2 encodes a preference for the simpler model: logistic regression is kept unless another family
+beats its validation PR-AUC by at least 0.01, because a model whose reasons are an exact
+decomposition of its score is easier for a reviewer to check and to defend. Stage D scores the
+test cutoff once, after every choice has been made on validation data, so that the reported test
+metrics are not the product of selecting on them.
 
 **Algorithm 4. The between-run configuration loop (one setting, FR-037).**
 

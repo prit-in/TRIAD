@@ -83,13 +83,17 @@ production model [@mosqueira2023hitl] [@wu2022hitl].
 
 Resource allocation was described in Section 9.2: the engine for each stage, the container limits
 for each job, the dry-run sample, and the in-memory hand-off are all functions of measured sizes,
-evaluated by rule. Adaptation happens in three bounded places. A failing job's remedy may change an
+evaluated by rule. Adaptation happens in four bounded places. A failing job's remedy may change an
 allowlisted Spark setting - partitions, memory, skew handling - within the stage's attempt budget.
-Hyperparameters of the finalist models are tuned within the run's optimization budget. And a
-deployed model is retrained when the monitoring rules say its world has changed. Each adaptation is
-bounded in what it may change, how many times it may try, and how long it may take, and each is
-recorded. The platform does not yet tune Spark configurations from execution metrics in general;
-that loop is future work (Section 21).
+Between runs, an optimisation loop reads a stage's recorded metrics and doubles its shuffle
+partition count after a run in which it spilled, or halves it after one whose reduce tasks took a
+median of under 50 ms, always within 2 to 64 (Section 9.5). Hyperparameters of the finalist models
+are tuned within the run's optimization budget. And a deployed model is retrained when the
+monitoring rules say its world has changed. Each adaptation is bounded in what it may change, how
+many times it may try, and how long it may take, and each is recorded - the optimisation loop
+twice, with the measurements behind a change and, after the next run, the before-and-after
+comparison. Tuning more than one setting, and learning from many runs rather than from the last
+one, is future work (Section 21).
 
 ---
 

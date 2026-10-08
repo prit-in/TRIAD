@@ -91,13 +91,22 @@ where $A(r)$ is the set of components that apply to run $r$, and the components 
   requester and the run's starter - and, for a promotion despite a failed check, each required
   share by a different person - and 0 if any promotion took effect without such an approval; not
   applicable if nothing was promoted;
-- $s_{\mathrm{lineage}}$: 1 if the run recorded its input versions and every output it published
-  has a manifest with a content hash, otherwise 0.
+- $s_{\mathrm{lineage}}$: 1 if the run recorded the versions of its inputs and every final
+  generated job was stored with its content hash, otherwise 0.
 
 The components are weighted equally. That is a design choice, not a validated result: no study
 here establishes that, for instance, calibration should count as much as lineage, and an adopting
 organization would set the weights from its own risk assessment. Equal weights are used because
 they are the choice that encodes the fewest unexamined assumptions.
+
+Each component is read from a record written by the part of the platform that produced the
+evidence, not by the run being scored: the chain from the audit trail's own verification, gate
+outcomes from the stored code artifacts, the calibration error from the acceptance decision
+record, the claim check from the report, and approvals from the approval table, which only an
+authenticated person can decide. A component whose evidence does not exist for a run - no report,
+no promotion, no calibration measured - is left out of the mean rather than scored 0 or 1, so a
+run neither gains nor loses trust for a stage it never reached. The score therefore measures how
+completely a run's claims are backed, not how good its model is (Section 17).
 
 ---
 

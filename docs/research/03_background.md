@@ -7,6 +7,15 @@ with a comparison of the approaches they represent (Table 3).
 
 ## 3.1 Python analytics
 
+Sarker's overview of data science describes the field as a process that runs from understanding a
+business problem, through collecting, exploring, and preparing data and engineering features, to
+building, evaluating, and deploying models, in the service of four kinds of analytics:
+descriptive, diagnostic, predictive, and prescriptive [@sarker2021datascience]. Churn prediction is
+predictive analytics in that scheme, and the purpose it serves is prescriptive, since a
+probability is worth computing only if it changes which customers are contacted. Every stage of
+that process is a program, and the language each program is written in decides what can be
+checked about it before it runs.
+
 Python's position in data science rests on a small number of libraries that the rest of the
 ecosystem builds on. NumPy's array model is the common substrate for numerical work
 [@harris2020numpy], SciPy supplies the statistical and scientific routines around it
@@ -17,8 +26,9 @@ business analytics, gradient-boosted trees remain the strongest general-purpose 
 made them scalable [@chen2016xgboost], building on gradient boosting [@friedman2001gbm] and the
 random forests that preceded it [@breiman2001rf], and two independent reviews conclude that deep
 networks do not reliably outperform tree ensembles on tabular data [@shwartz2022tabular]
-[@borisov2024tabular]. Python's weakness is the single process: beyond one machine's memory, the
-same code does not scale.
+[@borisov2024tabular]. Python's weaknesses for this work are the single process - beyond one
+machine's memory, the same code does not scale - and dynamic typing, under which a misspelled
+column or a wrong type surfaces only when the line that uses it runs.
 
 ## 3.2 Scala, Spark, and distributed processing
 
@@ -113,7 +123,9 @@ care: generated code contains vulnerabilities at substantial rates [@pearce2022a
 [@tihanyi2024secure], LLM-integrated applications can be redirected by instructions hidden in
 the content they read [@greshake2023injection], and the security and privacy challenges of LLMs
 have been surveyed [@das2025llmsecurity]. The consequence for a data platform is that an agent's
-output must be treated as untrusted input to the platform's own checks.
+output must be treated as untrusted input to the platform's own checks. It also follows that an
+agent framework for analytics should be judged less by how much code it writes than by how much of
+what it writes can be verified before it touches data.
 
 ## 3.8 Explainability, trust, and fairness
 

@@ -87,7 +87,10 @@ before-and-after record written. A requirement whose acceptance criterion names 
 that this environment cannot take is reported as not run, never as met.
 
 The matrix is the specification the rest of the report is measured against. Sections 5 to 12
-describe the design that meets it; Sections 15 to 17 report what the measurements show.
+describe the design that meets it; Sections 15 to 17 report what the measurements show. Behind
+the summary in Table 4 sits a traceability matrix in the repository that names, for every one of
+the 84 functional requirements, the test, recorded run, or experiment output that shows it; where
+the two disagree, the matrix is the authority.
 
 ---
 

@@ -33,7 +33,19 @@ directly. What would not transfer is the label: fraud labels arrive late and par
 label-maturity rule would need a domain-specific confirmation window, and the acceptance policy
 would need cost-weighted metrics in place of PR-AUC alone.
 
-## 18.3 Healthcare
+## 18.3 Smart manufacturing
+
+Industrial analytics combines high-rate sensor data with maintenance and quality records
+[@smartfactory2022] [@ahmed2022xai40]. Fig. 26 sketches the mapping. The Spark layer and its
+routing rules suit the data volumes, and the point-in-time feature discipline maps naturally onto
+predictive maintenance, where a feature computed with information from after a failure is the
+same leakage as a churn feature computed after the cutoff. What would be new is streaming
+ingestion - TRIAD's streaming connector is unimplemented (Section 7) - and time-series feature
+templates in place of the customer-day aggregation.
+
+**Fig. 26. Smart Manufacturing Analytics Ecosystem.** *(figures/fig26_manufacturing_ecosystem.drawio)*
+
+## 18.4 Healthcare
 
 Healthcare analytics on large clinical and operational data is well established
 [@batko2022healthcare], and it is where the requirements for trustworthy AI are strictest
@@ -46,18 +58,6 @@ transport encryption in the local deployment (Section 12) would be disqualifying
 incidental.
 
 **Fig. 27. Healthcare Intelligence Platform.** *(figures/fig27_healthcare_platform.drawio)*
-
-## 18.4 Smart manufacturing
-
-Industrial analytics combines high-rate sensor data with maintenance and quality records
-[@smartfactory2022] [@ahmed2022xai40]. Fig. 26 sketches the mapping. The Spark layer and its
-routing rules suit the data volumes, and the point-in-time feature discipline maps naturally onto
-predictive maintenance, where a feature computed with information from after a failure is the
-same leakage as a churn feature computed after the cutoff. What would be new is streaming
-ingestion - TRIAD's streaming connector is unimplemented (Section 7) - and time-series feature
-templates in place of the customer-day aggregation.
-
-**Fig. 26. Smart Manufacturing Analytics Ecosystem.** *(figures/fig26_manufacturing_ecosystem.drawio)*
 
 ## 18.5 Smart cities
 
@@ -87,7 +87,8 @@ someone accountable in that domain has to choose. Third, every domain would inhe
 behaviour of fixed thresholds reported in Section 15, so the interval-based rules proposed in
 Section 21 would matter more in a hospital or a city than in this retail case. The profile's
 volume and shift checks of Section 7 are, by contrast, the part most directly reusable: a silent
-change of a source is a risk in every row of Table 13.
+change of a source is a risk in every row of Table 13. None of the rows beyond the first is a
+result; each is a design to be tested by the measurements Sections 13 to 15 describe.
 
 **Table 13. Domain-Specific Use Cases** *(conceptual: none of rows 2 to 6 was implemented or
 measured)*

@@ -121,7 +121,9 @@ decomposition of the log-odds into coefficient-times-input terms; where neither 
 permutation importance gives a global ranking. The method is always named next to the reasons,
 and for a calibrated model the reasons are stated to be those of the underlying, uncalibrated
 model, because calibration is a monotone map of the score and does not change which features
-drove it.
+drove it. The reasons are stored with each prediction, so the reasons a person reads later are the
+ones computed when the customer was scored, not a recomputation against a model that may since
+have been replaced.
 
 ---
 

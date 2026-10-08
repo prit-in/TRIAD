@@ -160,8 +160,10 @@ Measured from the `.docx`: **A4** (21.0 × 29.7 cm); margins **2.54 cm** left an
 | Author biographies | At the end, with a photograph 1 in × 1.25 in |
 
 The template's sample content — the magnetization figure, the "Units for magnetic properties"
-table, the reference examples and the three sample biographies — is example material and is
-removed, not adapted.
+table, the reference examples, and the two fictitious sample biographies — is example material
+and is removed, not adapted. The faculty member's own biography and photograph are kept, because
+the template names him first author; the team's biographies and photographs are placeholders
+until finalization.
 
 ## 4. The submission rules, from `1_Manuscript Guidelines.pdf`
 
@@ -240,6 +242,7 @@ Not finalized now, and never invented:
 [FINAL AUTHOR DETAILS — TO BE CONFIRMED]          order, VIT e-mails
 [CORRESPONDING AUTHOR — TO BE CONFIRMED]          the template names the faculty member
 [CONTRIBUTIONS — WORD COUNTS PER MEMBER]
+[PERSISTENT WEB LINK TO DATASETS — TO BE CONFIRMED AT FINALIZATION]   the repository's public URL
 ```
 
 The registration numbers exist in `4_Teams_Titles_Links.pdf` row 1 and are inserted from there

@@ -79,3 +79,8 @@ docs/research/references/crossref_cache.json
 
 # experiment batch logs (scripts/run_experiments_batch.sh)
 experiments/_logs/
+
+# The assembled manuscript: built from docs/research by docs/research/assemble_manuscript.py on
+# the faculty template, which is not in the repository either. manuscript_report.json is kept.
+docs/final/*.docx
+docs/final/*.pdf

@@ -46,7 +46,9 @@ hand-written work.
 Many of the domains of Section 18 cannot pool their data. A federated variant of TRIAD would keep
 the governance layer - contracts, policies, approvals, audit - at each participant and exchange
 only model updates and decision records, which raises the open question of how a hash-chained audit
-trail is verified across organizations that do not share a database.
+trail is verified across organizations that do not share a database. The acceptance policy raises
+another: its segment checks, whose noise floors depend on the rows in each segment (Section 15),
+would have to be judged on counts that no single participant holds.
 
 ## 21.5 Cognitive programming and human-agent collaboration
 
