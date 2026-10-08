@@ -97,6 +97,7 @@ print(json.dumps({
     "scratch": attempt("/tmp/probe"),
     "pids_max": cgroup("pids.max"),
     "memory_max": cgroup("memory.max"),
+    "swap_max": cgroup("memory.swap.max"),
     "socket_visible": os.path.exists("/var/run/docker.sock"),
 }))
 """
@@ -122,6 +123,7 @@ def test_st07_a_job_writes_only_where_its_run_may_and_runs_unprivileged(runner, 
     assert seen["scratch"] == "written", "scratch is a tmpfs"
     assert seen["pids_max"] == "512", "the small profile's process limit (DEC-25)"
     assert seen["memory_max"] == str(3 * 1024**3), "the small profile, clamped to Env-A-mini"
+    assert seen["swap_max"] == "0", "the memory clamp is not stretched by swap (DEC-35)"
     assert not seen["socket_visible"], "the docker socket never reaches a job"
 
 

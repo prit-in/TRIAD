@@ -232,6 +232,9 @@ services:
     deploy:
       resources:
         limits: {memory: 3000M}
+    # No swap beyond the limit (DEC-35): experiments that measure where memory runs out need the
+    # limit to be where it runs out, not the start of a slow slide through the VM's shared swap.
+    memswap_limit: 3000M
     networks: [triad-net, triad-sandbox-net]
 
 networks:

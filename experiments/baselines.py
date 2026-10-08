@@ -215,14 +215,23 @@ def _call(target: str, kwargs: dict[str, Any]) -> Any:
 
 
 class IsolatedProcessKilled(RuntimeError):
-    """The spawned process died without returning: in practice, the kernel's OOM killer."""
+    """The spawned process died without returning, or ran past its wall-clock ceiling."""
 
-    def __init__(self, target: str, elapsed_s: float, oom_kills: int | None) -> None:
+    def __init__(self, target: str, elapsed_s: float, oom_kills: int | None, *,
+                 exitcode: int | None = None, timed_out: bool = False) -> None:
         self.elapsed_s = elapsed_s
         self.oom_kills = oom_kills
-        cause = (f"the container's cgroup recorded {oom_kills} out-of-memory kill(s) meanwhile"
-                 if oom_kills else "no out-of-memory kill was recorded by the cgroup")
-        super().__init__(f"{target} was killed after {elapsed_s:.0f}s without returning; {cause}")
+        self.exitcode = exitcode
+        self.timed_out = timed_out
+        if timed_out:
+            cause = "it was stopped at its wall-clock ceiling"
+        elif oom_kills:
+            cause = f"the container's cgroup recorded {oom_kills} out-of-memory kill(s) meanwhile"
+        else:
+            cause = "no out-of-memory kill was recorded by the cgroup"
+        signal = f" (exit code {exitcode})" if exitcode is not None else ""
+        super().__init__(
+            f"{target} ended after {elapsed_s:.0f}s without returning{signal}; {cause}")
 
 
 def cgroup_oom_kills() -> int | None:
@@ -237,7 +246,15 @@ def cgroup_oom_kills() -> int | None:
     return None
 
 
-def run_isolated(target: str, /, **kwargs: Any) -> Any:
+def _report(results: Any, target: str, kwargs: dict[str, Any]) -> None:
+    """The child's side: put the result, or the exception's text, on the queue."""
+    try:
+        results.put((True, _call(target, kwargs)))
+    except BaseException as exc:  # re-raised by the parent with its text
+        results.put((False, f"{type(exc).__name__}: {exc}"))
+
+
+def run_isolated(target: str, /, *, timeout_s: float | None = None, **kwargs: Any) -> Any:
     """Run `module:function(**kwargs)` in a freshly spawned interpreter and return its result.
 
     EXP-1 and EXP-2 read `peak_rss_mb` in the experiment's own process, after the generator and
@@ -247,19 +264,37 @@ def run_isolated(target: str, /, **kwargs: Any) -> Any:
     spawning is not in them.
 
     A process the kernel kills raises no exception of its own - a cgroup out-of-memory kill is
-    SIGKILL - so it surfaces here as a broken pool, which is turned into `IsolatedProcessKilled`
-    carrying the cgroup's OOM-kill count, so a caller can record the failure as a result.
+    SIGKILL - so a child that dies without reporting becomes `IsolatedProcessKilled`, carrying
+    its exit code (-9 for SIGKILL) and the cgroup's OOM-kill count, so a caller can record the
+    failure as a result. `timeout_s` is a backstop for a child that neither finishes nor dies:
+    it is stopped there and reported as such, never waited on for ever.
     """
-    import concurrent.futures as cf
     import multiprocessing as mp
+    import queue
     import time
-    from concurrent.futures.process import BrokenProcessPool
 
+    ctx = mp.get_context("spawn")
+    results = ctx.Queue()
+    child = ctx.Process(target=_report, args=(results, target, kwargs), daemon=True)
     before, started = cgroup_oom_kills(), time.perf_counter()
-    try:
-        with cf.ProcessPoolExecutor(max_workers=1, mp_context=mp.get_context("spawn")) as pool:
-            return pool.submit(_call, target, kwargs).result()
-    except BrokenProcessPool as exc:
-        after = cgroup_oom_kills()
-        kills = after - before if before is not None and after is not None else None
-        raise IsolatedProcessKilled(target, time.perf_counter() - started, kills) from exc
+    child.start()
+    while True:
+        try:
+            ok, value = results.get(timeout=1.0)
+            break
+        except queue.Empty:
+            elapsed = time.perf_counter() - started
+            if not child.is_alive():
+                after = cgroup_oom_kills()
+                kills = after - before if before is not None and after is not None else None
+                raise IsolatedProcessKilled(target, elapsed, kills,
+                                            exitcode=child.exitcode) from None
+            if timeout_s is not None and elapsed > timeout_s:
+                child.kill()
+                child.join(30)
+                raise IsolatedProcessKilled(target, elapsed, None, exitcode=child.exitcode,
+                                            timed_out=True) from None
+    child.join(60)
+    if ok:
+        return value
+    raise RuntimeError(f"{target} raised {value}")

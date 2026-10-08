@@ -589,9 +589,18 @@ def prepare(
                    and selection.selected is not None and selection.test_metrics is not None)
     if selection.outcome == "ESCALATE" and not overridable:
         pipeline.finish("ESCALATED", ok=False, reason=selection.reason)
-        return PhaseResult(False, "ESCALATED", selection.reason,
-                           {"selection": selection.to_dict()},
-                           reason_code=_reason_code(selection))
+        # With the references a person resuming the run - or an experiment comparing against
+        # it - needs: what was split, on which features, and what selection measured. They
+        # used to be dropped here, so an escalated run could not be compared with anything run
+        # on the same split. References only, never rows (DD-03).
+        return PhaseResult(False, "ESCALATED", selection.reason, {
+            "selection": selection.to_dict(),
+            "features_uri": features_out["uri"], "labels_uri": labels_out["uri"],
+            "clean_uri": clean_out["uri"], "split": spec.to_dict(),
+            "feature_columns": feature_cols, "numeric_columns": num_cols,
+            "categorical_columns": cat_cols, "cutoffs": window,
+            "quality_score": profile_out.get("quality_score"),
+        }, reason_code=_reason_code(selection))
 
     if not overridable:
         pipeline._advance("SELECTED", stage="select")

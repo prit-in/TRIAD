@@ -50,6 +50,11 @@ DATA_START = "2024-01-01"
 # 1 065 MB; the ladder now climbs until one gives out inside the 3 GB container (ADR-0002),
 # which on that growth is expected between 50 000 and 100 000 customers.
 LADDER = (400, 1_500, 6_000, 20_000, 50_000, 100_000, 200_000)
+# Wall-clock ceilings. A configuration still running at its ceiling has failed at that size by
+# the hypothesis's own terms ("fails or must sample"); generation gets longer because the
+# generator, not a configuration, is what is being waited on.
+BASELINE_CEILING_S = 1800
+GENERATE_CEILING_S = 3600
 
 
 def month_starts(start: str, months: int) -> list[pd.Timestamp]:
@@ -113,6 +118,22 @@ def _spark(app: str):
     return session
 
 
+def _memory_at_start() -> dict[str, object]:
+    """What the ladder actually had: the VM's available memory and this container's own caps."""
+    def read(path: str) -> str | None:
+        try:
+            return Path(path).read_text(encoding="ascii").strip()
+        except OSError:
+            return None
+
+    available = next((round(int(line.split()[1]) / 1024)
+                      for line in (read("/proc/meminfo") or "").splitlines()
+                      if line.startswith("MemAvailable:")), None)
+    return {"vm_mem_available_mib": available,
+            "container_memory_max": read("/sys/fs/cgroup/memory.max"),
+            "container_swap_max": read("/sys/fs/cgroup/memory.swap.max")}
+
+
 def _bytes_on_disk(root: Path) -> int:
     return sum(f.stat().st_size for f in root.rglob("*.parquet"))
 
@@ -136,10 +157,10 @@ def _measured(target: str, baseline: str, **kwargs) -> BaselineResult:
     see; it is caught here, with the cgroup's OOM-kill count as the evidence of what it was.
     """
     try:
-        return run_isolated(target, **kwargs)
+        return run_isolated(target, timeout_s=BASELINE_CEILING_S, **kwargs)
     except IsolatedProcessKilled as exc:
         return BaselineResult(baseline=baseline, ok=False, wall_clock_s=exc.elapsed_s,
-                              detail=f"killed: {exc}")
+                              detail=f"{'timed out' if exc.timed_out else 'killed'}: {exc}")
 
 
 def run() -> Experiment:
@@ -168,6 +189,8 @@ def run() -> Experiment:
             "cutoffs": [str(c.date()) for c in cutoffs],
             "split": {k: [str(c.date()) for c in v] for k, v in groups.items()},
             "prd_tier_not_run": "10 GB on a 32 GB node",
+            "ceilings_s": {"baseline": BASELINE_CEILING_S, "generate": GENERATE_CEILING_S},
+            "memory_at_start": _memory_at_start(),
             "environment_ceiling": (
                 "Docker is given a 5.27 GB VM and the sandbox clamps containers to 3 GB "
                 "(HOST_LIMITS, ADR-0002)"
@@ -192,6 +215,7 @@ def run() -> Experiment:
             source = root / f"n{customers}"
             try:
                 generated_s = run_isolated("experiments.exp02_medium_dataset:generate",
+                                           timeout_s=GENERATE_CEILING_S,
                                            source=str(source), customers=customers)
             except IsolatedProcessKilled as exc:
                 trial.ok = False

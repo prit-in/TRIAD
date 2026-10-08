@@ -229,7 +229,12 @@ class DockerRunner:
             user=f"{SANDBOX_USER[0]}:{SANDBOX_USER[1]}",
             cap_drop=["ALL"], security_opt=["no-new-privileges"],
             read_only=True, tmpfs={"/tmp": f"rw,size={profile['scratch']},exec"},
-            nano_cpus=int(cpus * 1e9), mem_limit=f"{mem_gb}g", pids_limit=int(profile["pids"]),
+            nano_cpus=int(cpus * 1e9), pids_limit=int(profile["pids"]),
+            # Memory and memory-plus-swap set to the same value: no swap. Docker's default lets a
+            # container swap as much again as its memory limit, so the 3 GB clamp was really 6,
+            # and a job that outgrew it ground through the VM's shared swap - starving every
+            # other container - instead of being stopped at the limit (EXP-2, 08-10-2026).
+            mem_limit=f"{mem_gb}g", memswap_limit=f"{mem_gb}g",
             network_mode=request.network, working_dir=request.workdir,
             # With no network the container's generated hostname resolves to nothing, and the
             # JVM's logging asks for it on every logger it creates.

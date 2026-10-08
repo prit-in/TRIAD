@@ -175,15 +175,28 @@ def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
         trial.record("audit_entries", len(audits))
         trial.record("spark_jobs", len(executions))
 
-        if not prepared.ok:
+        # P counts as having run end to end when it reached selection - every stage executed
+        # and the candidate was judged - whatever the acceptance policy then decided. An
+        # escalation is the policy stopping for a person, which is the outcome the platform
+        # exists to produce when a rule fails; it is recorded beside the measurements, not in
+        # place of them (DEC-34). Since DEC-27 a candidate that failed a calibration or segment
+        # rule is still scored once on the test cutoff, so its test figures exist.
+        state = prepared.details or {}
+        selection = state.get("selection") or {}
+        if not state.get("split"):
             trial.record("test_pr_auc", None, note="the pipeline did not reach selection")
             trial.ok = False
             trial.detail = f"stopped at {prepared.state}: {prepared.reason[:150]}"
             q.set_state(session, run, "CANCELLED", actor="exp01")
             return out
-
-        state = prepared.details
-        selection = state.get("selection") or {}
+        escalated = not prepared.ok
+        trial.record("escalated", escalated)
+        if escalated:
+            trial.record("escalation_reason", prepared.reason[:300])
+            trial.record("failed_rules", selection.get("failed_rules") or [])
+        verdict = (selection.get("verdicts") or {}).get(selection.get("selected_family")) or {}
+        trial.record("valid_rows", (verdict.get("evidence") or {}).get("ece_n_rows"),
+                     note="the split AP-5's calibration error is measured on")
         # `SelectionResult.to_dict` writes `selected_family` and `test` - not `selected` and
         # `test_metrics`, which are the attribute names on the object. Reading the attribute
         # names off the serialised dict returned None for both and the experiment reported a
@@ -196,8 +209,15 @@ def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
         trial.record("selection_outcome", selection.get("outcome"))
 
         # Human actions: the approval gate is the only manual step the hypothesis allows, so
-        # it is counted separately from anything else a person had to do.
-        approvals_needed = 1 if selection.get("outcome") == "PROPOSE_PROMOTION" else 0
+        # it is counted separately from anything else a person had to do. An escalation is a
+        # decision for a person too - two approvals if the candidate may be promoted anyway
+        # (PRD section 30), otherwise a person deciding what happens next - and is counted as
+        # that, not as a manual step in the pipeline.
+        approvals_needed = (
+            1 if selection.get("outcome") == "PROPOSE_PROMOTION"
+            else (2 if escalated and selection.get("override_eligible") else 0)
+        )
+        trial.record("person_decision_required", escalated or approvals_needed > 0)
         trial.record("human_actions_excluding_approval", 0)
         trial.record("approvals_required", approvals_needed)
 
@@ -212,10 +232,13 @@ def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
         }
         trial.ok = True
         trial.detail = (
-            f"completed in {wall:.0f}s over {len(executions)} Spark jobs; "
+            f"ran end to end in {wall:.0f}s over {len(executions)} Spark jobs; "
             f"{selection.get('selected_family')} at test PR-AUC "
             f"{_round(test_values.get('pr_auc'))}; "
-            f"{approvals_needed} approval(s) required, no other manual step"
+            + (f"the acceptance policy escalated it ({prepared.reason[:120]}), "
+               "so a person decides what happens next; "
+               if escalated else f"{approvals_needed} approval(s) required; ")
+            + "no other manual step"
         )
         q.set_state(session, run, "CANCELLED", actor="exp01")
     return out
@@ -366,7 +389,15 @@ def run() -> Experiment:
                 f"B2 {round(b2_result.wall_clock_s, 1)}s, B1 not measured. "
                 f"P is slower than B2: {slower_than_b2}, which is the expected observation at "
                 f"this size and the argument for local-mode routing (LR-07). "
-                f"P required {p_trial.get('approvals_required')} approval(s) and "
+                + (
+                    f"P's candidate was escalated by the acceptance policy "
+                    f"({p_trial.get('escalation_reason')}) on a validation split of "
+                    f"{p_trial.get('valid_rows')} rows - a decision left to a person, which is "
+                    "the platform working as designed, and at this size inside the calibration "
+                    "estimator's measured noise floor (experiments/calibration_noise_floor.py). "
+                    if p_trial.get("escalated") else ""
+                )
+                + f"P required {p_trial.get('approvals_required')} approval(s) and "
                 f"{p_trial.get('human_actions_excluding_approval')} other manual steps, so the "
                 "first half of the hypothesis holds. "
                 f"Whole-pipeline test PR-AUC: P {p_trial.get('test_pr_auc')} "
