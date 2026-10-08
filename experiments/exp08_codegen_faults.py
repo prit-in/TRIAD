@@ -93,6 +93,22 @@ def _gate_report(artifact: Any, template: Any, *, compile_it: bool) -> dict[str,
     }
 
 
+def _value(trial: Any, name: str) -> Any:
+    """A measurement, or None for one this trial never reached (gate 5 runs on some only)."""
+    return next((m.value for m in trial.measurements if m.name == name), None)
+
+
+def _fixture_gate(artifact: Any) -> Any:
+    """Gate 5 for code the static gates let through: the generated object on fixtures.
+
+    What the production validator runs next (`ChurnPipeline._validate_scala`). Not cached:
+    every seeded fault is new code, and the control must be run, not remembered.
+    """
+    from agents.codegen import gates as G
+
+    return G.gate5_fixture_tests([f"triad.jobs.generated.{artifact.object_name}"])
+
+
 def _fingerprints(details: list[str]) -> dict[str, int]:
     """How many distinct diagnosis fingerprints the same fault produces over three attempts.
 
@@ -144,7 +160,8 @@ def run() -> Experiment:
             "fault_classes": list(FAULT_CLASSES),
             "stale_anchors": stale,
             "gates_run": ["1 structured output", "2 static checks", "3 dependencies",
-                          "4 compile (only if 1-3 pass)"],
+                          "4 compile (only if 1-3 pass)",
+                          "5 fixture tests (only if 1-4 pass; not cached)"],
             "repair_measurement": (
                 "not possible here: rewriting a generated slot needs an LLM provider and none "
                 "is configured (ADR-0003), so `generate` re-renders identical code on every "
@@ -167,9 +184,14 @@ def run() -> Experiment:
         outcome = _gate_report(artifact, template, compile_it=True)
         control.record("passed_all_gates", outcome["passed"])
         control.record("compiled", outcome["compiled"])
+        fixture = _fixture_gate(artifact) if outcome["passed"] else None
+        if fixture is not None:
+            control.record("fixture_gate_passed", fixture.passed)
+            control.observations["fixture_detail"] = fixture.detail[-1500:]
         control.record("wall_clock_s", round(time.perf_counter() - started, 1), "s")
         control.observations["detail"] = outcome["detail"]
-        control.ok = bool(outcome["passed"]) and outcome["compiled"] is not False
+        control.ok = (bool(outcome["passed"]) and outcome["compiled"] is not False
+                      and fixture is not None and fixture.passed)
         if not control.ok:
             exp.conclude(
                 status="failed",
@@ -217,10 +239,18 @@ def run() -> Experiment:
             trial.record("compiled", outcome["compiled"])
             trial.record("caught_by_expected_gate",
                          outcome["first_failed_gate"] == mutation.expected_gate)
-            # A fault that passes every static gate would be submitted to Spark by a real run.
-            # That is the honest meaning of "reached execution" for this experiment: the gates
-            # are done and nothing stopped it.
-            trial.record("reached_execution", bool(outcome["passed"]))
+            # A fault the static gates miss meets the fixture gate next, as in production.
+            fixture = _fixture_gate(art) if outcome["passed"] else None
+            if fixture is not None:
+                trial.record("fixture_gate_passed", fixture.passed)
+                trial.record("fixture_gate_s", round(fixture.duration_ms / 1000, 1), "s")
+                trial.observations["fixture_detail"] = fixture.detail[-1500:]
+            stopped_by_fixtures = fixture is not None and not fixture.passed
+            trial.record("detected_before_data", detected or stopped_by_fixtures)
+            # A fault that passes every gate up to the fixtures would be run on a data sample
+            # (gate 6) and then on the full input by a real run. That is the honest meaning of
+            # "reached execution" here: gates 1-5 are done and nothing stopped it.
+            trial.record("reached_execution", bool(outcome["passed"]) and not stopped_by_fixtures)
             trial.observations["gate_detail"] = outcome["detail"]
             trial.observations["violations"] = outcome["violations"]
 
@@ -236,11 +266,13 @@ def run() -> Experiment:
             # For a forbidden API the requirement is absolute: it must never reach execution.
             if mutation.fault_class == "forbidden_api":
                 trial.ok = detected and outcome["first_failed_gate"] == 2
-            elif mutation.fault_class == "wrong_column":
+            elif mutation.fault_class == "wrong_column" and not detected:
                 # No verdict: a static gate cannot see a wrong column name, and the
-                # experiment's job is to record that rather than to mark it pass or fail.
+                # experiment's job is to record where it is stopped, if anywhere.
                 trial.ok = True
-                trial.detail = "no static gate can see this; recorded, not scored"
+                trial.detail = ("passed the static gates; "
+                                + ("stopped by the fixture tests (gate 5)" if stopped_by_fixtures
+                                   else "not stopped by the fixture tests either"))
             else:
                 trial.ok = detected
             if not trial.detail:
@@ -261,6 +293,8 @@ def run() -> Experiment:
             cls: {
                 "faults": len(ts),
                 "detected": sum(bool(t.get("detected")) for t in ts),
+                "stopped_by_fixtures": sum(_value(t, "fixture_gate_passed") is False for t in ts),
+                "detected_before_data": sum(bool(t.get("detected_before_data")) for t in ts),
                 "reached_execution": sum(bool(t.get("reached_execution")) for t in ts),
                 "gates": sorted({t.get("first_failed_gate") for t in ts}, key=str),
             }
@@ -284,17 +318,36 @@ def run() -> Experiment:
             "not measured rather than reported as a number."
         )
         exp.limitation(
-            "`reached_execution` means the gates passed and a real run would have submitted "
-            "the job. The Spark submission itself is not performed for the 5 wrong_column "
-            "faults, so what gate 6/7/9 would report about each of them is not measured here."
+            "`reached_execution` means gates 1 to 5 passed and a real run would have submitted "
+            "the job to the dry run on a sample (gate 6) and then to the full input. Gate 6 is "
+            "not performed here, so for a fault the fixtures did not stop, what the dry run "
+            "would report is not measured."
+        )
+
+        passed_static = [t for t in faults if not t.get("detected")]
+        stopped_fx = [t for t in passed_static if _value(t, "fixture_gate_passed") is False]
+        fx_secs = [s for t in passed_static if (s := _value(t, "fixture_gate_s")) is not None]
+        before_data = sum(bool(t.get("detected_before_data")) for t in faults)
+        fixtures = (
+            f" Of the {len(passed_static)} faults the static gates let through, the fixture "
+            f"tests (gate 5), which run the generated job on hand-checked data, stopped "
+            f"{len(stopped_fx)}"
+            + (f", in {min(fx_secs):.0f} to {max(fx_secs):.0f} s each" if fx_secs else "")
+            + (", so a wrong column name is invisible to static analysis but not to running "
+               "the job on fixtures."
+               if passed_static and len(stopped_fx) == len(passed_static)
+               else "; the rest would have reached the dry run on a sample.")
+            if passed_static else ""
         )
 
         exp.conclude(
             status="partial",
             hypothesis_held=None,
             conclusion=(
-                f"{detected_total} of {len(faults)} seeded faults were detected before "
-                f"execution. Forbidden APIs: {len(forbidden) - len(forbidden_ran)} of "
+                f"{detected_total} of {len(faults)} seeded faults were stopped by the static "
+                f"gates (1 to 4), and {before_data} of {len(faults)} before the job read any "
+                f"data once the fixture gate is counted. Forbidden APIs: "
+                f"{len(forbidden) - len(forbidden_ran)} of "
                 f"{len(forbidden)} refused by gate 2, the static scan, so none was compiled "
                 "let alone submitted - the PRD's strongest claim, and it holds. "
                 "Per class: "
@@ -307,8 +360,9 @@ def run() -> Experiment:
                 "attempt budget. The expected observation about semantic faults holds in a "
                 "stronger form than the PRD states it: a wrong column name does not merely "
                 "escalate more often, it passes every static gate, because the name is a "
-                "string until Spark resolves it. Repair rate is not measured - see the "
-                "limitations."
+                "string until Spark resolves it."
+                + fixtures
+                + " Repair rate is not measured - see the limitations."
             ),
         )
         return exp
