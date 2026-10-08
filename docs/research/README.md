@@ -56,3 +56,24 @@ per section of the team's planning document, and assembled into the faculty temp
 | `23_appendix.md` | Appendix: algorithms, configurations, settings | 500-2000 | no |
 | `references/` | bibliography and its verification | - | - |
 | `figures/` | draw.io sources, chart scripts, 600-DPI exports | - | - |
+| `data_availability.md` | Data availability statement (first prescribed form) | - | no |
+| `tables/`, `analysis/` | Tables 10-11 and the trust score and business snapshot, from stored outputs | - | yes |
+
+## Assembly
+
+```text
+python docs/research/assemble_manuscript.py            # draft into docs/final/
+python docs/research/assemble_manuscript.py --final    # refuses pending markers and gaps
+powershell -ExecutionPolicy Bypass -File docs/research/finalize_manuscript.ps1
+```
+
+The assembler needs `python-docx` and `latex2mathml`, and Word's `MML2OMML.XSL`; the second step
+needs Word itself, which fills the page numbers of the Index and the lists and writes a PDF. The
+.docx and .pdf are not committed (the faculty template is not either); `docs/final/manuscript_report.json`
+is, with each section's word count against its range, and the counts of figures, tables,
+equations, and cited references.
+
+Words are counted as the words of prose paragraphs and list items. Headings, tables, captions,
+equations, and code are not counted, so a section within its range here is within it on any
+broader count too; a section above its upper bound is noted, as the team agreed (08-10-2026).
+

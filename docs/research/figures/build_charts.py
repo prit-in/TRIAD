@@ -221,10 +221,12 @@ def fig23() -> None:
         if "_" not in condition or condition.startswith("control"):
             continue
         name = condition.split("_", 1)[1].replace("_", " ")
-        bucket = classes.setdefault(name, {"gate 2": 0, "gate 4": 0, "other gate": 0,
+        bucket = classes.setdefault(name, {"gate 2": 0, "gate 4": 0, "gate 5": 0, "other gate": 0,
                                            "not before execution": 0})
         gate = v.get("first_failed_gate")
-        if not v.get("detected"):
+        if v.get("fixture_gate_passed") is False:   # passed gates 1-4, stopped by the fixtures
+            bucket["gate 5"] += 1
+        elif not v.get("detected"):
             bucket["not before execution"] += 1
         elif gate in (2, "2"):
             bucket["gate 2"] += 1
@@ -235,11 +237,12 @@ def fig23() -> None:
     fig, axes = plt.subplots(1, 2, figsize=(WIDE, 2.5), gridspec_kw={"wspace": 0.35})
 
     ax = axes[0]
-    # In the order the gates meet them: the static scan, then the compiler, then nothing.
-    names = sorted(classes, key=lambda n: (-classes[n]["gate 2"], -classes[n]["gate 4"], n))
+    # In the order the gates meet them: the static scan, the compiler, the fixtures, then nothing.
+    names = sorted(classes, key=lambda n: (-classes[n]["gate 2"], -classes[n]["gate 4"],
+                                           -classes[n]["gate 5"], n))
     left = [0] * len(names)
-    shades = {"gate 2": COLOURS["P"], "gate 4": COLOURS["blue"], "other gate": COLOURS["pink"],
-              "not before execution": COLOURS["warn"]}
+    shades = {"gate 2": COLOURS["P"], "gate 4": COLOURS["blue"], "gate 5": COLOURS["B3"],
+              "other gate": COLOURS["pink"], "not before execution": COLOURS["warn"]}
     for outcome, colour in shades.items():
         widths = [classes[n][outcome] for n in names]
         if not any(widths):
@@ -258,7 +261,8 @@ def fig23() -> None:
     # fault no gate caught is drawn hollow at the time it took to pass all of them.
     ax = axes[1]
     for i, name in enumerate(names):
-        times = [(v.get("wall_clock_s"), bool(v.get("detected"))) for c, v in e8.items()
+        times = [(v.get("wall_clock_s"), bool(v.get("detected_before_data", v.get("detected"))))
+                 for c, v in e8.items()
                  if not c.startswith("control") and c.split("_", 1)[-1].replace("_", " ") == name
                  and isinstance(v.get("wall_clock_s"), (int, float))]
         for j, (secs, caught) in enumerate(times):
@@ -268,7 +272,7 @@ def fig23() -> None:
                        edgecolors=COLOURS["blue"] if caught else COLOURS["warn"], zorder=3)
     ax.scatter([], [], s=14, color=COLOURS["blue"], label="stopped by a gate")
     ax.scatter([], [], s=14, facecolors="none", edgecolors=COLOURS["warn"],
-               label="passed every gate")
+               label="passed every gate run")
     ax.set_yscale("log")
     ax.set_xticks(range(len(names)), names, rotation=15, ha="right", fontsize=6.5)
     ax.set_ylabel("Time to the gate verdict (s)")
@@ -343,7 +347,8 @@ def fig25() -> None:
     e8 = load("EXP-8", "Fig 25")["trials"]
     seeded = {k: v for k, v in e8.items() if not k.startswith("control")}
     rows.append(("generated-code faults stopped before execution (EXP-8)",
-                 sum(1 for v in seeded.values() if v.get("detected")), len(seeded)))
+                 sum(1 for v in seeded.values()
+                     if v.get("detected_before_data", v.get("detected"))), len(seeded)))
     e9 = load("EXP-9", "Fig 25")["trials"]
     leaks = {k: v for k, v in e9.items() if k.startswith("leak")}
     rows.append(("planted leaks blocked (EXP-9)",

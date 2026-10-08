@@ -64,6 +64,15 @@ def key_result(exp: str, trials: dict[str, dict[str, Any]]) -> str:
                        if not v.get("b2_completed") and v.get("b3_completed")), None)
         if failed:
             return f"B2 failed and B3 completed at {failed[0]:,} customers"
+        b3_first = next((n for n, v in rungs
+                         if v.get("b2_completed") and v.get("b3_completed") is False), None)
+        if b3_first:
+            return f"B3 failed while B2 completed at {b3_first:,} customers"
+        both_failed = next((n for n, v in rungs
+                            if v.get("b2_completed") is False and v.get("b3_completed") is False),
+                           None)
+        if both_failed:
+            return f"both failed at {both_failed:,} customers"
         both = [n for n, v in rungs if v.get("b2_completed") and v.get("b3_completed")]
         return f"no crossover; both completed up to {both[-1]:,} customers" if both else "no rung completed"
     if exp == "EXP-3":
@@ -89,8 +98,11 @@ def key_result(exp: str, trials: dict[str, dict[str, Any]]) -> str:
         return (f"drift caught {caught}; false-alarm rate {num(stable.get('false_alarm_rate'))} "
                 f"over {num(stable.get('months_replayed'))} stable months")
     if exp == "EXP-8":
-        return "stopped before execution: " + share(t, lambda n: not n.startswith("control"),
-                                                    lambda v: v.get("detected"))
+        def seeded(n):
+            return not n.startswith("control")
+        return ("stopped before reading data: "
+                + share(t, seeded, lambda v: v.get("detected_before_data", v.get("detected")))
+                + "; by the static gates alone: " + share(t, seeded, lambda v: v.get("detected")))
     if exp == "EXP-9":
         return "planted leaks blocked: " + share(t, lambda n: n.startswith("leak"),
                                                  lambda v: v.get("blocked_by_any_defence"))
