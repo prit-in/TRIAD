@@ -450,3 +450,8 @@ details.evidence > summary { cursor: pointer; color: var(--accent); }
                  border-radius: 6px; background: var(--bg); }
 .risk-notes { margin: 0.5rem 0; padding-left: 1.2rem; }
 .segment-check h4 { margin: 0.9rem 0 0.4rem; font-size: 0.95rem; }
+
+/* --- rollback control (PRD 19.5) -------------------------------------------- */
+.rollback { display: flex; align-items: flex-end; gap: 0.75rem; margin: 0.5rem 0 1rem; }
+.rollback label { flex: 1; margin: 0; }
+.rollback button { margin-top: 0; }

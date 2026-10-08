@@ -14,6 +14,9 @@ ORDER="${ORDER:-EXP-9 EXP-10 EXP-7 EXP-3 EXP-4 EXP-1 EXP-8 EXP-2 EXP-5 EXP-6}"
 for exp in $ORDER; do
   extra=""
   if [ "$exp" = "EXP-6" ]; then extra="-v /var/run/docker.sock:/var/run/docker.sock"; fi
+  # EXP-2 measures where memory runs out, so it runs alone: `compose run` would otherwise start
+  # the dev service's dependencies and they would share the VM with it. Stop the stack first.
+  if [ "$exp" = "EXP-2" ]; then extra="--no-deps"; fi
   echo "$(date -u +%FT%TZ) start $exp" | tee -a "$LOG/progress.txt"
   # shellcheck disable=SC2086
   MSYS_NO_PATHCONV=1 docker compose -f docker/compose.yaml --profile tools run --rm -T $extra dev \

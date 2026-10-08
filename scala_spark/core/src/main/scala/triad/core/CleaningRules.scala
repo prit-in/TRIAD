@@ -2,6 +2,7 @@ package triad.core
 
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Column, DataFrame}
+import org.apache.spark.sql.types.StringType
 
 /**
  * The cleaning rule library (FR-016..FR-023, PRD section 15.2 stage P3).
@@ -94,6 +95,51 @@ object CleaningRules {
     )
     (casted, rule)
   }
+
+  /**
+   * Conform columns the contract declares numeric that arrived as text (FR-019, FR-020).
+   *
+   * Before this, a price written as "INR 871.59" reached the quarantine rule `price > 0`, where
+   * ANSI mode cast the text to a number and the whole job failed; the repair loop diagnosed the
+   * right remedy and had no way to apply it, so the circuit breaker escalated (EXP-4).
+   *
+   * A three-letter currency code leading or trailing the number is unit text, and is removed
+   * only where it agrees with the row's own `currency` column: an amount in another currency is
+   * not converted, it fails the cast. What remains goes through `try_cast` to the declared type,
+   * so anything that still does not parse - a thousands separator, a stray symbol - becomes a
+   * quarantine reason (`INVALID_CAST_<COLUMN>`), never an error and never a guessed number. The
+   * original text is kept in `<column>__raw` for the quarantine record. A column that is already
+   * numeric is left exactly as it is, so clean data takes the same path as before.
+   */
+  def conformNumeric(
+      df: DataFrame,
+      declared: Seq[(String, String)],
+      currencyCol: String = "currency"
+  ): (DataFrame, Seq[QuarantineRule]) =
+    declared.foldLeft((df, Seq.empty[QuarantineRule])) { case ((acc, rules), (column, target)) =>
+      if (!acc.columns.contains(column) || acc.schema(column).dataType != StringType) (acc, rules)
+      else {
+        val raw = trim(col(column))
+        val leading = regexp_extract(raw, "^([A-Za-z]{3})\\s", 1)
+        val trailing = regexp_extract(raw, "\\s([A-Za-z]{3})$", 1)
+        val code = when(leading =!= "", leading).otherwise(trailing)
+        val number = trim(regexp_replace(regexp_replace(raw, "^[A-Za-z]{3}\\s+", ""),
+                                         "\\s+[A-Za-z]{3}$", ""))
+        val codeAgrees =
+          if (acc.columns.contains(currencyCol)) code === "" || upper(code) === upper(trim(col(currencyCol)))
+          else code === ""
+        val conformed = acc
+          .withColumn(s"${column}__raw", col(column))
+          .withColumn(column, when(codeAgrees, number).otherwise(lit(null).cast("string")))
+          .withColumn(column, expr(s"try_cast(`$column` AS $target)"))
+        val rule = QuarantineRule(
+          id = s"cast_$column",
+          reason = s"INVALID_CAST_${column.toUpperCase}",
+          keep = col(column).isNotNull || col(s"${column}__raw").isNull
+        )
+        (conformed, rules :+ rule)
+      }
+    }
 
   /** Finish a `safeCast`: replace the original column with the converted one. */
   def promoteCast(df: DataFrame, column: String): DataFrame =

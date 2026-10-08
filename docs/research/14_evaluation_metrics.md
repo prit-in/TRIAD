@@ -80,6 +80,8 @@ people.
 | Leakage inflation | Reliability | PR-AUC with a leaking feature minus PR-AUC without | EXP-9 |
 | Wall-clock time | Performance | Seconds per stage and per run; JVM start-up separately | Experiment harness timers |
 | Peak memory | Resource utilization | Peak resident set of the process, and of the Spark JVM | `/proc` high-water marks, one process per baseline |
+| Shuffle and spill | Resource utilization | Bytes written and read by shuffles; bytes spilled from execution memory to disk | Spark listener, every stage of every job (FR-036) |
+| Task skew, core utilization | Performance | Slowest over median task per stage; sum of task run times over wall clock times cores | Spark listener; EXP-3 |
 | Hand-written lines, manual steps | Automation | Lines of code and steps a person must perform | Counted from each configuration |
 | Faults detected before execution | Reliability | Share of injected faults stopped by a gate, and which gate | EXP-4, EXP-8 |
 | Faults recovered without a person | Automation, reliability | Share of injected failures resolved within budget | EXP-6 |

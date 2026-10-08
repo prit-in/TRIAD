@@ -379,8 +379,11 @@ def test_the_card_records_who_approved_and_what_they_overrode(
         metrics={}, calibration={}, segment_results=[], top_drivers=[], driver_method="shap",
         known_limitations=["one cutoff is one season"],
     ), folder / "model_card.md")
-    tmp_store.write_json(folder / "override_evidence.json", {"override_note": NOTE["note"]})
+    bundle = tmp_store.write_json(folder / "override_evidence_test.json",
+                                  {"override_note": NOTE["note"]})
     shares = _shares(service, run, people["requester"])
+    for share in shares:
+        share.evidence_uri = tmp_store.uri(bundle)
     service.decide(_share(shares, "ml_engineer").id, approver=people["ml"], approved=True,
                    comment="metrics against the champion read")
     service.decide(_share(shares, "admin").id, approver=people["admin"], approved=True,

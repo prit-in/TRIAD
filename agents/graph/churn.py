@@ -30,7 +30,7 @@ from python_ml.triad_ml.hygiene import catalog_version
 from triad_core.config import settings
 from triad_core.ids import utcnow
 from triad_core.models import Experiment, ModelVersion, PipelineRun
-from triad_core.storage import Storage, storage
+from triad_core.storage import Storage, StorageError, storage
 
 Logger = Callable[[str, str, bool | None], None]
 
@@ -99,9 +99,15 @@ def record_approval_on_card(store: Storage, run: PipelineRun, approvals: list[An
     }
     override = override or {}
     if override.get("eligible"):
-        bundle = store.reports_dir(run.run_key) / "override_evidence.json"
-        note = (json.loads(bundle.read_text(encoding="utf-8")).get("override_note")
-                if bundle.exists() else None)
+        # The bundle the shares were decided on, by the URI they carry: each override request
+        # writes its own file, so a fixed name would read whichever request came last.
+        note = None
+        uri = next((a.evidence_uri for a in approvals if a.evidence_uri), None)
+        if uri:
+            try:
+                note = json.loads(store.path(uri).read_text(encoding="utf-8")).get("override_note")
+            except (OSError, ValueError, StorageError):
+                note = None
         rules = ", ".join(override.get("failed_rules") or [])
         card.approval |= {
             "type": "promotion despite a failed check (PRD section 30)",

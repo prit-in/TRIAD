@@ -38,7 +38,7 @@ from triad_core.governance import (
     PolicyDenied,
     SelfApprovalRefused,
 )
-from triad_core.models import Approval, Metric, Model, ModelVersion, PipelineRun
+from triad_core.models import Alert, Approval, Metric, Model, ModelVersion, PipelineRun
 from triad_core.policy import PolicyEngine
 from triad_core.storage import storage
 
@@ -273,14 +273,16 @@ def rollback(
 ) -> ModelDetail:
     """Rollback needs no fresh approval: it is the one pre-approved action (PRD 19.5, 30.2).
 
-    It only ever moves the alias to a version this platform recorded, so it cannot be used to
-    deploy something that was never approved in the first place.
+    Pre-approved because it restores what was approved before: PRD 30 limits it to the
+    "previous recorded champion only". It used to accept any version this platform had
+    recorded, which included every challenger that was never approved - so "roll back to v17"
+    deployed an unapproved model with no approval at all. A version qualifies only if it was
+    promoted once (`promoted_at`), and only the most recent such version other than the
+    current champion. Like the automatic rollback, it raises an alert (PRD 19.5).
     """
     model = _find_model(session, model_ref)
-    target = next(
-        (v for v in _versions(session, model) if v.mlflow_version == payload.previous_version),
-        None,
-    )
+    versions = _versions(session, model)
+    target = next((v for v in versions if v.mlflow_version == payload.previous_version), None)
     if target is None:
         raise problems.conflict(
             "Unknown version",
@@ -288,6 +290,22 @@ def rollback(
             "rollback only restores versions this platform registered.",
             problem_type="unknown-version",
         )
+    former = sorted((v for v in versions
+                     if v.promoted_at is not None and v.governance_status != "champion"),
+                    key=lambda v: v.promoted_at, reverse=True)
+    previous = former[0] if former else None
+    if previous is None or target.id != previous.id:
+        raise problems.conflict(
+            "Not the previous champion",
+            f"Rollback restores only the previous recorded champion"
+            + (f", which for {model.name} is v{previous.mlflow_version}" if previous else
+               f"; {model.name} has none")
+            + f". v{payload.previous_version} was "
+            + ("never promoted" if target.promoted_at is None else "not the most recent")
+            + "; deploying it needs an approval (PRD 30).",
+            problem_type="not-previous-champion",
+        )
+    replaced = next((v for v in versions if v.governance_status == "champion"), None)
 
     from python_ml.triad_ml.registry import ModelRegistry
 
@@ -302,12 +320,12 @@ def rollback(
             "Registry refused the rollback", str(exc), problem_type="registry-error"
         ) from exc
 
-    for version in _versions(session, model):
-        if version.governance_status == "champion":
-            version.governance_status = "archived"
-    target.governance_status = "champion"
-    model.champion_version_id = target.id
-    session.flush()
+    # Through the same status change publish and the automatic rollback use, so the restored
+    # version's `promoted_at` is refreshed: left at its first promotion, the next rollback's
+    # "previous champion" was computed from a stale order and named the wrong version.
+    from agents.monitoring import MonitoringService
+
+    MonitoringService(session).set_status(target, "champion", promoted_by=user.id)
 
     audit.record(
         session, actor_type="user", actor_id=str(user.id), action="model.rolled_back",
@@ -315,4 +333,15 @@ def rollback(
         run_id=target.run_id, outcome="rolled_back",
         details={"reason": payload.reason, **result},
     )
+    session.add(Alert(
+        alert_type="model_rolled_back", severity="warning", model_id=model.id,
+        run_id=target.run_id,
+        message=(f"{model.name} champion rolled back to v{target.mlflow_version}"
+                 + (f" from v{replaced.mlflow_version}" if replaced else "")
+                 + f" by a person: {payload.reason}"),
+        evidence={"rolled_back_by": str(user.id), "reason": payload.reason,
+                  "from_version": replaced.mlflow_version if replaced else None,
+                  "to_version": target.mlflow_version},
+    ))
+    session.flush()
     return get_model(model_ref, session, user)

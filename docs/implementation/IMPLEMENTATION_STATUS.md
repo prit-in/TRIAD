@@ -3,6 +3,31 @@
 Updated: 08-10-2026. **Read this file first when resuming.** The newest handoff below supersedes
 everything after it where they disagree.
 
+## Progress, 08-10-2026 afternoon (read before the morning handoff below)
+
+- Done and committed: DEC-34 (EXP-1 reads an escalated P; escalations keep their references),
+  DEC-35 (no swap past memory limits; ST-07 asserts it), DEC-36 (cleaning conforms numeric columns
+  that arrive as text: currency code stripped only when it matches, then try_cast, else
+  quarantine), EXP-4 now scores "prices fixed", rollback restricted to the previous recorded
+  champion and routed through `set_status` (alert raised), one override bundle file per request,
+  Start-a-run and Roll-back controls in the dashboard, `scripts/prepare_demo_data.py`,
+  `docs/runbooks/demo.md`, Section 13, parts of Sections 15 and 19, Fig. 04 and Fig. 06 layouts,
+  `docs/research/figures/export_diagrams.py` (draw.io SVG -> Chrome at >= 600 DPI, light scheme),
+  `docs/research/tables/build_tables.py`.
+- **Not yet tested** (run first): `tests/unit/test_api.py` rollback tests, `test_override_path.py`,
+  `test_isolated_runs.py`, Scala `CleaningRulesSpec` TC-019b/c and the full Scala suite (gate 5
+  must pass with the new CleanJob template), frontend `npx tsc -b --noEmit`.
+- EXP-2: re-running alone (`--no-deps`, stack stopped). The previous run's measurements (400 to
+  50 000 customers complete; the generator itself OOM-killed at 100 000) are in
+  `experiments/_logs/aborted/EXP-2_20261008T111059Z_conclusion_keyerror/` - it crashed only in
+  its conclusion (fixed).
+- Then: `docker compose -f docker/compose.yaml up -d`, the tests above, the draw.io export and a
+  visual check of all 26 diagrams, then `ORDER="EXP-1 EXP-4 EXP-5 EXP-6" bash
+  scripts/run_experiments_batch.sh`, then EXPERIMENTS.md, charts, tables, Sections 15-17, 19, 22,
+  00, audits, Word assembly, team details.
+- Two of three code reviewers died on the account's session limit; their slices (pipeline,
+  experiments/frontend) were self-reviewed instead.
+
 ## Handoff, 08-10-2026 (session closed at the user's request, during the experiment re-run)
 
 ### Done in this session (commits b11b6b0 .. the commit that adds this section)

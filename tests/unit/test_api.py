@@ -985,3 +985,63 @@ def test_executions_serve_their_spark_stage_metrics(client, users, db_session) -
     assert by_stage["profile"]["spark"] is None
     assert client.get(f"/api/v1/pipelines/{run.run_key}/executions",
                       headers=_auth(users["viewer"])).status_code == 403
+
+
+def _model_with_history(db_session):
+    """A model whose v1 and v2 were champions in turn, v3 is champion now, v4 was never promoted."""
+    from triad_core.models import Model, ModelVersion
+
+    name = f"m-{uuid.uuid4().hex[:6]}"
+    model = Model(name=name, mlflow_registered_name=name, target_definition="t")
+    db_session.add(model)
+    db_session.flush()
+    now = dt.datetime.now(dt.UTC)
+    rows = {}
+    for number, status, promoted in (("1", "archived", now - dt.timedelta(days=3)),
+                                     ("2", "archived", now - dt.timedelta(days=2)),
+                                     ("3", "champion", now - dt.timedelta(days=1)),
+                                     ("4", "challenger", None)):
+        rows[number] = ModelVersion(model_id=model.id, mlflow_version=number, algorithm="logreg",
+                                    params_json={}, governance_status=status, promoted_at=promoted)
+        db_session.add(rows[number])
+    db_session.flush()
+    model.champion_version_id = rows["3"].id
+    db_session.flush()
+    return model, rows
+
+
+@pytest.mark.parametrize("version", ["4", "1"])
+def test_a_person_rolls_back_only_to_the_previous_champion(client, users, db_session,
+                                                           version) -> None:
+    """PRD 30: "previous recorded champion only". v4 was never approved; v1 is not the previous."""
+    model, _ = _model_with_history(db_session)
+    response = client.post(f"/api/v1/models/{model.name}/rollback",
+                           headers=_auth(users["ml_engineer"]),
+                           json={"previous_version": version, "reason": "smoke test regression"})
+    assert response.status_code == 409
+    assert response.json()["type"].endswith("/not-previous-champion")
+    assert "v2" in response.json()["detail"]
+
+
+def test_rolling_back_to_the_previous_champion_moves_it_and_raises_an_alert(
+    client, users, db_session, monkeypatch
+) -> None:
+    from sqlalchemy import select
+
+    from triad_core.models import Alert
+
+    monkeypatch.setattr("python_ml.triad_ml.registry.ModelRegistry.rollback",
+                        lambda self, name, previous_version, reason: {"to": previous_version})
+    model, rows = _model_with_history(db_session)
+    response = client.post(f"/api/v1/models/{model.name}/rollback",
+                           headers=_auth(users["ml_engineer"]),
+                           json={"previous_version": "2", "reason": "smoke test regression"})
+    assert response.status_code == 200, response.text
+    assert (rows["2"].governance_status, rows["3"].governance_status) == ("champion", "archived")
+    # Re-stamped: left at its first promotion, a later rollback's "previous champion" would be
+    # computed from a stale order and name v3 instead of v2.
+    assert rows["2"].promoted_at > rows["3"].promoted_at
+    alert = db_session.execute(
+        select(Alert).where(Alert.model_id == model.id, Alert.alert_type == "model_rolled_back")
+    ).scalar_one()
+    assert "from v3" in alert.message and alert.evidence["to_version"] == "2"

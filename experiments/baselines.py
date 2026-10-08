@@ -275,7 +275,9 @@ def run_isolated(target: str, /, *, timeout_s: float | None = None, **kwargs: An
 
     ctx = mp.get_context("spawn")
     results = ctx.Queue()
-    child = ctx.Process(target=_report, args=(results, target, kwargs), daemon=True)
+    # Not a daemon: a daemonic process may not start children, and scikit-learn's joblib then
+    # silently drops every `n_jobs` to 1 - which would time the baselines single-threaded.
+    child = ctx.Process(target=_report, args=(results, target, kwargs))
     before, started = cgroup_oom_kills(), time.perf_counter()
     child.start()
     while True:

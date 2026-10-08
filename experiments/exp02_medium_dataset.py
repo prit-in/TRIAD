@@ -134,6 +134,12 @@ def _memory_at_start() -> dict[str, object]:
             "container_swap_max": read("/sys/fs/cgroup/memory.swap.max")}
 
 
+def _value(trial, name: str):
+    """A measurement, or None when the rung never got that far - a rung whose data could not be
+    generated records no baseline measurements, and `Trial.get` raises for a missing one."""
+    return next((m.value for m in trial.measurements if m.name == name), None)
+
+
 def _bytes_on_disk(root: Path) -> int:
     return sum(f.stat().st_size for f in root.rglob("*.parquet"))
 
@@ -283,7 +289,8 @@ def run() -> Experiment:
                 break
 
         rungs = [t for t in exp.trials if t.condition.startswith("customers_")]
-        largest_both = [t for t in rungs if t.get("b2_completed") and t.get("b3_completed")]
+        largest_both = [t for t in rungs
+                        if _value(t, "b2_completed") and _value(t, "b3_completed")]
 
         exp.conclude(
             status="partial",
@@ -303,9 +310,9 @@ def run() -> Experiment:
                 + (
                     f" At the largest rung both completed ({largest_both[-1].condition}), B2 "
                     f"took {largest_both[-1].get('b2_wall_clock_s')}s and B3 "
-                    f"{largest_both[-1].get('b3_wall_clock_s')}s, with peak RSS "
-                    f"{largest_both[-1].get('b2_peak_rss_mb')} MB and "
-                    f"{largest_both[-1].get('b3_peak_rss_mb')} MB."
+                    f"{largest_both[-1].get('b3_wall_clock_s')}s, with peak memory "
+                    f"{largest_both[-1].get('b2_peak_rss_mb')} MB for B2's Python process and "
+                    f"{_value(largest_both[-1], 'b3_jvm_peak_rss_mb')} MB for B3's Spark JVM."
                     if largest_both else ""
                 )
                 + " The PRD's 10 GB tier is not reported: see the limitations. Configuration P "

@@ -280,6 +280,13 @@ def _run_one(exp: Experiment, fault: str, overrides: dict[str, Any]) -> None:
                     trial.record("removed_duplicates", duplicates)
                     trial.record("row_accounting_balanced", balanced,
                                  note="input = output + quarantined + duplicates")
+                    # The cleaning plan converts a declared-numeric column that arrived as text
+                    # (DEC-36); its per-rule count is present exactly when that happened.
+                    conformed = "rule_cast_price" in metrics
+                    trial.record("price_conformed", conformed)
+                    if conformed:
+                        trial.record("price_quarantined", int(metrics["rule_cast_price"]),
+                                     note="values that did not convert, quarantined with reason")
                     trial.observations["job_metrics"] = metrics
                 else:
                     trial.observations["escalation"] = pipeline.result.escalation
@@ -291,7 +298,8 @@ def _run_one(exp: Experiment, fault: str, overrides: dict[str, Any]) -> None:
             else:
                 trial.record("cleaning_succeeded", False,
                              note="not attempted: profiling did not pass")
-            trial.record("detected_at_clean", bool(trial_has(trial, "escalated")))
+            trial.record("detected_at_clean",
+                         bool(trial_has(trial, "escalated") or trial_has(trial, "price_conformed")))
             trial.record("reached_cleaning", True)
         finally:
             spark.stop()
@@ -347,6 +355,14 @@ def _run_one(exp: Experiment, fault: str, overrides: dict[str, Any]) -> None:
         # the hypothesis claims - that the missing table disables its features - happens at
         # the feature stage, which this experiment does not run. Recorded, not scored.
         trial.ok = bool(trial.get("optional_table_absent"))
+    elif fault == "price_as_text_with_symbols":
+        # The hypothesis names the action, not just the detection: "prices are fixed by try_cast
+        # and quarantine". An escalation stops the fault but fixes nothing, and was counted as a
+        # pass before DEC-36; what passes now is cleaning that converted the column and still
+        # balanced its rows.
+        trial.ok = (bool(trial.get("cleaning_succeeded")) and bool(trial.get("price_conformed"))
+                    and str(trial.get("row_accounting_balanced")).lower() == "true")
+        trial.record("correct_action", trial.ok)
     else:
         trial.ok = where != "not detected"
     trial.detail = (
@@ -426,10 +442,13 @@ def run() -> Experiment:
             "measured here."
         )
 
+        price = next((t for t in exp.trials if t.condition == "price_as_text_with_symbols"), None)
+        prices_fixed = bool(price and price.ok)
         exp.conclude(
             status="partial",
             hypothesis_held=(
                 len(detected) == len(faults)
+                and prices_fixed
                 and auto_applied == 0
                 and not silent_loss
                 and bool(baseline.get("cleaning_succeeded"))
@@ -443,7 +462,15 @@ def run() -> Experiment:
                 )
                 + f". {len(detected)} of {len(faults)} scored faults detected; the clean "
                 f"baseline passed: {bool(baseline.get('cleaning_succeeded'))}. "
-                f"{auto_applied} mappings were applied without a person. "
+                + (
+                    f"Prices written as text were fixed: the column was converted with try_cast "
+                    f"and {price.get('price_quarantined')} value(s) that did not convert were "
+                    "quarantined, with the row accounting balanced. "
+                    if prices_fixed else
+                    "Prices written as text were not fixed by try_cast and quarantine: "
+                    + (price.detail if price else "the condition did not run") + ". "
+                )
+                + f"{auto_applied} mappings were applied without a person. "
                 f"{len(silent_loss)} conditions lost rows silently (cleaning reported success "
                 "while the row accounting did not balance). Detection rate is reported against "
                 "the baseline on purpose: a detector that flagged everything would otherwise "

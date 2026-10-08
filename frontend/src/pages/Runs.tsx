@@ -1,14 +1,16 @@
 import { Fragment, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import type {
   Artifact,
+  DatasetSummary,
   Decision,
   DecisionAlternative,
   Execution,
   LogLine,
   RunDetail,
 } from "../api";
+import { useAuth } from "../auth";
 import {
   ConfirmButton,
   Empty,
@@ -37,6 +39,8 @@ export function Runs() {
   );
 
   return (
+    <>
+    <StartRun />
     <Panel
       title="Runs"
       provenance="Measured"
@@ -97,6 +101,62 @@ export function Runs() {
         nextCursor={runs.data?.next_cursor ?? null}
         shown={runs.data?.items.length ?? 0}
       />
+    </Panel>
+    </>
+  );
+}
+
+/** What the churn pipeline reads (pipelines/churn_v1.yaml). Transactions and customers are
+ *  required; the others feed feature groups that are computed when their source exists and
+ *  marked unavailable when it does not (FR-025). */
+const CHURN_INPUTS = ["transactions", "customers", "products", "returns", "web_sessions",
+                      "support_tickets", "promotions"];
+// The roles `POST /pipelines/run` admits (backend/app/api/v1/pipelines.py STARTER_ROLES).
+const STARTER_ROLES = ["data_engineer", "data_scientist", "ml_engineer"];
+
+/**
+ * Start a run from the dashboard, so a demonstration needs no shell. Each input resolves to its
+ * latest registered version on the server when the run starts, which is also what the run then
+ * records; the page only says which versions that will be. One run of a pipeline at a time is
+ * the server's rule (DEC-18), and its refusal is shown in the dialog.
+ */
+function StartRun() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const datasets = useLoad<DatasetSummary[]>(() => api.datasets());
+  if (!user || !STARTER_ROLES.includes(user.role)) return null;
+
+  const latest = new Map((datasets.data ?? []).map((d) => [d.name, d.latest_version]));
+  const inputs = CHURN_INPUTS.filter((name) => latest.get(name));
+  const ready = inputs.includes("transactions") && inputs.includes("customers");
+  return (
+    <Panel
+      title="Start a run"
+      provenance="Governed"
+      actions={
+        <ConfirmButton
+          label="Start a run of churn_v1"
+          className="secondary"
+          disabled={!ready}
+          title="Start a governed run?"
+          question={`churn_v1 on the latest version of ${inputs.length} datasets. It runs for tens of minutes - profiling, generated Spark jobs behind nine gates, training and the acceptance policy - and may stop for an approval or an escalation, which the run page will show.`}
+          confirmLabel="Start the run"
+          onConfirm={() =>
+            api
+              .startRun("churn_v1", Object.fromEntries(inputs.map((name) => [name, name])))
+              .then((started) => navigate(`/runs/${started.run_id}`))
+          }
+        />
+      }
+    >
+      <Problem error={datasets.problem} />
+      {datasets.data && (
+        <p className="muted">
+          {ready
+            ? `Inputs: ${inputs.map((name) => `${name} v${latest.get(name)}`).join(" · ")}`
+            : "Transactions and customers must both be registered before a run can start."}
+        </p>
+      )}
     </Panel>
   );
 }

@@ -92,19 +92,25 @@ def fig03() -> Diagram:
 
 
 def fig04() -> Diagram:
-    d = Diagram("Fig 04 Literature Taxonomy", W, 420)
+    # Two groups rather than an edge from the root to every topic: eight edges to two rows had to
+    # cross the first row to reach the second, and the export showed lines through the labels.
+    d = Diagram("Fig 04 Literature Taxonomy", W, 450)
     d.box("r", "Agentic data science programming", 290, 10, 300, 50, kind="neutral", bold=True)
-    top = row(d, "a", ["Python analytics", "Scala, Spark, distributed processing",
-                       "Configuration tuning", "MLOps and engineering of ML systems"],
-              120, kind="compute", h=70, size=14)
-    bottom = row(d, "b", ["Data quality and provenance", "AutoML and hyperparameter optimization",
-                          "LLM agents and generated code", "Explainability, trust, and fairness"],
-                 230, kind="agent", h=70, size=14)
-    for cid in top + bottom:
-        d.edge("r", cid)
-    d.box("app", "Application: customer churn prediction", 290, 340, 300, 50, kind="data", size=14)
-    for cid in bottom:
-        d.edge(cid, "app", dashed=True)
+    d.group("g1", "Engineering foundations (Sections 3.1 to 3.4)", 20, 90, W - 40, 110,
+            kind="compute", size=14)
+    row(d, "a", ["Python analytics", "Scala, Spark, distributed processing",
+                 "Configuration tuning", "MLOps and engineering of ML systems"],
+        126, kind="compute", h=60, size=14, x0=32, x1=W - 32, gap=20)
+    d.group("g2", "Automation and assurance (Sections 3.5 to 3.8)", 20, 230, W - 40, 110,
+            kind="agent", size=14)
+    row(d, "b", ["Data quality and provenance", "AutoML and hyperparameter optimization",
+                 "LLM agents and generated code", "Explainability, trust, and fairness"],
+        266, kind="agent", h=60, size=14, x0=32, x1=W - 32, gap=20)
+    d.box("app", "Application: customer churn prediction (Section 3.9)", 220, 380, 440, 50,
+          kind="data", size=14)
+    d.edge("r", "g1", exit="bottom", entry="top")
+    d.edge("g1", "g2", exit="bottom", entry="top")
+    d.edge("g2", "app", exit="bottom", entry="top", dashed=True)
     return d
 
 
@@ -134,8 +140,10 @@ def fig06() -> Diagram:
     d.box("ppl", "People: engineers,\napprovers, analysts", 500, 40, 190, 50, kind="person", size=14)
     d.group("go", "Orchestration (Python)", 20, 115, 690, 150, kind="agent")
     d.box("wk", "Worker\nstate machine, queue, leases", 40, 150, 210, 56, kind="agent", size=14)
-    d.box("sc", "Scheduler\nRT-1 to RT-9, landing folders", 270, 150, 200, 56, kind="agent", size=14)
-    d.box("rt", "Routing rules\nLR-01 to LR-10", 490, 150, 200, 56, kind="agent", size=14)
+    # Routing beside the worker that consults it: with the scheduler between them, their edge
+    # ran through the scheduler's box.
+    d.box("rt", "Routing rules\nLR-01 to LR-10", 270, 150, 200, 56, kind="agent", size=14)
+    d.box("sc", "Scheduler\nRT-1 to RT-9, landing folders", 490, 150, 200, 56, kind="agent", size=14)
     d.box("cg", "Code generation\ntemplates, 9 gates", 40, 215, 210, 40, kind="agent", size=14)
     d.box("tr", "Tool registry: allowlist, schema, policy", 270, 215, 420, 40, kind="agent", size=14)
     d.group("gc", "Compute", 20, 280, 690, 160, kind="compute")
@@ -158,9 +166,11 @@ def fig06() -> Diagram:
     d.edge("sr", "sp")
     d.edge("sp", "fs", "staging, then publish")
     d.edge("py", "ml")
-    d.edge("wk", "pg", dashed=True)
     d.edge("tr", "pe", "", dashed=True)
-    d.edge("ap", "api", "", dashed=True)
+    # People decide approvals, routed through the gutter between the main column and the
+    # governance column. The approvals-to-API and worker-to-PostgreSQL edges crossed three
+    # boxes; the State group and the PostgreSQL label carry the second relation.
+    d.edge("ppl", "ap", "decide", dashed=True, exit="right", entry="left")
     return d
 
 

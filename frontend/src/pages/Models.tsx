@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { api } from "../api";
 import type { Evaluation, ModelDetail, ModelSummary, ModelVersion } from "../api";
+import { useAuth } from "../auth";
 import { BarChart, ConfusionMatrix, LineChart, UnitLineChart } from "../charts";
-import { Empty, Panel, Problem, Tabs, num, pct, useLoad, when } from "../shared";
+import { ConfirmButton, Empty, Panel, Problem, Tabs, num, pct, useLoad, useToast, when }
+  from "../shared";
 
 /** The metrics worth putting in front of someone deciding a promotion (PRD 17.5). */
 const HEADLINE = [
@@ -40,6 +42,7 @@ export function Models() {
             <Aliased label="Champion" version={model.champion} />
             <Aliased label="Challenger" version={model.challenger} />
           </div>
+          <Rollback model={model} onDone={models.refresh} />
           {open === model.name && <Versions name={model.name} />}
           <VersionComparison model={model} />
           {/* Both aliases, not just the champion. The challenger is the one whose curves
@@ -50,6 +53,54 @@ export function Models() {
         </Panel>
       ))}
     </>
+  );
+}
+
+/**
+ * PRD 19.5: a person can roll the champion back at any time. Only the previous recorded
+ * champion is offered, because that is the only version the server will restore without an
+ * approval (PRD 30); a reason is required, and the rollback is audited and raises an alert.
+ */
+function Rollback({ model, onDone }: { model: ModelSummary; onDone: () => void }) {
+  const { user } = useAuth();
+  const toast = useToast();
+  const detail = useLoad<ModelDetail>(() => api.model(model.name), [model.name]);
+  const [reason, setReason] = useState("");
+  // `POST /models/{ref}/rollback` admits the ML Engineer role, and an admin is never locked out.
+  if (!user || !["ml_engineer", "admin"].includes(user.role) || !model.champion) return null;
+
+  const previous = (detail.data?.versions ?? [])
+    .filter((v) => v.promoted_at && v.governance_status !== "champion")
+    .sort((a, b) => (b.promoted_at ?? "").localeCompare(a.promoted_at ?? ""))[0];
+  if (!previous?.mlflow_version) return null;
+  const target = previous.mlflow_version;
+
+  return (
+    <div className="rollback">
+      <label>
+        Why roll back to v{target}?
+        <input
+          value={reason}
+          placeholder="what is wrong with the current champion (at least 10 characters)"
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </label>
+      <ConfirmButton
+        label={`Roll back to v${target}`}
+        className="secondary"
+        disabled={reason.trim().length < 10}
+        title={`Roll ${model.name} back to v${target}?`}
+        question={`The champion alias moves from v${model.champion.mlflow_version} to v${target}, the previous recorded champion, and scoring uses v${target} from now on. No approval is needed for this one action; it is audited and raises an alert.`}
+        confirmLabel="Roll back"
+        onConfirm={() =>
+          api.rollback(model.name, target, reason.trim()).then(() => {
+            toast(`${model.name} rolled back to v${target}.`);
+            setReason("");
+            onDone();
+          })
+        }
+      />
+    </div>
   );
 }
 

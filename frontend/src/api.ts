@@ -119,6 +119,12 @@ export const api = {
   me: () => request<User>("/auth/me"),
   stats: () => request<Stats>("/stats"),
   runs: (query = "") => request<Page<RunSummary>>(`/pipelines${query}`),
+  /** Start a governed run on the latest version of each named dataset (PRD 25.2). */
+  startRun: (pipeline: string, inputs: Record<string, string>) =>
+    request<{ run_id: string; state: string }>("/pipelines/run", {
+      method: "POST",
+      body: JSON.stringify({ pipeline, inputs }),
+    }),
   run: (id: string) => request<RunDetail>(`/pipelines/${id}`),
   runDecisions: (id: string) => request<Decision[]>(`/pipelines/${id}/decisions`),
   runArtifacts: (id: string) => request<Artifact[]>(`/pipelines/${id}/artifacts`),
@@ -136,6 +142,12 @@ export const api = {
     }),
   models: () => request<ModelSummary[]>("/models"),
   model: (ref: string) => request<ModelDetail>(`/models/${ref}`),
+  /** PRD 19.5: restore the previous recorded champion. Pre-approved, audited, alerted. */
+  rollback: (ref: string, previousVersion: string, reason: string) =>
+    request<ModelDetail>(`/models/${ref}/rollback`, {
+      method: "POST",
+      body: JSON.stringify({ previous_version: previousVersion, reason }),
+    }),
   approvals: (status = "pending") => request<Approval[]>(`/approvals?status=${status}`),
   /** PRD 30.5: the evidence bundle a request is decided on, not just where it is stored. */
   approvalEvidence: (id: string) => request<EvidenceBundle>(`/approvals/${id}/evidence`),

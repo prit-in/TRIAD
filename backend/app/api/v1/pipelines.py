@@ -454,8 +454,11 @@ def request_override(
         risk_notes=[note for note in (offer.get("reason"), review.get("note")) if note],
         override_note=payload.note.strip(),
     )
+    # One file per request: shares keep the URI of the bundle they were decided on, and a second
+    # request after a rejection must not rewrite the first one's justification underneath it.
     evidence_path = store.write_json(
-        store.reports_dir(run.run_key) / "override_evidence.json", evidence.to_dict()
+        store.reports_dir(run.run_key) / f"override_evidence_{uuid.uuid4().hex[:12]}.json",
+        evidence.to_dict(),
     )
     service = GovernanceService(session, PolicyEngine(settings().governance_policy_path))
     try:

@@ -76,6 +76,36 @@ class CleaningRulesSpec extends SparkFixture {
     assert(promoted.select("amount_raw").as[Int].collect().toSet == Set(12, 7))
   }
 
+  test("TC-019b: a price written as text in its own currency is conformed; nothing is guessed") {
+    val lines = Seq(
+      ("O1", "INR 871.59", "INR"),
+      ("O2", "871.59 INR", "INR"),
+      ("O3", "USD 10.00", "INR"),    // another currency: converting it would invent a number
+      ("O4", "1,234.50", "INR"),     // a thousands separator: not parsed, so not guessed
+      ("O5", "12.00", "INR"),
+      ("O6", null, "INR")            // a null stays null; the price rule decides what that means
+    ).toDF("order_id", "price", "currency")
+
+    val (typed, rules) = CleaningRules.conformNumeric(lines, Seq("price" -> "decimal(18,2)"))
+    val (clean, quarantine, counts) = CleaningRules.applyQuarantineRules(typed, rules)
+
+    assert(typed.schema("price").dataType.typeName.startsWith("decimal"))
+    assert(clean.select("order_id").as[String].collect().toSet == Set("O1", "O2", "O5", "O6"))
+    assert(counts("cast_price") == 2L)
+    assert(quarantine.select(col(CleaningRules.ReasonColumn)).as[String].collect().toSet ==
+      Set("INVALID_CAST_PRICE"))
+    assert(quarantine.select("price__raw").as[String].collect().toSet == Set("USD 10.00", "1,234.50"))
+    val prices = clean.where(col("order_id") === "O1").select(col("price").cast("double")).as[Double]
+    assert(prices.head() == 871.59)
+  }
+
+  test("TC-019c: a column that is already numeric takes the same path as before") {
+    val lines = Seq(("O1", 10.5)).toDF("order_id", "price")
+    val (typed, rules) = CleaningRules.conformNumeric(lines, Seq("price" -> "decimal(18,2)"))
+    assert(rules.isEmpty)
+    assert(typed.schema == lines.schema)
+  }
+
   test("domain rule: a cancellation line becomes a return, not an error") {
     val lines = Seq(("O1", 2, 10.0), ("CO2", -3, 20.0)).toDF("order_id", "quantity", "price")
     val handled = CleaningRules.cancellationsToReturns(lines)
