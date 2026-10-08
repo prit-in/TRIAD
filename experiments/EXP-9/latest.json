@@ -11,8 +11,8 @@
     "held_out_roc_auc",
     "inflation_vs_control"
   ],
-  "started_at": "2026-09-19T03:07:45.754127+00:00",
-  "duration_s": 9.15,
+  "started_at": "2026-10-07T21:56:17.713949+00:00",
+  "duration_s": 9.67,
   "status": "completed",
   "hypothesis_held": true,
   "conclusion": "2 of 2 leaks blocked; the point-in-time control was not blocked: True. Inflation on held-out data, with the defences bypassed: leak_post_cutoff_feature +0.5470 PR-AUC, leak_lifetime_total +0.4975 PR-AUC. The post-cutoff feature is caught by name before any model is fitted; the lifetime total is name-innocent and is caught only by the behavioural checks, which is why both kinds of defence are needed.",
@@ -91,7 +91,8 @@
             "valid_pr_auc": 0.8071182414963928,
             "valid_churn_rate": 0.31416666666666665,
             "brier_skill": 0.3713349338388642,
-            "ece": 0.12896242397833513
+            "ece": 0.12896242397833513,
+            "ece_n_rows": 1200
           }
         }
       }
@@ -178,7 +179,8 @@
             "valid_churn_rate": 0.31416666666666665,
             "roc_auc": 0.9999999999999999,
             "brier_skill": 0.9994597115662036,
-            "ece": 0.004883212162985153
+            "ece": 0.004883212162985153,
+            "ece_n_rows": 1200
           }
         }
       }
@@ -260,11 +262,12 @@
             "valid_churn_rate": 0.31416666666666665,
             "roc_auc": 0.9981693422846479,
             "brier_skill": 0.8752930610036147,
-            "ece": 0.08146552196807876
+            "ece": 0.08146552196807876,
+            "ece_n_rows": 1200
           }
         }
       }
     }
   ],
-  "run_dir": "20260919T030745Z"
+  "run_dir": "20261007T215617Z"
 }

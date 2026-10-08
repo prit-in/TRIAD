@@ -12,8 +12,8 @@
     "auto_applied_without_a_person",
     "wall_clock_s"
   ],
-  "started_at": "2026-09-19T04:49:57.266698+00:00",
-  "duration_s": 467.91,
+  "started_at": "2026-10-07T22:04:30.719406+00:00",
+  "duration_s": 1527.05,
   "status": "partial",
   "hypothesis_held": true,
   "conclusion": "Detected at: renamed_required_column -> ingest, price_as_text_with_symbols -> clean, dropped_optional_table -> not detected. 2 of 2 scored faults detected; the clean baseline passed: True. 0 mappings were applied without a person. 0 conditions lost rows silently (cleaning reported success while the row accounting did not balance). Detection rate is reported against the baseline on purpose: a detector that flagged everything would otherwise score perfectly.",
@@ -155,7 +155,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 284.1,
+          "value": 962.4,
           "unit": "s",
           "note": ""
         },
@@ -183,7 +183,7 @@
           "web_sessions"
         ],
         "refusals": [],
-        "profile_uri": "file:///data/triad/profiles/run-2026-09-19-023_transactions.json",
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-07-004_transactions.json",
         "issues": [
           "info:OUTLIERS.discount",
           "info:OUTLIERS.price",
@@ -298,7 +298,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 3.6,
+          "value": 8.1,
           "unit": "s",
           "note": ""
         }
@@ -415,7 +415,7 @@
         },
         {
           "name": "escalation_reason",
-          "value": "circuit breaker: error fingerprint 167364d308e7 repeated",
+          "value": "circuit breaker: error fingerprint 21a2a7958160 repeated",
           "unit": "",
           "note": ""
         },
@@ -451,7 +451,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 104.8,
+          "value": 286.6,
           "unit": "s",
           "note": ""
         },
@@ -479,7 +479,7 @@
           "web_sessions"
         ],
         "refusals": [],
-        "profile_uri": "file:///data/triad/profiles/run-2026-09-19-025_transactions.json",
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-07-006_transactions.json",
         "issues": [
           "info:OUTLIERS.discount",
           "info:OUTLIERS.quantity",
@@ -489,12 +489,12 @@
         ],
         "escalation": {
           "stage": "clean",
-          "reason": "circuit breaker: error fingerprint 167364d308e7 repeated",
+          "reason": "circuit breaker: error fingerprint 21a2a7958160 repeated",
           "diagnoses": [
             {
               "error_class": "INVALID_CAST_ANSI",
-              "fingerprint": "167364d308e744c89251dc1dc6e2d672",
-              "message": "{\"error_class\": \"INVALID_CAST_ANSI\", \"exception_type\": \"org.apache.spark.SparkNumberFormatException\", \"message\": \"[CAST_INVALID_INPUT] The value 'INR 871.59' of the type \\\"STRING\\\" cannot be cast to \\\"BIGINT\\\" because it is malformed. Correct the value as per the syntax, or change its target type. Use `try_cast` to tolerate malformed input and return NULL instead. SQLSTATE: 22018 == DataFrame == \\\"greater\\\" was called from triad.core.CleaningRules$.standardTransactionRules(CleaningRules.scala:153) \", \"stack_head\": \"org.apache.spark.sql.errors.QueryExecutionErrors$.invalidInputInCastToNumberError(QueryExecutionErrors.scala:147) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.withException(UTF8StringUtils.scala:51) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.toLongExact(UTF8StringUtils.scala:31)\"}",
+              "fingerprint": "21a2a79581609f7a5727f4fdbbf51db0",
+              "message": "{\"error_class\":\"INVALID_CAST_ANSI\",\"exception_type\":\"org.apache.spark.SparkNumberFormatException\",\"message\":\"[CAST_INVALID_INPUT] The value 'INR 871.59' of the type \\\"STRING\\\" cannot be cast to \\\"BIGINT\\\" because it is malformed. Correct the value as per the syntax, or change its target type. Use `try_cast` to tolerate malformed input and return NULL instead. SQLSTATE: 22018 == DataFrame == \\\"greater\\\" was called from triad.core.CleaningRules$.standardTransactionRules(CleaningRules.scala:153) \",\"stack_head\":\"org.apache.spark.sql.errors.QueryExecutionErrors$.invalidInputInCastToNumberError(QueryExecutionErrors.scala:147) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.withException(UTF8StringUtils.scala:51) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.toLongExact(UTF8StringUtils.scala:31)\"}",
               "remedy": "try_cast_with_quarantine",
               "recoverable": true,
               "retry_limit": 1,
@@ -504,8 +504,8 @@
             },
             {
               "error_class": "INVALID_CAST_ANSI",
-              "fingerprint": "167364d308e744c89251dc1dc6e2d672",
-              "message": "{\"error_class\": \"INVALID_CAST_ANSI\", \"exception_type\": \"org.apache.spark.SparkNumberFormatException\", \"message\": \"[CAST_INVALID_INPUT] The value 'INR 871.59' of the type \\\"STRING\\\" cannot be cast to \\\"BIGINT\\\" because it is malformed. Correct the value as per the syntax, or change its target type. Use `try_cast` to tolerate malformed input and return NULL instead. SQLSTATE: 22018 == DataFrame == \\\"greater\\\" was called from triad.core.CleaningRules$.standardTransactionRules(CleaningRules.scala:153) \", \"stack_head\": \"org.apache.spark.sql.errors.QueryExecutionErrors$.invalidInputInCastToNumberError(QueryExecutionErrors.scala:147) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.withException(UTF8StringUtils.scala:51) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.toLongExact(UTF8StringUtils.scala:31)\"}",
+              "fingerprint": "21a2a79581609f7a5727f4fdbbf51db0",
+              "message": "{\"error_class\":\"INVALID_CAST_ANSI\",\"exception_type\":\"org.apache.spark.SparkNumberFormatException\",\"message\":\"[CAST_INVALID_INPUT] The value 'INR 871.59' of the type \\\"STRING\\\" cannot be cast to \\\"BIGINT\\\" because it is malformed. Correct the value as per the syntax, or change its target type. Use `try_cast` to tolerate malformed input and return NULL instead. SQLSTATE: 22018 == DataFrame == \\\"greater\\\" was called from triad.core.CleaningRules$.standardTransactionRules(CleaningRules.scala:153) \",\"stack_head\":\"org.apache.spark.sql.errors.QueryExecutionErrors$.invalidInputInCastToNumberError(QueryExecutionErrors.scala:147) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.withException(UTF8StringUtils.scala:51) | org.apache.spark.sql.catalyst.util.UTF8StringUtils$.toLongExact(UTF8StringUtils.scala:31)\"}",
               "remedy": "try_cast_with_quarantine",
               "recoverable": true,
               "retry_limit": 1,
@@ -516,16 +516,6 @@
           ]
         },
         "decisions": [
-          {
-            "agent": "code_generation",
-            "type": "diagnosis",
-            "decision": "INVALID_CAST_ANSI: remedy try_cast_with_quarantine"
-          },
-          {
-            "agent": "code_generation",
-            "type": "escalation",
-            "decision": "escalate clean"
-          },
           {
             "agent": "spark_planning",
             "type": "routing",
@@ -540,6 +530,16 @@
             "agent": "code_generation",
             "type": "diagnosis",
             "decision": "INVALID_CAST_ANSI: remedy try_cast_with_quarantine"
+          },
+          {
+            "agent": "code_generation",
+            "type": "diagnosis",
+            "decision": "INVALID_CAST_ANSI: remedy try_cast_with_quarantine"
+          },
+          {
+            "agent": "code_generation",
+            "type": "escalation",
+            "decision": "escalate clean"
           }
         ],
         "approvals": []
@@ -678,7 +678,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 71.8,
+          "value": 264.7,
           "unit": "s",
           "note": ""
         },
@@ -705,7 +705,7 @@
           "web_sessions"
         ],
         "refusals": [],
-        "profile_uri": "file:///data/triad/profiles/run-2026-09-19-026_transactions.json",
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-07-007_transactions.json",
         "issues": [
           "info:OUTLIERS.discount",
           "info:OUTLIERS.price",
@@ -748,5 +748,5 @@
       }
     }
   ],
-  "run_dir": "20260919T044957Z"
+  "run_dir": "20261007T220430Z"
 }

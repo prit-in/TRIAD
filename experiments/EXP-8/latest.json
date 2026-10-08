@@ -11,8 +11,8 @@
     "distinct_fingerprints_over_3_attempts",
     "repair_rate"
   ],
-  "started_at": "2026-09-21T20:21:08.922077+00:00",
-  "duration_s": 869.31,
+  "started_at": "2026-10-07T22:54:15.051391+00:00",
+  "duration_s": 751.0,
   "status": "partial",
   "hypothesis_held": null,
   "conclusion": "15 of 20 seeded faults were detected before execution. Forbidden APIs: 5 of 5 refused by gate 2, the static scan, so none was compiled let alone submitted - the PRD's strongest claim, and it holds. Per class: type_mismatch 5/5 detected at gate(s) [4]; missing_import 5/5 detected at gate(s) [4]; wrong_column 0/5 detected at gate(s) [None]; forbidden_api 5/5 detected at gate(s) [2]. Fingerprints repeat identically across three attempts: True, so an unrepairable fault trips the circuit breaker rather than burning the attempt budget. The expected observation about semantic faults holds in a stronger form than the PRD states it: a wrong column name does not merely escalate more often, it passes every static gate, because the name is a string until Spark resolves it. Repair rate is not measured - see the limitations.",
@@ -40,7 +40,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 170.2,
+          "value": 148.4,
           "unit": "s",
           "note": ""
         }
@@ -104,7 +104,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 47.0,
+          "value": 39.1,
           "unit": "s",
           "note": ""
         }
@@ -117,10 +117,10 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Sep 21, 2026, 8:24:28 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:34:14: type mismatch;\n[error]  found   : Seq[String]\n[error]  required: Int\n[error]       .filter(normalised.columns.contains)\n[error]              ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:41:72: type mismatch;\n[error]  found   : Int\n[error]  required: Seq[String]\n[error]     val (deduped, removedDuplicates) = CleaningRules.deduplicate(kept, dedupKeys, dedupOrder)\n[error]                                                                        ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:42:30: value count is not a member of Any\n[error]     val outputRows = ded",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 7, 2026, 10:57:08 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:34:14: type mismatch;\n[error]  found   : Seq[String]\n[error]  required: Int\n[error]       .filter(normalised.columns.contains)\n[error]              ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:41:72: type mismatch;\n[error]  found   : Int\n[error]  required: Seq[String]\n[error]     val (deduped, removedDuplicates) = CleaningRules.deduplicate(kept, dedupKeys, dedupOrder)\n[error]                                                                        ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:42:30: value count is not a member of Any\n[error]     val outputRows = ded",
         "violations": [],
         "fingerprints": {
-          "5ab6a503ce2ca5b245d0b87424cc1d6a": 3
+          "475ea1ef70401aa99d6a6cc5e1df7d24": 3
         }
       }
     },
@@ -179,7 +179,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 44.2,
+          "value": 40.7,
           "unit": "s",
           "note": ""
         }
@@ -192,10 +192,10 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 8 s, completed Sep 21, 2026, 8:25:14 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm2.scala:31:70: type mismatch;\n[error]  found   : Int(1)\n[error]  required: String\n[error]     val rules = CleaningRules.standardTransactionRules(normalised) + 1\n[error]                                                                      ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 15 s, completed Sep 21, 2026, 8:25:30 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Oct 7, 2026, 10:57:46 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm2.scala:31:70: type mismatch;\n[error]  found   : Int(1)\n[error]  required: String\n[error]     val rules = CleaningRules.standardTransactionRules(normalised) + 1\n[error]                                                                      ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 17 s, completed Oct 7, 2026, 10:58:03 PM\n",
         "violations": [],
         "fingerprints": {
-          "020433b270be7161f66758fe908d9f9e": 3
+          "ff72c4e35fff570054753f4647dec178": 3
         }
       }
     },
@@ -254,7 +254,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 43.8,
+          "value": 38.3,
           "unit": "s",
           "note": ""
         }
@@ -267,10 +267,10 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Sep 21, 2026, 8:25:58 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm3.scala:29:7: type mismatch;\n[error]  found   : String(\"country\")\n[error]  required: Seq[String]\n[error]       \"country\"\n[error]       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 16 s, completed Sep 21, 2026, 8:26:13 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 7, 2026, 10:58:27 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm3.scala:29:7: type mismatch;\n[error]  found   : String(\"country\")\n[error]  required: Seq[String]\n[error]       \"country\"\n[error]       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 7, 2026, 10:58:41 PM\n",
         "violations": [],
         "fingerprints": {
-          "fb22e05dae5a729a73ae571cd506696a": 3
+          "b1aab6128277db4c5f76421e9964de96": 3
         }
       }
     },
@@ -329,7 +329,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 45.2,
+          "value": 39.6,
           "unit": "s",
           "note": ""
         }
@@ -342,10 +342,10 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 7 s, completed Sep 21, 2026, 8:26:42 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:39:87: type mismatch;\n[error]  found   : String\n[error]  required: Seq[triad.core.CleaningRules.QuarantineRule]\n[error]     val (kept, quarantined, perRule) = CleaningRules.applyQuarantineRules(normalised, rules)\n[error]                                                                                       ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:40:56: type mismatch;\n[error]  found   : Any\n[error]  required: org.apache.spark.sql.DataFrame\n[error]     (which expands to)  org.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\n[error]     val quarantinedRows = OutputWriter.writeQuarantine(quarantined, cfg)\n[error]",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Oct 7, 2026, 10:59:06 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:39:87: type mismatch;\n[error]  found   : String\n[error]  required: Seq[triad.core.CleaningRules.QuarantineRule]\n[error]     val (kept, quarantined, perRule) = CleaningRules.applyQuarantineRules(normalised, rules)\n[error]                                                                                       ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:40:56: type mismatch;\n[error]  found   : Any\n[error]  required: org.apache.spark.sql.DataFrame\n[error]     (which expands to)  org.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\n[error]     val quarantinedRows = OutputWriter.writeQuarantine(quarantined, cfg)\n[error]",
         "violations": [],
         "fingerprints": {
-          "34326e356c9a99623a4cfada6d4a5053": 3
+          "bfc279761e6acf84c45265356bb81561": 3
         }
       }
     },
@@ -404,7 +404,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 44.2,
+          "value": 37.1,
           "unit": "s",
           "note": ""
         }
@@ -417,10 +417,10 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Sep 21, 2026, 8:27:25 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm5.scala:28:7: type mismatch;\n[error]  found   : Any\n[error]  required: org.apache.spark.sql.DataFrame\n[error]     (which expands to)  org.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\n[error]       domainHandled,\n[error]       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 17 s, completed Sep 21, 2026, 8:27:43 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Oct 7, 2026, 10:59:44 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm5.scala:28:7: type mismatch;\n[error]  found   : Any\n[error]  required: org.apache.spark.sql.DataFrame\n[error]     (which expands to)  org.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\n[error]       domainHandled,\n[error]       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 7, 2026, 10:59:58 PM\n",
         "violations": [],
         "fingerprints": {
-          "23c73b9405ef7374d55429ae3f066e55": 3
+          "f62edc7a80398259e7ef2c33b1663e2a": 3
         }
       }
     },
@@ -479,7 +479,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 44.4,
+          "value": 37.3,
           "unit": "s",
           "note": ""
         }
@@ -492,10 +492,10 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Sep 21, 2026, 8:28:13 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi1.scala:31:74: not found: value col\n[error]     val rules = CleaningRules.standardTransactionRules(normalised.filter(col(\"x\") > 0))\n[error]                                                                          ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Sep 21, 2026, 8:28:27 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Oct 7, 2026, 11:00:21 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi1.scala:31:74: not found: value col\n[error]     val rules = CleaningRules.standardTransactionRules(normalised.filter(col(\"x\") > 0))\n[error]                                                                          ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 7, 2026, 11:00:35 PM\n",
         "violations": [],
         "fingerprints": {
-          "d517d20bcd9eb3c7bc3ed554b7bcdecc": 3
+          "d133fbf8497f9a3145e71224cdd4a27a": 3
         }
       }
     },
@@ -554,7 +554,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 46.9,
+          "value": 38.6,
           "unit": "s",
           "note": ""
         }
@@ -567,10 +567,10 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Sep 21, 2026, 8:28:57 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi2.scala:31:83: not found: value lit\n[error]     val rules = CleaningRules.standardTransactionRules(normalised.withColumn(\"z\", lit(1)))\n[error]                                                                                   ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 17 s, completed Sep 21, 2026, 8:29:14 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Oct 7, 2026, 11:00:59 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi2.scala:31:83: not found: value lit\n[error]     val rules = CleaningRules.standardTransactionRules(normalised.withColumn(\"z\", lit(1)))\n[error]                                                                                   ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 15 s, completed Oct 7, 2026, 11:01:14 PM\n",
         "violations": [],
         "fingerprints": {
-          "68e5da42b0da8494b59a228dc79fe3c4": 3
+          "c1eeba579a2b389e3a92885ff591b22a": 3
         }
       }
     },
@@ -629,7 +629,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 40.5,
+          "value": 38.2,
           "unit": "s",
           "note": ""
         }
@@ -642,10 +642,10 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Sep 21, 2026, 8:29:42 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi3.scala:32:17: not found: type StructType\n[error]     val schema: StructType = null; val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]                 ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi3.scala:32:9: local val schema in method transform is never used\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=unused-locals, site=triad.jobs.generated.CleanJob_exp08mi3.transform.schema\n[error]     val schema: StructType = null; val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]         ^\n[error] two errors found\n[error] (jobs / Compile / compil",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Oct 7, 2026, 11:01:37 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi3.scala:32:17: not found: type StructType\n[error]     val schema: StructType = null; val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]                 ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi3.scala:32:9: local val schema in method transform is never used\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=unused-locals, site=triad.jobs.generated.CleanJob_exp08mi3.transform.schema\n[error]     val schema: StructType = null; val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]         ^\n[error] two errors found\n[error] (jobs / Compile / compil",
         "violations": [],
         "fingerprints": {
-          "b248109ccff3d2aebe2bfb2502ed09af": 3
+          "cd46f7f7e7948388e0d1e6fdcd8acc4b": 3
         }
       }
     },
@@ -704,7 +704,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 44.0,
+          "value": 37.7,
           "unit": "s",
           "note": ""
         }
@@ -717,10 +717,10 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Sep 21, 2026, 8:30:23 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi4.scala:32:16: not found: value Instant\n[error]     val when = Instant.now(); val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]                ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi4.scala:32:9: local val when in method transform is never used\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=unused-locals, site=triad.jobs.generated.CleanJob_exp08mi4.transform.when\n[error]     val when = Instant.now(); val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]         ^\n[error] two errors found\n[error] (jobs / Compile / compileIncremental) Com",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Oct 7, 2026, 11:02:16 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi4.scala:32:16: not found: value Instant\n[error]     val when = Instant.now(); val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]                ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi4.scala:32:9: local val when in method transform is never used\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=unused-locals, site=triad.jobs.generated.CleanJob_exp08mi4.transform.when\n[error]     val when = Instant.now(); val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]         ^\n[error] two errors found\n[error] (jobs / Compile / compileIncremental) Com",
         "violations": [],
         "fingerprints": {
-          "6b1677f52d1a90f1f02596b9be986052": 3
+          "ad681387a3c552524bdd771923e6f966": 3
         }
       }
     },
@@ -779,7 +779,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 51.1,
+          "value": 41.2,
           "unit": "s",
           "note": ""
         }
@@ -792,10 +792,10 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Sep 21, 2026, 8:31:13 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi5.scala:31:17: not found: value QuarantineHelper\n[error]     val rules = QuarantineHelper.rulesFor(normalised)\n[error]                 ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 16 s, completed Sep 21, 2026, 8:31:30 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 5 s, completed Oct 7, 2026, 11:02:56 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi5.scala:31:17: not found: value QuarantineHelper\n[error]     val rules = QuarantineHelper.rulesFor(normalised)\n[error]                 ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 15 s, completed Oct 7, 2026, 11:03:11 PM\n",
         "violations": [],
         "fingerprints": {
-          "6089e6b3f54f23371b6cefc5dd1e24a8": 3
+          "914cf39dde2b14dd88a511048b004125": 3
         }
       }
     },
@@ -842,7 +842,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 45.7,
+          "value": 43.0,
           "unit": "s",
           "note": ""
         }
@@ -902,7 +902,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 53.6,
+          "value": 42.5,
           "unit": "s",
           "note": ""
         }
@@ -962,7 +962,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 61.8,
+          "value": 41.8,
           "unit": "s",
           "note": ""
         }
@@ -1022,7 +1022,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 43.6,
+          "value": 43.3,
           "unit": "s",
           "note": ""
         }
@@ -1082,7 +1082,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 41.6,
+          "value": 43.2,
           "unit": "s",
           "note": ""
         }
@@ -1154,7 +1154,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 0.3,
+          "value": 0.2,
           "unit": "s",
           "note": ""
         }
@@ -1231,7 +1231,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 0.3,
+          "value": 0.2,
           "unit": "s",
           "note": ""
         }
@@ -1308,7 +1308,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 0.3,
+          "value": 0.2,
           "unit": "s",
           "note": ""
         }
@@ -1485,5 +1485,5 @@
       }
     }
   ],
-  "run_dir": "20260921T202108Z"
+  "run_dir": "20261007T225415Z"
 }

@@ -1,10 +1,28 @@
 # CURRENT_PROJECT_AUDIT
 
-Team 26FSPDSCPMID4096. Updated 04-10-2026. Rewritten every session from what was run, not from
+Team 26FSPDSCPMID4096. Updated 08-10-2026 (entry below); the body was last rewritten 04-10-2026
+and is kept where the entry does not change it. Rewritten every session from what was run, not from
 what earlier documents say. Classes: **WORKING** (implemented and exercised end to end),
 **PARTIAL** (implemented, with a named part missing), **BROKEN** (implemented and failing),
 **MISSING** (not implemented), **BLOCKED** (cannot be done in this environment), **DEFERRED**
 (out of MVP scope by decision).
+
+## Entry, 08-10-2026
+
+- **Verdict unchanged:** all 65 Must requirements met; nothing BROKEN. Should 11/16 and Could 2/3
+  met (FR-022, FR-036, FR-037, FR-072, FR-084 moved to met with tests, DEC-29..32).
+- **WORKING end to end, newly:** the PRD section 30 override (run-2026-10-07-001: escalation, two
+  approvals by role, promotion, publish); per-stage Spark metrics on every job; the between-run
+  optimisation loop's decision records (unit-tested; not yet exercised by a live second run).
+- **Fixed this session:** run keys redacted as phone numbers on the run timeline; policy
+  escalations recorded as UNKNOWN; model cards without their approval; a thin override evidence
+  bundle; a published override run shown with its escalation as an error; `make scala-*` targets
+  unable to find sbt; a test filing a committed run under `churn_v1`.
+- **BLOCKED (environment), newly measured:** EXP-2's upper rungs exhaust the 5.27 GB Docker VM
+  while the core stack runs (ENOMEM in other containers); the next run stops the services the
+  baselines do not need. EXP-1 failed on an AP-5 escalation at its small size (protocol decision
+  pending, IMPLEMENTATION_STATUS.md); EXP-5 and EXP-6 still to run.
+- **Still MISSING:** FR-004, FR-008, FR-024, FR-035, FR-040; FR-021 partly; ST-05 TLS.
 
 ## Verdict
 

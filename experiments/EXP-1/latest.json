@@ -11,15 +11,13 @@
     "test_pr_auc",
     "source_lines"
   ],
-  "started_at": "2026-09-21T20:48:25.175539+00:00",
-  "duration_s": 788.37,
-  "status": "partial",
-  "hypothesis_held": true,
-  "conclusion": "Wall-clock: P 749.28s, B3 25.7s, B2 4.1s, B1 not measured. P is slower than B2: True, which is the expected observation at this size and the argument for local-mode routing (LR-07). P required 0 approval(s) and 0 other manual steps, so the first half of the hypothesis holds. Whole-pipeline test PR-AUC: P 0.7801 (full feature catalogue), B3 0.7871 and B2 0.79 (twelve features each) - not comparable as model quality, because the feature sets differ. Hand-written pipeline lines: B2 188, B3 201. P made 0 LLM calls, ran 4 sandboxed Spark jobs and wrote 15 audit entries and 6 decision records - the governance and evidence the baselines produce none of, which is the cost the wall-clock difference is buying. See the like-for-like trial for the only PR-AUC comparison in which the features are held constant.",
+  "started_at": "2026-10-07T22:30:19.098764+00:00",
+  "duration_s": 1423.02,
+  "status": "failed",
+  "hypothesis_held": null,
+  "conclusion": "configuration P did not complete: stopped at ESCALATED: calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED",
   "limitations": [
-    "B1 is not measured: it is defined as a person following a runbook, and its metrics are engineer hours. Inventing them would fabricate the comparison.",
-    "The dataset is TRIAD's synthetic generator, not Online Retail II, which has no customer, session, ticket or return tables and so cannot support the churn definition or most of the feature catalogue (ADR-0002).",
-    "P made 0 LLM calls because no provider is configured (ADR-0003). The hypothesis that 'agent overhead dominates P's time' therefore cannot be tested for LLM time. The overhead that is present - validation gates including an sbt compile, sandbox container start-up per Spark job, governance and audit writes - is measured and reported instead, and is not a substitute for the untested claim."
+    "P did not reach selection, so there is no shared split for the baselines to use and no like-for-like quality comparison. The baselines were not run: splitting them differently from P would make the comparison meaningless."
   ],
   "trials": [
     {
@@ -44,30 +42,30 @@
     },
     {
       "condition": "P_triad",
-      "ok": true,
-      "detail": "completed in 749s over 4 Spark jobs; random_forest at test PR-AUC 0.7801; 0 approval(s) required, no other manual step",
+      "ok": false,
+      "detail": "stopped at ESCALATED: calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED",
       "measurements": [
         {
           "name": "wall_clock_s",
-          "value": 749.28,
+          "value": 1414.24,
           "unit": "s",
           "note": ""
         },
         {
           "name": "ingest_s",
-          "value": 0.5,
+          "value": 0.67,
           "unit": "s",
           "note": ""
         },
         {
           "name": "prepare_ok",
-          "value": true,
+          "value": false,
           "unit": "",
           "note": ""
         },
         {
           "name": "prepare_state",
-          "value": "SELECTED",
+          "value": "ESCALATED",
           "unit": "",
           "note": ""
         },
@@ -79,13 +77,13 @@
         },
         {
           "name": "decision_records",
-          "value": 6,
+          "value": 8,
           "unit": "",
           "note": ""
         },
         {
           "name": "audit_entries",
-          "value": 15,
+          "value": 17,
           "unit": "",
           "note": ""
         },
@@ -96,308 +94,21 @@
           "note": ""
         },
         {
-          "name": "selected_family",
-          "value": "random_forest",
-          "unit": "",
-          "note": ""
-        },
-        {
           "name": "test_pr_auc",
-          "value": 0.7801,
+          "value": null,
           "unit": "",
-          "note": ""
-        },
-        {
-          "name": "test_roc_auc",
-          "value": 0.8227,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "test_brier",
-          "value": 0.1325,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "selection_outcome",
-          "value": "KEEP_CHAMPION",
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "human_actions_excluding_approval",
-          "value": 0,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "approvals_required",
-          "value": 0,
-          "unit": "",
-          "note": ""
+          "note": "the pipeline did not reach selection"
         }
       ],
       "observations": {
         "per_stage_s": {
-          "spark:84891b": 0.0,
-          "scala_spark:3823e2": 58.63,
-          "scala_spark:37caf8": 58.74,
-          "scala_spark:9520c7": 50.31
+          "spark:f914f4": 0.0,
+          "scala_spark:aad8e6": 44.06,
+          "scala_spark:142193": 62.46,
+          "scala_spark:469d62": 44.6
         }
-      }
-    },
-    {
-      "condition": "B2_pandas_only",
-      "ok": true,
-      "detail": "selected logreg on validation PR-AUC 0.7666",
-      "measurements": [
-        {
-          "name": "wall_clock_s",
-          "value": 4.08,
-          "unit": "s",
-          "note": ""
-        },
-        {
-          "name": "rows_trained",
-          "value": 597,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "rows_tested",
-          "value": 291,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "test_pr_auc",
-          "value": 0.79,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "test_roc_auc",
-          "value": 0.8093,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "test_brier",
-          "value": 0.2085,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "llm_calls",
-          "value": 0,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "human_actions_excluding_approval",
-          "value": 0,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "approvals_required",
-          "value": 0,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "peak_rss_mb",
-          "value": 504.7,
-          "unit": "MB",
-          "note": ""
-        },
-        {
-          "name": "source_lines",
-          "value": 188,
-          "unit": "lines",
-          "note": ""
-        },
-        {
-          "name": "selected_family",
-          "value": "logreg",
-          "unit": "",
-          "note": ""
-        }
-      ],
-      "observations": {
-        "per_stage_s": {
-          "features": 0.56,
-          "train_and_select": 3.52
-        },
-        "families_tried": [
-          "logreg",
-          "random_forest",
-          "hist_gb",
-          "dummy"
-        ]
-      }
-    },
-    {
-      "condition": "B3_spark_no_agents",
-      "ok": true,
-      "detail": "selected logreg on validation PR-AUC 0.7623",
-      "measurements": [
-        {
-          "name": "wall_clock_s",
-          "value": 25.7,
-          "unit": "s",
-          "note": ""
-        },
-        {
-          "name": "rows_trained",
-          "value": 597,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "rows_tested",
-          "value": 291,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "test_pr_auc",
-          "value": 0.7871,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "test_roc_auc",
-          "value": 0.8068,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "test_brier",
-          "value": 0.2133,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "llm_calls",
-          "value": 0,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "human_actions_excluding_approval",
-          "value": 0,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "approvals_required",
-          "value": 0,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "peak_rss_mb",
-          "value": 505.5,
-          "unit": "MB",
-          "note": ""
-        },
-        {
-          "name": "source_lines",
-          "value": 201,
-          "unit": "lines",
-          "note": ""
-        },
-        {
-          "name": "selected_family",
-          "value": "logreg",
-          "unit": "",
-          "note": ""
-        }
-      ],
-      "observations": {
-        "per_stage_s": {
-          "features_spark": 20.62,
-          "train_and_select": 5.04
-        },
-        "families_tried": [
-          "logreg",
-          "random_forest",
-          "hist_gb",
-          "dummy"
-        ]
-      }
-    },
-    {
-      "condition": "like_for_like_quality_on_one_feature_table",
-      "ok": true,
-      "detail": "on P's 23 features and P's split, the baselines' shortlist reaches test PR-AUC 0.7894 with logreg; compare with P's own selected model, which additionally has calibration, tuning and the acceptance policy applied",
-      "measurements": [
-        {
-          "name": "feature_count",
-          "value": 23,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "rows_trained",
-          "value": 390,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "rows_tested",
-          "value": 280,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "baseline_shortlist_test_pr_auc",
-          "value": 0.7894,
-          "unit": "",
-          "note": "the four families B2 and B3 screen, fitted on P's feature table"
-        },
-        {
-          "name": "baseline_shortlist_test_roc_auc",
-          "value": 0.8333,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "baseline_shortlist_test_brier",
-          "value": 0.1335,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "selected_family",
-          "value": "logreg",
-          "unit": "",
-          "note": ""
-        }
-      ],
-      "observations": {
-        "families_tried": [
-          {
-            "family": "logreg",
-            "valid_pr_auc": 0.6908
-          },
-          {
-            "family": "random_forest",
-            "valid_pr_auc": 0.6885
-          },
-          {
-            "family": "hist_gb",
-            "valid_pr_auc": 0.6817
-          },
-          {
-            "family": "dummy",
-            "valid_pr_auc": 0.2716
-          }
-        ]
       }
     }
   ],
-  "run_dir": "20260921T204825Z"
+  "run_dir": "20261007T223019Z"
 }

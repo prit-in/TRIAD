@@ -1,0 +1,41 @@
+{
+  "exp_id": "EXP-5",
+  "title": "Missing values",
+  "hypothesis": "Key nulls are quarantined, others are handled without losing rows; PR-AUC declines gradually with the null rate.",
+  "independent_variable": "null rate, column role",
+  "dependent_measures": [
+    "quarantined_rows",
+    "rows_affected_pct",
+    "row_accounting_balanced",
+    "test_pr_auc",
+    "test_ece",
+    "approval_requests"
+  ],
+  "started_at": "2026-10-08T00:37:28.739054+00:00",
+  "config": {
+    "customers": 2000,
+    "months": 24,
+    "seed": 42,
+    "conditions": {
+      "nulls_0pct_baseline": {
+        "null_rate_non_key": 0.0,
+        "null_rate_key": 0.0
+      },
+      "nulls_5pct_nonkey": {
+        "null_rate_non_key": 0.05,
+        "null_rate_key": 0.01
+      },
+      "nulls_20pct_nonkey": {
+        "null_rate_non_key": 0.2,
+        "null_rate_key": 0.01
+      },
+      "nulls_50pct_nonkey": {
+        "null_rate_non_key": 0.5,
+        "null_rate_key": 0.01
+      }
+    },
+    "pipeline_phase": "churn.prepare (profile -> clean -> features -> labels -> train -> select)",
+    "tuning": "left enabled, as production has it; held constant across conditions",
+    "imputation_note": "TRIAD does not impute during cleaning. Non-key nulls reach the feature tables and are handled by the imputer inside the model pipeline, so the measurable claim is that they do not cause rows to be quarantined."
+  }
+}

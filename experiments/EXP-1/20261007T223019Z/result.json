@@ -1,0 +1,113 @@
+{
+  "exp_id": "EXP-1",
+  "title": "Small dataset, TRIAD against the non-agentic baselines",
+  "hypothesis": "P finishes end to end with no manual step except approval; agent overhead dominates P's time at this size.",
+  "independent_variable": "configuration (B1, B2, B3, P)",
+  "dependent_measures": [
+    "wall_clock_s",
+    "llm_calls",
+    "human_actions_excluding_approval",
+    "approvals_required",
+    "test_pr_auc",
+    "source_lines"
+  ],
+  "started_at": "2026-10-07T22:30:19.098764+00:00",
+  "duration_s": 1423.02,
+  "status": "failed",
+  "hypothesis_held": null,
+  "conclusion": "configuration P did not complete: stopped at ESCALATED: calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED",
+  "limitations": [
+    "P did not reach selection, so there is no shared split for the baselines to use and no like-for-like quality comparison. The baselines were not run: splitting them differently from P would make the comparison meaningless."
+  ],
+  "trials": [
+    {
+      "condition": "B1_manual_runbook",
+      "ok": true,
+      "detail": "not measured: a manual baseline needs a person, and hours cannot be invented",
+      "measurements": [
+        {
+          "name": "implemented",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": null,
+          "unit": "",
+          "note": "engineer hours from a time sheet; there is no second person here"
+        }
+      ],
+      "observations": {}
+    },
+    {
+      "condition": "P_triad",
+      "ok": false,
+      "detail": "stopped at ESCALATED: calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED",
+      "measurements": [
+        {
+          "name": "wall_clock_s",
+          "value": 1414.24,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "ingest_s",
+          "value": 0.67,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "prepare_ok",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "prepare_state",
+          "value": "ESCALATED",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "llm_calls",
+          "value": 0,
+          "unit": "",
+          "note": "0 because no provider is configured (ADR-0003), not because the loop made none"
+        },
+        {
+          "name": "decision_records",
+          "value": 8,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "audit_entries",
+          "value": 17,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "spark_jobs",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_pr_auc",
+          "value": null,
+          "unit": "",
+          "note": "the pipeline did not reach selection"
+        }
+      ],
+      "observations": {
+        "per_stage_s": {
+          "spark:f914f4": 0.0,
+          "scala_spark:aad8e6": 44.06,
+          "scala_spark:142193": 62.46,
+          "scala_spark:469d62": 44.6
+        }
+      }
+    }
+  ]
+}

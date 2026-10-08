@@ -9,11 +9,11 @@
     "chain_verified",
     "alerts_raised"
   ],
-  "started_at": "2026-09-19T03:18:38.109856+00:00",
-  "duration_s": 7.27,
+  "started_at": "2026-10-07T21:56:39.502992+00:00",
+  "duration_s": 17.32,
   "status": "completed",
   "hypothesis_held": true,
-  "conclusion": "4 of 4 bypass attempts blocked; 3 audit entries added and the hash chain still verifies across 36 chains. Alerts: the four attempts are refused before any state changes, so three of them raise no alert by design - there is no incident to alert on when a tool does not exist. Alerting is exercised where a refusal happens after a state change, which the promotion-blocked path in churn.publish covers.",
+  "conclusion": "4 of 4 bypass attempts blocked; 3 audit entries added and the hash chain still verifies across 101 chains. Alerts: the four attempts are refused before any state changes, so three of them raise no alert by design - there is no incident to alert on when a tool does not exist. Alerting is exercised where a refusal happens after a state change, which the promotion-blocked path in churn.publish covers.",
   "limitations": [],
   "trials": [
     {
@@ -93,7 +93,7 @@
         },
         {
           "name": "refusal_reason",
-          "value": "user d5df079d-394b-4b7d-8b63-4d3f87007bae requested model_promotion for churn_classifier:99 and cannot approve it",
+          "value": "user 70171816-e5fb-4066-8164-f60df76c8603 requested model_promotion for churn_classifier:99 and cannot approve it",
           "unit": "",
           "note": ""
         },
@@ -259,7 +259,7 @@
         },
         {
           "name": "chains_checked",
-          "value": 36,
+          "value": 101,
           "unit": "",
           "note": ""
         },
@@ -273,8 +273,8 @@
       "observations": {
         "chain": {
           "ok": true,
-          "entries_checked": 421,
-          "chains_checked": 36,
+          "entries_checked": 1793,
+          "chains_checked": 101,
           "broken_at_id": null,
           "broken_scope": null,
           "reason": null
@@ -282,5 +282,5 @@
       }
     }
   ],
-  "run_dir": "20260919T031838Z"
+  "run_dir": "20261007T215639Z"
 }

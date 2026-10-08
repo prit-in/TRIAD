@@ -1,9 +1,89 @@
 # IMPLEMENTATION_STATUS
 
-Updated: 04-10-2026. **Read this file first when resuming.** The handoff below supersedes the
-older sections that follow it where they disagree.
+Updated: 08-10-2026. **Read this file first when resuming.** The newest handoff below supersedes
+everything after it where they disagree.
 
-## Handoff, 04-10-2026 (session closed mid-work, at the user's request)
+## Handoff, 08-10-2026 (session closed at the user's request, during the experiment re-run)
+
+### Done in this session (commits b11b6b0 .. the commit that adds this section)
+
+- **Override path proven end to end on run-2026-10-07-001** (10 000 customers): AP-6 escalation
+  (tenure_band gap 0.331) -> `POST /pipelines/{id}/override` with a written note -> one approval
+  each from ml@ and admin@ (group 65eef591) -> DEPLOYED -> PUBLISHED. v18 hist_gb champion with
+  sha and card; 6 814 predictions, all with reasons; claim check passed; audit chain verified
+  (1 753 entries). All transitions legal under the enforced state machine.
+- **Four defects that run found, fixed:** run keys masked as phone numbers on the timeline;
+  policy escalations filed as UNKNOWN (now the PRD 19.4 reason code); model card never recorded
+  the approval or the override (now `record_approval_on_card`; run 9's card backfilled); the
+  override evidence bundle said only "AP-6 failed" (now gaps, threshold review, calibration, read
+  on the page via `GET /approvals/{id}/evidence`).
+- **Built (DEC-29..32):** FR-036 per-stage Spark metrics (listener in `TriadJob`, TC-036,
+  `GET /pipelines/{id}/executions`, run-page panel); FR-022 anomaly detection in the profiler
+  (volume, rule breaches, PSI shift); FR-037 one-setting optimisation loop with before-and-after
+  records (`agents/optimizer.py`); FR-072 PDF via print of the same document; FR-084 in-app
+  notification bell; approval evidence viewer; promoted-by-override label on the run page.
+  Should 11/16 met, Could 2/3 (REQUIREMENTS_TRACEABILITY.md).
+- Verified: 725 Python tests passing (1 skipped: needs the Docker CLI in the container), 33 Scala
+  tests passing. ruff clean on changed files. Frontend type-checks; checked in the browser.
+- Manuscript: PRD_FACULTY_TRACEABILITY.md written; Sections 3, 4, 7, 8, 9, 18, 20, 21, 23 updated
+  and within their word ranges; Section 10 is 1 word short until the trust-score results go in.
+  Charts for Figs 21-25 and 28: `docs/research/figures/build_charts.py` (host Python, 600 DPI,
+  provenance in `charts_provenance.json`); `analysis/business_snapshot.py` and `trust_score.py`
+  (now counts override approvals) - both run in the dev container.
+- Experiment protocol changes (DEC-33): EXP-2 ladder to 200 000 customers with OOM kills recorded
+  as results; EXP-3 listener metrics; EXP-5 at 2 000 customers reading escalated candidates'
+  PR-AUC. Batch runner now in the repo: `scripts/run_experiments_batch.sh` (logs to
+  `experiments/_logs/`, git-ignored).
+
+### Experiment re-run, as it stood at close (outputs committed except where noted)
+
+| Exp | Result | Note |
+| --- | --- | --- |
+| EXP-9 | completed, held | |
+| EXP-10 | completed, held | |
+| EXP-7 | partial, held | |
+| EXP-3 | partial, did not hold | listener data: task time 35 s (1 core) -> 45 s (2) -> 108 s (4); no spill; host is an AMD Ryzen 5 2500U, 4 cores / 8 threads, 15 W class - `local[4]` shares physical cores |
+| EXP-4 | partial, held | |
+| EXP-8 | partial, no verdict | no LLM provider, as before |
+| EXP-1 | **failed** | configuration P escalated MISCALIBRATED at EXP-1's small size (AP-5 noise floor); the harness counts an escalated P as "did not complete" |
+| EXP-2 | **not finished** | ran 1.5 h on the large rungs; the Docker VM ran out of memory (core services + a 3 GB dev container exceed the 5.27 GB VM). Container stopped at close. `experiments/EXP-2/20261007T230658Z/` holds only config and environment and is not committed |
+| EXP-5 | **not run** | failed to start: `OSError: [Errno 12] Cannot allocate memory` while EXP-2 held the VM |
+| EXP-6 | **not run** | same |
+
+### Next exact steps, in order
+
+1. **EXP-1 protocol (decide, then DEC-34):** like EXP-5, read P's test PR-AUC from the escalated
+   selection (the candidate is scored once on the test cutoff since DEC-27) and report the policy
+   outcome beside it, and/or run at a size above AP-5's noise floor (>= 1 300 validation rows).
+   Decide from the noise-floor study, not from results.
+2. **EXP-2 memory headroom:** before re-running, stop what B2/B3 do not need (`docker compose stop
+   orchestrator frontend mlflow`), so the dev container's 3 GB is actually available, or cap the
+   ladder's top rung at what the VM holds; restart the services afterwards.
+3. Run the rest: `ORDER="EXP-1 EXP-2 EXP-5 EXP-6" bash scripts/run_experiments_batch.sh`
+   (nothing else running; EXP-6 gets the socket automatically). Then
+   `python -m experiments.segment_gap_noise_floor`, update EXPERIMENTS.md from the `latest.json`
+   files, rerun `trust_score.py` (include a FAILED run so the score is not saturated) and
+   `python docs/research/figures/build_charts.py`.
+4. **Figures:** export `docs/research/figures/drawio/*.drawio` to SVG with the drawio-desktop
+   container in one batch call (SVG works; PNG hung on Fig 04), then rasterize on the host with
+   Chrome headless (`--force-device-scale-factor`) to >= 600 DPI at print width.
+5. **Frontend for a browser-only demo (planned, not started):** a "Start a run" panel on the Runs
+   page (`POST /pipelines/run`, starter roles) and a "Roll back" control on the Models page
+   (`POST /models/{ref}/rollback`, ML Engineer). Then the demo guide (`docs/runbooks/demo.md`:
+   seed_demo.py, run_demo.py `--reject` / `--fail-smoke`, replay_run.py, override via the UI,
+   container kill for failure injection).
+6. Results sections 00, 13 (hardware above, measured), 15, 16, 17, 19, 22; Section 10 trust-score
+   values. Then FINAL_COMPLIANCE_AUDIT.md (two audits), MANUSCRIPT_COMPLIANCE_CHECKLIST and
+   CURRENT_PROJECT_AUDIT updates, Word assembly, and only then ask for the team details.
+
+### Environment notes
+
+- The API's `--reload` watcher dies with "Cannot allocate memory" (WSL2 inotify): after backend
+  or agents changes, `docker compose -f docker/compose.yaml restart api orchestrator`.
+- The core stack is left up. To drive the API, seed a password with `scripts/seed_demo.py --force`.
+- `make scala-test` / `make scala-package` work again (sbt was dropped from PATH by `bash -lc`).
+
+## Handoff, 04-10-2026 (superseded by 08-10-2026 above)
 
 ### Done in this session (commits 9f89a24, 88a3d72, and the commit that adds this section)
 

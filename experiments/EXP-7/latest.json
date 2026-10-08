@@ -11,8 +11,8 @@
     "false_alarm_months",
     "pr_auc"
   ],
-  "started_at": "2026-09-19T04:26:15.756503+00:00",
-  "duration_s": 15.75,
+  "started_at": "2026-10-07T21:57:09.193798+00:00",
+  "duration_s": 14.87,
   "status": "partial",
   "hypothesis_held": true,
   "conclusion": "False alarms: 0 of 6 undrifted months flagged, highest PSI 0.03130 against a 0.25 threshold, mean undrifted out-of-sample PR-AUC 0.5064. The detector is not simply flagging everything, which is what makes the delays below mean anything. covariate_shift_recency_x1.8: PSI flagged after 0 scoring month(s), max PSI 0.31099, PR-AUC 0.5538 -> 0.7079, 10% drop visible after None month(s) of matured labels, triggers ['RT-2', 'RT-3', 'RT-5', 'RT-6']. covariate_shift_one_segment: PSI flagged after 0 scoring month(s), max PSI 1.08399, PR-AUC 0.5538 -> 0.7405, 10% drop visible after None month(s) of matured labels, triggers ['RT-2', 'RT-3', 'RT-5', 'RT-6']. concept_drift_one_segment: PSI flagged after None scoring month(s), max PSI 0.03204, PR-AUC 0.5538 -> 0.3281, 10% drop visible after 0 month(s) of matured labels, triggers ['RT-1', 'RT-5', 'RT-6']. The two kinds of drift behave differently, and separating them is the result. Covariate shift is caught by PSI on the first scoring run, with no labels at all - and it does not necessarily hurt: widening a predictive feature raised PR-AUC rather than lowering it, so treating a PSI flag as evidence of damage would be wrong. Concept drift is the opposite: the feature distributions move far less, so PSI is quieter, and the harm shows only once labels mature. That is the PRD's expected observation, and it is why RT-1 and RT-4 (matured PR-AUC) exist alongside RT-2 and RT-3 (distributions): neither family of trigger would catch both cases. Status is partial: the approval half of the hypothesis is covered by the pipeline's own approval gate, not re-tested here.",
@@ -660,5 +660,5 @@
       }
     }
   ],
-  "run_dir": "20260919T042615Z"
+  "run_dir": "20261007T215709Z"
 }

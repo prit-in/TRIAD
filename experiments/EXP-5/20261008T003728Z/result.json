@@ -1,0 +1,21 @@
+{
+  "exp_id": "EXP-5",
+  "title": "Missing values",
+  "hypothesis": "Key nulls are quarantined, others are handled without losing rows; PR-AUC declines gradually with the null rate.",
+  "independent_variable": "null rate, column role",
+  "dependent_measures": [
+    "quarantined_rows",
+    "rows_affected_pct",
+    "row_accounting_balanced",
+    "test_pr_auc",
+    "test_ece",
+    "approval_requests"
+  ],
+  "started_at": "2026-10-08T00:37:28.739054+00:00",
+  "duration_s": 33.78,
+  "status": "failed",
+  "hypothesis_held": null,
+  "conclusion": "the experiment raised OSError: [Errno 12] Cannot allocate memory: '/workspace/python_ml'",
+  "limitations": [],
+  "trials": []
+}

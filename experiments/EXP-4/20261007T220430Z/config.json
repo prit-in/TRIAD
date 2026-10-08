@@ -1,0 +1,40 @@
+{
+  "exp_id": "EXP-4",
+  "title": "Schema errors",
+  "hypothesis": "A renamed required column is detected and a mapping proposed but not applied without approval; prices are fixed by try_cast and quarantine; the missing optional table disables its features.",
+  "independent_variable": "fault type",
+  "dependent_measures": [
+    "detected",
+    "cleaning_succeeded",
+    "quarantined_rows",
+    "row_accounting_balanced",
+    "approval_requests",
+    "auto_applied_without_a_person",
+    "wall_clock_s"
+  ],
+  "started_at": "2026-10-07T22:04:30.719406+00:00",
+  "config": {
+    "customers": 400,
+    "months": 24,
+    "seed": 42,
+    "faults": {
+      "baseline_clean": {},
+      "renamed_required_column": {
+        "rename_column": "customer_id:cust_id"
+      },
+      "price_as_text_with_symbols": {
+        "price_as_text": true
+      },
+      "dropped_optional_table": {
+        "drop_tables": [
+          "support_tickets"
+        ]
+      }
+    },
+    "stages_run": [
+      "profile",
+      "clean"
+    ],
+    "not_measured": "the effect of a disabled feature group on model quality; every measure this experiment asks for is decided by the time cleaning commits"
+  }
+}

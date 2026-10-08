@@ -1,0 +1,41 @@
+{
+  "exp_id": "EXP-1",
+  "title": "Small dataset, TRIAD against the non-agentic baselines",
+  "hypothesis": "P finishes end to end with no manual step except approval; agent overhead dominates P's time at this size.",
+  "independent_variable": "configuration (B1, B2, B3, P)",
+  "dependent_measures": [
+    "wall_clock_s",
+    "llm_calls",
+    "human_actions_excluding_approval",
+    "approvals_required",
+    "test_pr_auc",
+    "source_lines"
+  ],
+  "started_at": "2026-10-07T22:30:19.098764+00:00",
+  "config": {
+    "customers": 400,
+    "months": 24,
+    "seed": 42,
+    "dataset": "TRIAD synthetic generator (see the deviation note)",
+    "configurations": {
+      "B1": "manual runbook - not implementable without a second person",
+      "B2": "one pandas + scikit-learn script, single node",
+      "B3": "hand-written PySpark + scikit-learn, fixed DAG, no repair loop",
+      "P": "TRIAD: churn.prepare, the governed agentic loop"
+    },
+    "baseline_features": [
+      "recency_days",
+      "frequency_90d",
+      "frequency_365d",
+      "monetary_365d",
+      "aov_365d",
+      "items_per_order_365d",
+      "discount_share_365d",
+      "category_count_365d",
+      "tenure_days",
+      "sessions_90d",
+      "tickets_365d",
+      "returns_365d"
+    ]
+  }
+}
