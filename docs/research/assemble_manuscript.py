@@ -760,7 +760,7 @@ def main() -> int:
     front_tables = doc.tables[:5]       # Index, Figures, Tables, Contributions, Consolidated
 
     # Template landmarks, found by their text.
-    i_intro, intro = find(body, lambda t: t.startswith("I.") and t.endswith("INTRODUCTION"))
+    i_intro, _ = find(body, lambda t: t.startswith("I.") and t.endswith("INTRODUCTION"))
     i_fbio, fbio = find(body, lambda t: t.startswith("Dr. M. Rajasekhara Babu received"))
     i_flast, _ = find(body, lambda t: t.startswith("Prof. Rajasekhara Babu is associated"))
     i_sbio, _ = find(body, lambda t: t.startswith("SECOND B. AUTHOR"))
@@ -878,7 +878,7 @@ def main() -> int:
 
     # Index, figures, tables, contributions.
     index, lof, lot, contrib, consolidated = front_tables
-    rows = topics + [("References", "_Refs", None), ("Appendix", "_Appx", appendix_words)]
+    rows = [*topics, ("References", "_Refs", None), ("Appendix", "_Appx", appendix_words)]
     for table, entries in ((index, rows), (contrib, rows)):
         fit_rows(table, len(entries))
         cr = cell_rpr(table)

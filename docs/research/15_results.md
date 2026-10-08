@@ -5,8 +5,38 @@ answers. Every number is read from an experiment's stored output; Table 10 is ge
 same files, and so are Fig. 21 to Fig. 23. A hypothesis that did not hold is reported as not
 holding, with what the measurement shows instead.
 
-<!-- RESULTS-PENDING: 15.1 performance (EXP-1), 15.2 scalability ladder (EXP-2), 15.4 data
-robustness (EXP-4, EXP-5, EXP-6) are written once those experiments complete. -->
+<!-- RESULTS-PENDING: 15.1 performance (EXP-1) and 15.4 data robustness (EXP-4, EXP-5, EXP-6)
+are written once those experiments complete. -->
+
+## 15.2 Scalability: where a single node gives out
+
+EXP-2 ran the same churn pipeline as a single pandas process (B2) and as a Spark pipeline without
+agents (B3) on synthetic datasets of 400 to 100 000 customers, each configuration in a process of
+its own inside one 3 GB container, with a 30-minute ceiling on each run (Fig. 22a, b). Both
+completed every size up to 50 000 customers - 36.4 MB of Parquet and 92 429 training rows - and
+their models agreed, with test PR-AUC within 0.004 of each other at every size. B2 was the faster
+at every size, by 4.0 to 8.4 times, because Spark's start-up and per-stage scheduling cost more
+than the data does at these volumes. At 100 000 customers (76.3 MB) B2 completed in 130 s with a
+peak of 2 294 MB; B3 did not complete within 30 minutes.
+
+The hypothesis was the opposite: that the single-node configuration would be the first to fail
+and Spark would keep going. On this node it is refuted, and the memory measurements show why
+(Fig. 22b). B2's memory grew with the data, from 229 MB at 400 customers to 2 294 MB at 100 000.
+B3's did not start small: its JVM held 1 329 MB at 400 customers and 2 223 MB at 50 000, and its
+Python driver another 607 MB, so the two processes' peaks already summed to 2 830 MB of the
+container's 3 000 MB at the last size both configurations completed. Spark's ability to spill to
+disk protects it from data larger than memory; it does not protect it from a node too small for
+its own fixed overhead. When that headroom ran out, B3's time went from 227 s at 50 000
+customers to beyond the 1 800 s ceiling at 100 000 - at least eight times longer for twice the
+data - while B2 took 2.3 times longer.
+
+The crossover the hypothesis describes should exist, but above this node's memory, where the
+JVM's overhead is a small share of the machine; it was not reached here, and is not estimated.
+What the measurement does support is a routing decision. At these sizes and on nodes of this
+size, a single process is both faster and smaller, which is why TRIAD hands the modelling table to
+pandas whenever its estimated size fits the worker's memory (LR-06, Section 9.2), and keeps Spark
+for the transformation jobs, where the same compiled job runs at any size (LR-07) and where the
+sandbox and the gates, not speed, are the reason for using it.
 
 ## 15.3 Parallelism: why four cores were slower than two
 
@@ -96,6 +126,12 @@ the sizes of a pilot, which is the case for stating such rules as intervals (Sec
 
 ## Evidence (not part of the manuscript)
 
+- EXP-2: `experiments/EXP-2/20261008T171242Z/result.json` (08-10-2026, 17:12 to 18:15 UTC). The
+  earlier run of 16:17 stopped because the data generator itself was OOM-killed at 100 000
+  customers (DEC-37, committed as `20261008T161715Z`). PR-AUC pairs B2/B3: 0.7929/0.7923,
+  0.7761/0.7724, 0.7662/0.7649, 0.7848/0.7846, 0.7766/0.7780. Operator observation during B3's
+  100 000 run, not recorded by the harness: `docker stats` at 17:55 UTC showed the container at
+  2.917 of 2.93 GiB, and `ps` the B3 JVM at 2 261 888 kB resident.
 - EXP-3: `experiments/EXP-3/latest.json` (run of 07-10-2026 21:57 UTC); per-stage observations in
   `trials[].observations.stages`; host CPU: Section 13 evidence.
 - EXP-8: `experiments/EXP-8/latest.json` (07-10-2026 22:54 UTC), `raw/per_class.json`.

@@ -1,0 +1,366 @@
+[
+  {
+    "svg": "Fig 01 Evolution of Data Science Programming.svg",
+    "png": "Fig 01 Evolution of Data Science Programming.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      1332
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      2.22
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 02 Agentic Analytics Ecosystem Overview.svg",
+    "png": "Fig 02 Agentic Analytics Ecosystem Overview.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2412
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      4.02
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 03 Challenges in Modern Data Science Platforms.svg",
+    "png": "Fig 03 Challenges in Modern Data Science Platforms.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2148
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.58
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 04 Literature Taxonomy.svg",
+    "png": "Fig 04 Literature Taxonomy.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2532
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      4.22
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 05 Requirements Engineering Framework.svg",
+    "png": "Fig 05 Requirements Engineering Framework.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      1692
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      2.82
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 06 Agentic Data Science Programming Architecture Integrating Python Scala and Apache Spark.svg",
+    "png": "Fig 06 Agentic Data Science Programming Architecture Integrating Python Scala and Apache Spark.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      3522
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      5.87
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 07 Multi-Layer Analytics Stack.svg",
+    "png": "Fig 07 Multi-Layer Analytics Stack.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2316
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.86
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 08 Agentic Programming Architecture.svg",
+    "png": "Fig 08 Agentic Programming Architecture.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2808
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      4.68
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 09 Multi-Agent Collaboration Workflow.svg",
+    "png": "Fig 09 Multi-Agent Collaboration Workflow.png",
+    "scale": 6,
+    "pixels": [
+      5040,
+      2412
+    ],
+    "inches_at_600_dpi": [
+      8.4,
+      4.02
+    ],
+    "dpi_at_page_width": 704
+  },
+  {
+    "svg": "Fig 10 Autonomous Data Engineering Pipeline.svg",
+    "png": "Fig 10 Autonomous Data Engineering Pipeline.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2532
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      4.22
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 11 Intelligent Analytics Workflow.svg",
+    "png": "Fig 11 Intelligent Analytics Workflow.png",
+    "scale": 6,
+    "pixels": [
+      5040,
+      2208
+    ],
+    "inches_at_600_dpi": [
+      8.4,
+      3.68
+    ],
+    "dpi_at_page_width": 704
+  },
+  {
+    "svg": "Fig 12 AutoML and Feature Engineering Architecture.svg",
+    "png": "Fig 12 AutoML and Feature Engineering Architecture.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2352
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.92
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 13 Distributed Spark Architecture.svg",
+    "png": "Fig 13 Distributed Spark Architecture.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2352
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.92
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 14 Explainability Framework.svg",
+    "png": "Fig 14 Explainability Framework.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2172
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.62
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 15 Trustworthy Analytics Model.svg",
+    "png": "Fig 15 Trustworthy Analytics Model.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2256
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.76
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 16 Agent Orchestration Workflow.svg",
+    "png": "Fig 16 Agent Orchestration Workflow.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2532
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      4.22
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 17 Autonomous Decision Lifecycle.svg",
+    "png": "Fig 17 Autonomous Decision Lifecycle.png",
+    "scale": 6,
+    "pixels": [
+      4512,
+      1968
+    ],
+    "inches_at_600_dpi": [
+      7.52,
+      3.28
+    ],
+    "dpi_at_page_width": 630
+  },
+  {
+    "svg": "Fig 18 Security and Governance Architecture.svg",
+    "png": "Fig 18 Security and Governance Architecture.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2652
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      4.42
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 19 Experimental Architecture.svg",
+    "png": "Fig 19 Experimental Architecture.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2232
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.72
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 20 Evaluation Framework.svg",
+    "png": "Fig 20 Evaluation Framework.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2268
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.78
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 26 Smart Manufacturing Analytics Ecosystem.svg",
+    "png": "Fig 26 Smart Manufacturing Analytics Ecosystem.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2250
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.75
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 27 Healthcare Intelligence Platform.svg",
+    "png": "Fig 27 Healthcare Intelligence Platform.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2250
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.75
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 29 Challenges and Limitations Roadmap.svg",
+    "png": "Fig 29 Challenges and Limitations Roadmap.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2112
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.52
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 30 Future Research Roadmap.svg",
+    "png": "Fig 30 Future Research Roadmap.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      1272
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      2.12
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 31 Next-Generation Agentic Analytics Ecosystem.svg",
+    "png": "Fig 31 Next-Generation Agentic Analytics Ecosystem.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      2178
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      3.63
+    ],
+    "dpi_at_page_width": 706
+  },
+  {
+    "svg": "Fig 32 Research Contribution Framework.svg",
+    "png": "Fig 32 Research Contribution Framework.png",
+    "scale": 6,
+    "pixels": [
+      5052,
+      1752
+    ],
+    "inches_at_600_dpi": [
+      8.42,
+      2.92
+    ],
+    "dpi_at_page_width": 706
+  }
+]

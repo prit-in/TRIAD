@@ -297,7 +297,7 @@ def rollback(
     if previous is None or target.id != previous.id:
         raise problems.conflict(
             "Not the previous champion",
-            f"Rollback restores only the previous recorded champion"
+            "Rollback restores only the previous recorded champion"
             + (f", which for {model.name} is v{previous.mlflow_version}" if previous else
                f"; {model.name} has none")
             + f". v{payload.previous_version} was "

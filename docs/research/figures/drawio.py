@@ -41,12 +41,27 @@ class Diagram:
     height: int = 500
     cells: list[str] = field(default_factory=list)
     _ids: set[str] = field(default_factory=set)
+    geom: dict[str, tuple[float, float, float, float]] = field(default_factory=dict)
 
     def _id(self, cid: str) -> str:
         if cid in self._ids:
             raise ValueError(f"duplicate id {cid} in {self.name}")
         self._ids.add(cid)
         return cid
+
+    # Geometry of what has been placed, so an edge's route can be stated against it.
+    def cx(self, cid: str) -> float:
+        x, _, w, _ = self.geom[cid]
+        return x + w / 2
+
+    def cy(self, cid: str) -> float:
+        _, y, _, h = self.geom[cid]
+        return y + h / 2
+
+    def at(self, cid: str, x: float) -> float:
+        """Where absolute x falls across the box, as the fraction an exit or entry port takes."""
+        bx, _, w, _ = self.geom[cid]
+        return (x - bx) / w
 
     def box(self, cid: str, label: str, x: int, y: int, w: int = 150, h: int = 50, *,
             kind: str = "neutral", dashed: bool = False, bold: bool = False,
@@ -69,6 +84,7 @@ class Diagram:
             f'<mxCell id="{self._id(cid)}" value="{_label(label)}" style="{style}" vertex="1" '
             f'parent="1"><mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/>'
             f'</mxCell>')
+        self.geom[cid] = (x, y, w, h)
         return cid
 
     def group(self, cid: str, label: str, x: int, y: int, w: int, h: int, *,
@@ -82,6 +98,7 @@ class Diagram:
             f'<mxCell id="{self._id(cid)}" value="{_label(label)}" style="{style}" vertex="1" '
             f'parent="1"><mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/>'
             f'</mxCell>')
+        self.geom[cid] = (x, y, w, h)
         return cid
 
     def text(self, cid: str, label: str, x: int, y: int, w: int, h: int = 24, *,
@@ -92,11 +109,17 @@ class Diagram:
             f'<mxCell id="{self._id(cid)}" value="{_label(label)}" style="{style}" vertex="1" '
             f'parent="1"><mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/>'
             f'</mxCell>')
+        self.geom[cid] = (x, y, w, h)
         return cid
 
     def edge(self, src: str, dst: str, label: str = "", *, dashed: bool = False,
              both: bool = False, curved: bool = False, size: int = 14, color: str = "#333333",
-             exit: str | None = None, entry: str | None = None) -> str:
+             exit: str | tuple[float, float] | None = None,
+             entry: str | tuple[float, float] | None = None,
+             points: list[tuple[float, float]] | None = None) -> str:
+        """An arrow from src to dst. `exit`/`entry` name a side or give (fx, fy) across the box;
+        `points` are waypoints, so a route that the automatic router would draw through another
+        box can be laid along a gap instead."""
         cid = self._id(f"e{len(self.cells)}")
         style = (f"edgeStyle={'none' if curved else 'orthogonalEdgeStyle'};rounded=1;html=1;"
                  f"endArrow=block;endFill=1;strokeColor={color};strokeWidth=1.5;"
@@ -104,17 +127,21 @@ class Diagram:
                  f"{'startArrow=block;startFill=1;' if both else ''}"
                  f"{'dashed=1;dashPattern=6 4;' if dashed else ''}"
                  f"{self._port('exit', exit)}{self._port('entry', entry)}")
+        route = ("" if not points else '<Array as="points">'
+                 + "".join(f'<mxPoint x="{x:g}" y="{y:g}"/>' for x, y in points) + "</Array>")
         self.cells.append(
             f'<mxCell id="{cid}" value="{_label(label)}" style="{style}" edge="1" parent="1" '
-            f'source="{src}" target="{dst}"><mxGeometry relative="1" as="geometry"/></mxCell>')
+            f'source="{src}" target="{dst}"><mxGeometry relative="1" as="geometry">{route}'
+            f'</mxGeometry></mxCell>')
         return cid
 
     @staticmethod
-    def _port(kind: str, side: str | None) -> str:
+    def _port(kind: str, side: str | tuple[float, float] | None) -> str:
         if side is None:
             return ""
-        x, y = {"top": (0.5, 0), "bottom": (0.5, 1), "left": (0, 0.5), "right": (1, 0.5)}[side]
-        return f"{kind}X={x};{kind}Y={y};{kind}Dx=0;{kind}Dy=0;"
+        x, y = side if isinstance(side, tuple) else {
+            "top": (0.5, 0), "bottom": (0.5, 1), "left": (0, 0.5), "right": (1, 0.5)}[side]
+        return f"{kind}X={x:.4g};{kind}Y={y:.4g};{kind}Dx=0;{kind}Dy=0;"
 
     def xml(self) -> str:
         body = "".join(self.cells)

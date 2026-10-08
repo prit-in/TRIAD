@@ -67,10 +67,13 @@ def fig02() -> Diagram:
     row(d, "g", ["Routing rules\nLR-01 to LR-10", "Nine validation\ngates", "Acceptance policy\nAP-1 to AP-8",
                  "Separation\nof duties", "Hash-chained\naudit per run"],
         310, kind="govern", h=70, size=14, x0=30, x1=W - 30)
-    d.edge("a4", "f2", "slot code", dashed=True)
-    d.edge("g1", "f2", "", dashed=True)
-    d.edge("g2", "f4", "", dashed=True)
-    d.edge("g3", "f5", "", dashed=True)
+    # Each edge runs in an empty gap, not along a row: the slot code drops below the agents'
+    # group before turning, and each governance edge rises in the gap above its own group.
+    d.edge("a4", "f2", "slot code", dashed=True, exit="bottom", entry="top",
+           points=[(d.cx("a4"), 120), (d.cx("f2"), 120)])
+    for g, f in (("g1", "f2"), ("g2", "f4"), ("g3", "f5")):
+        d.edge(g, f, "", dashed=True, exit="top", entry="bottom",
+               points=[(d.cx(g), 250), (d.cx(f), 250)])
     return d
 
 
@@ -96,17 +99,18 @@ def fig04() -> Diagram:
     # cross the first row to reach the second, and the export showed lines through the labels.
     d = Diagram("Fig 04 Literature Taxonomy", W, 450)
     d.box("r", "Agentic data science programming", 290, 10, 300, 50, kind="neutral", bold=True)
-    d.group("g1", "Engineering foundations (Sections 3.1 to 3.4)", 20, 90, W - 40, 110,
+    # Section numbers as the manuscript sets them: Roman sections, lettered subsections.
+    d.group("g1", "Engineering foundations (Sections III-A to III-D)", 20, 90, W - 40, 110,
             kind="compute", size=14)
     row(d, "a", ["Python analytics", "Scala, Spark, distributed processing",
                  "Configuration tuning", "MLOps and engineering of ML systems"],
         126, kind="compute", h=60, size=14, x0=32, x1=W - 32, gap=20)
-    d.group("g2", "Automation and assurance (Sections 3.5 to 3.8)", 20, 230, W - 40, 110,
+    d.group("g2", "Automation and assurance (Sections III-E to III-H)", 20, 230, W - 40, 110,
             kind="agent", size=14)
     row(d, "b", ["Data quality and provenance", "AutoML and hyperparameter optimization",
                  "LLM agents and generated code", "Explainability, trust, and fairness"],
         266, kind="agent", h=60, size=14, x0=32, x1=W - 32, gap=20)
-    d.box("app", "Application: customer churn prediction (Section 3.9)", 220, 380, 440, 50,
+    d.box("app", "Application: customer churn prediction (Section III-I)", 220, 380, 440, 50,
           kind="data", size=14)
     d.edge("r", "g1", exit="bottom", entry="top")
     d.edge("g1", "g2", exit="bottom", entry="top")
@@ -124,8 +128,11 @@ def fig05() -> Diagram:
     chain(d, ids)
     d.box("au", "Audit: re-read the code, not earlier documents;\ndowngrade any claim whose evidence is missing",
           200, 220, 480, 70, kind="govern", size=14)
-    d.edge(ids[3], "au", "", exit="bottom")
-    d.edge("au", ids[2], "corrects", exit="top")
+    # Evidence feeds the audit from the right; the audit's correction rises straight into the
+    # matrix above it. Sharing one track, the two read as a single line.
+    d.edge(ids[3], "au", "", exit="bottom", entry="right",
+           points=[(d.cx(ids[3]), d.cy("au"))])
+    d.edge("au", ids[2], "corrects", exit=(d.at("au", d.cx(ids[2])), 0), entry="bottom")
     d.text("t", "Every requirement maps to a test, and every test to a stored result.",
            20, 310, W - 40, 30, italic=True, size=14)
     return d
@@ -153,24 +160,31 @@ def fig06() -> Diagram:
           450, 315, 240, 110, kind="compute", size=14)
     d.group("gs", "State", 20, 455, 690, 140, kind="data")
     d.box("pg", "PostgreSQL\n21 tables: runs, decisions,\napprovals, audit, lineage", 40, 490, 220, 90, kind="data", shape="cylinder", size=14)
-    d.box("fs", "Versioned Parquet\nraw, clean, features,\nlabels, quarantine", 280, 490, 200, 90, kind="data", shape="cylinder", size=14)
-    d.box("ml", "MLflow\nexperiments,\nmodel registry", 500, 490, 190, 90, kind="data", shape="cylinder", size=14)
+    # MLflow under Python ML's side and Parquet under the Spark jobs: each writer then reaches
+    # its store without crossing the other's path.
+    d.box("ml", "MLflow\nexperiments,\nmodel registry", 280, 490, 200, 90, kind="data", shape="cylinder", size=14)
+    d.box("fs", "Versioned Parquet\nraw, clean, features,\nlabels, quarantine", 500, 490, 190, 90, kind="data", shape="cylinder", size=14)
     d.group("gg", "Governance", 725, 10, 135, 585, kind="govern")
-    d.box("pe", "Policy engine\n23 actions,\nfail-closed", 735, 50, 115, 90, kind="govern", size=14)
-    d.box("ap", "Approvals\nseparation\nof duties", 735, 200, 115, 90, kind="govern", size=14)
+    # Approvals level with the people who decide them, the policy engine level with the tool
+    # registry that consults it: the two dashed edges then run side by side instead of crossing.
+    d.box("ap", "Approvals\nseparation\nof duties", 735, 40, 115, 90, kind="govern", size=14)
+    d.box("pe", "Policy engine\n23 actions,\nfail-closed", 735, 190, 115, 90, kind="govern", size=14)
     d.box("au", "Audit\nhash chain\nper run", 735, 360, 115, 90, kind="govern", size=14)
-    d.edge("api", "wk", "queue")
+    # The queue drops into the gap between the two upper groups, clear of the dashboard and of
+    # the orchestration group's title.
+    d.edge("api", "wk", "queue", exit=(d.at("api", 300), 1), entry=(d.at("wk", 230), 0),
+           points=[(300, 108), (230, 108)])
     d.edge("wk", "rt")
     d.edge("cg", "tr")
     d.edge("tr", "sr", "submit")
     d.edge("sr", "sp")
-    d.edge("sp", "fs", "staging, then publish")
-    d.edge("py", "ml")
-    d.edge("tr", "pe", "", dashed=True)
-    # People decide approvals, routed through the gutter between the main column and the
-    # governance column. The approvals-to-API and worker-to-PostgreSQL edges crossed three
-    # boxes; the State group and the PostgreSQL label carry the second relation.
-    d.edge("ppl", "ap", "decide", dashed=True, exit="right", entry="left")
+    d.edge("sp", "fs", "staging, then publish", exit=(d.at("sp", d.cx("fs")), 1), entry="top")
+    d.edge("py", "ml", exit=(d.at("py", 200), 1), entry="top",
+           points=[(200, 447), (d.cx("ml"), 447)])
+    d.edge("ppl", "ap", "decide", dashed=True, exit="right", entry="left",
+           points=[(708, d.cy("ppl")), (708, d.cy("ap"))])
+    d.edge("tr", "pe", "", dashed=True, exit="right", entry="left",
+           points=[(708, d.cy("tr")), (708, d.cy("pe"))])
     return d
 
 
@@ -209,15 +223,19 @@ def fig08() -> Diagram:
             d.box(f"a{gi}{mi}", m, x + 12, 115 + mi * 52, w - 24, 42, kind="white", size=14)
         d.edge("orc", f"g{gi}")
         x += w + 16
-    d.box("reg", "Tool registry: permitted agents, argument schema, policy action, audit entry",
-          20, 350, W - 40, 44, kind="govern", size=14)
-    d.box("gates", "Nine validation gates", 20, 420, 260, 50, kind="govern", size=14)
-    d.box("sbx", "Sandbox runner and containers", 300, 420, 280, 50, kind="compute", size=14)
-    d.box("llm", "LLM provider (optional;\nnot configured in this evaluation)", 600, 420, 260, 50,
+    # The registry stops short of the right edge, leaving a corridor for the provider's edge,
+    # which then crosses below the agent groups and rises in the gap beside the build agents.
+    d.box("reg", "Tool registry: permitted agents, argument schema,\npolicy action, audit entry",
+          20, 356, 540, 44, kind="govern", size=14)
+    d.box("gates", "Nine validation gates", 20, 426, 260, 50, kind="govern", size=14)
+    d.box("sbx", "Sandbox runner and containers", 300, 426, 260, 50, kind="compute", size=14)
+    d.box("llm", "LLM provider (optional;\nnot configured in this evaluation)", 600, 426, 260, 50,
           kind="white", dashed=True, size=13)
     d.edge("reg", "gates")
     d.edge("gates", "sbx")
-    d.edge("llm", "a11", "slot bodies", dashed=True)
+    gap = (d.geom["g1"][0] + d.geom["g1"][2] + d.geom["g2"][0]) / 2
+    d.edge("llm", "a11", "slot bodies", dashed=True, exit="top", entry="right",
+           points=[(d.cx("llm"), 343), (gap, 343), (gap, d.cy("a11"))])
     return d
 
 
@@ -243,22 +261,29 @@ def fig09() -> Diagram:
 
 # --- Section 7 ------------------------------------------------------------------------------
 def fig10() -> Diagram:
-    d = Diagram("Fig 10 Autonomous Data Engineering Pipeline", W, 420)
+    # A U: ingestion left to right, then the data path back right to left beneath it. Each
+    # outcome sits next to the step that produces it, so every outcome edge is one straight line
+    # - the earlier layout sent three of them across the whole middle row.
+    d = Diagram("Fig 10 Autonomous Data Engineering Pipeline", W, 450)
     ids = row(d, "a", ["Landing folder\nor upload", "Register version\ncontract check", "Write-once raw\nchecksum",
                        "Profile\nquality score Q", "Cleaning job\n(library rules)"],
-              30, kind="data", h=70, size=14)
+              100, kind="data", h=70, size=14)
     chain(d, ids)
-    ids2 = row(d, "b", ["Policy check:\nrows affected", "Publish clean\n(atomic, manifest)", "Customer-day\naggregate",
-                        "Snapshot expansion\n(days before T)", "Features and\nmatured labels"],
-               190, kind="compute", h=70, size=14)
-    d.edge(ids[4], ids2[0], exit="bottom", entry="top")
-    chain(d, ids2)
-    d.box("q", "Quarantine with reason codes\n(nothing is deleted)", 20, 330, 260, 60, kind="alert", size=14)
-    d.box("acc", "Row accounting:\nin = out + quarantined + duplicates", 300, 330, 300, 60, kind="govern", size=14)
-    d.box("ref", "Refused at ingestion:\nmissing required column", 620, 330, 240, 60, kind="alert", size=14)
-    d.edge(ids[4], "q", dashed=True, exit="bottom")
-    d.edge(ids[4], "acc", dashed=True, exit="bottom")
-    d.edge(ids[1], "ref", dashed=True, exit="bottom")
+    ids2 = row(d, "b", ["Features and\nmatured labels", "Snapshot expansion\n(days before T)",
+                        "Customer-day\naggregate", "Publish clean\n(atomic, manifest)", "Policy check:\nrows affected"],
+               240, kind="compute", h=70, size=14)
+    d.edge(ids[4], ids2[4], exit="bottom", entry="top")
+    for right, left in pairwise(reversed(ids2)):
+        d.edge(right, left, exit="left", entry="right")
+    d.box("ref", "Refused at ingestion:\nmissing required column", d.cx(ids[1]) - 120, 10, 240, 56,
+          kind="alert", size=14)
+    d.box("q", "Quarantine with reason codes\n(nothing is deleted)", W - 280, 10, 260, 56,
+          kind="alert", size=14)
+    d.box("acc", "Row accounting:\nin = out + quarantined + duplicates", W - 320, 370, 300, 60,
+          kind="govern", size=14)
+    d.edge(ids[1], "ref", dashed=True, exit="top", entry=(d.at("ref", d.cx(ids[1])), 1))
+    d.edge(ids[4], "q", dashed=True, exit="top", entry=(d.at("q", d.cx(ids[4])), 1))
+    d.edge(ids2[4], "acc", dashed=True, exit="bottom", entry=(d.at("acc", d.cx(ids2[4])), 0))
     return d
 
 
@@ -268,16 +293,26 @@ def fig11() -> Diagram:
     ids = row(d, "a", ["Features and\nlabels", "Hygiene on names\nH2, H3, H7", "Temporal split\nwith 90-day gaps",
                        "Hygiene on training\nrows: H4", "Five candidate\nfamilies"], 30, kind="compute", h=70, size=14)
     chain(d, ids)
+    # The stages in the order the code runs them (Algorithm 3): the test cutoff is scored once
+    # (D) before the champion comparison (E), and E decides all three outcomes.
     ids2 = row(d, "b", ["Stage A: screen\n(incl. leakage alarm)", "Stage B: tune\nfinalists (Optuna)",
-                        "Stage C: calibrate,\nAP-4 to AP-6", "AP-8: beat the\nchampion?", "Stage D: score the\ntest set once"],
+                        "Stage C: calibrate,\nAP-4 to AP-6", "Stage D: score the\ntest set once",
+                        "Stage E: AP-8,\nbeat the champion?"],
                190, kind="agent", h=70, size=14)
     d.edge(ids[4], ids2[0], exit="bottom", entry="top")
     chain(d, ids2)
-    row(d, "c", ["Promote: request approval", "Keep the champion", "Escalate with a reason code"],
-        330, kind="govern", h=56, size=14)
-    d.edge(ids2[4], "c0", dashed=True, exit="bottom")
-    d.edge(ids2[3], "c1", dashed=True, exit="bottom")
-    d.edge(ids2[2], "c2", dashed=True, exit="bottom")
+    cols = [d.geom[b] for b in ids2[2:]]
+    for cid, label, (x, _, w, _) in zip(("c0", "c1", "c2"),
+                                        ["Escalate with a\nreason code", "Keep the\nchampion",
+                                         "Promote: request\napproval"], cols, strict=True):
+        d.box(cid, label, x, 340, w, 56, kind="govern", size=14)
+    e = ids2[4]
+    # One exit per outcome across E's lower edge, each on its own lane, so no two cross.
+    d.edge(e, "c0", "a rule failed", dashed=True, exit=(0.15, 1), entry="top",
+           points=[(d.geom[e][0] + 0.15 * d.geom[e][2], 285), (d.cx("c0"), 285)])
+    d.edge(e, "c1", "AP-8 failed", dashed=True, exit=(0.45, 1), entry="top",
+           points=[(d.geom[e][0] + 0.45 * d.geom[e][2], 312), (d.cx("c1"), 312)])
+    d.edge(e, "c2", "proposed", dashed=True, exit=(0.8, 1), entry=(0.8, 0))   # c2 is under E
     return d
 
 
@@ -298,7 +333,10 @@ def fig12() -> Diagram:
     d.box("ac", "Acceptance policy AP-1 to AP-8", 460, 290, 380, 40, kind="govern", size=14)
     d.box("rg", "Registry: version, hash, model card", 460, 345, 380, 40, kind="data", size=14)
     chain(d, ["cr", "op", "ca", "ac", "rg"])
-    d.edge("hy", "cr", "training set")
+    # Up the gutter between the two groups and into the registry from the side: straight
+    # across, it ran up through three of the selection boxes.
+    d.edge("hy", "cr", exit="right", entry="left",
+           points=[(430, d.cy("hy")), (430, d.cy("cr"))])
     return d
 
 
@@ -308,12 +346,14 @@ def fig13() -> Diagram:
     ids = row(d, "a", ["Worker", "Routing rules\n(LR-07: local mode\nbelow 1 GB)", "Tool registry\nspark.submit_job",
                        "Sandbox runner\n(token, image\nallowlist)"], 30, kind="agent", h=80, size=14)
     chain(d, ids)
-    d.group("gc", "Job container: uid 1000, no capabilities, read-only root, no network, cgroup limits",
-            20, 150, W - 40, 170, kind="compute", size=14)
+    # A short group title: the long one ran under the submit edge's drop into the driver.
+    d.group("gc", "Job container", 20, 150, W - 40, 170, kind="compute", size=14)
     d.box("drv", "spark-submit, local mode\ndriver and executor in one JVM", 40, 195, 300, 70, kind="compute", size=14)
     d.box("job", "Generated Scala job\non the TriadJob core library", 360, 195, 260, 70, kind="compute", size=14)
-    d.box("mnt", "Mounts: inputs and JARs\nread-only; run folder\nwritable", 640, 190, 200, 110, kind="white", size=14)
-    d.edge(ids[3], "drv", exit="bottom")
+    d.box("mnt", "uid 1000, no capabilities,\nread-only root, no network,\ncgroup limits; inputs and\nJARs read-only, run folder\nwritable",
+          640, 180, 200, 125, kind="white", size=14)
+    d.edge(ids[3], "drv", exit="bottom", entry="top",
+           points=[(d.cx(ids[3]), 130), (d.cx("drv"), 130)])
     d.edge("drv", "job")
     ids3 = row(d, "c", ["Staging Parquet\n(run folder)", "Contract check\n(gate 7)", "Atomic publish\nmanifest and hash"],
                350, kind="data", h=70, size=14, x1=620)
@@ -325,22 +365,39 @@ def fig13() -> Diagram:
 
 # --- Section 10 -----------------------------------------------------------------------------
 def fig14() -> Diagram:
+    # Four columns, left to right: the model, the explanation methods, what is produced, and
+    # the person who reads it. Every edge runs in a gutter between columns, and the model's own
+    # metrics go straight through the gap left between the methods.
     d = Diagram("Fig 14 Explainability Framework", W, 400)
-    d.box("m", "Selected model", 20, 160, 150, 60, kind="compute", bold=True)
-    meth = row(d, "x", ["TreeSHAP\n(tree ensembles)", "Coefficient x input\n(logistic regression)",
-                        "Permutation importance\n(global only)"], 40, kind="agent", h=64, size=14, x0=200, x1=640)
-    for cid in meth:
-        d.edge("m", cid)
-    outs = row(d, "o", ["Per-customer reasons,\nmethod named", "Evaluation record:\ncurves, intervals, segments",
-                        "Model card", "Claim-checked\nreport"], 170, kind="data", h=70, size=14, x0=200, x1=W - 20)
-    d.edge(meth[0], outs[0])
-    d.edge(meth[1], outs[0])
-    d.edge("m", outs[1])
-    d.box("dr", "Decision records: rule, evidence, rejected alternatives", 200, 300, 420, 50, kind="govern", size=14)
-    d.box("ppl", "Reviewer or\napprover", 660, 290, 200, 70, kind="person", size=14)
-    for cid in outs:
-        d.edge(cid, "ppl", dashed=True)
-    d.edge("dr", "ppl", dashed=True)
+    d.box("m", "Selected\nmodel", 20, 170, 130, 60, kind="compute", bold=True)
+    d.box("x0", "TreeSHAP\n(tree ensembles)", 190, 20, 190, 56, kind="agent", size=14)
+    d.box("x1", "Coefficient x input\n(logistic regression)", 190, 95, 190, 56, kind="agent", size=14)
+    d.box("x2", "Permutation importance\n(global ranking)", 190, 255, 190, 56, kind="agent", size=14)
+    d.box("o0", "Per-customer reasons,\nmethod named", 415, 57, 210, 56, kind="data", size=14)
+    d.box("o1", "Evaluation record:\ncurves, intervals, segments", 415, 172, 210, 56, kind="data", size=14)
+    d.box("o2", "Model card: data, metrics,\ndrivers, limitations", 415, 255, 210, 56, kind="data", size=14)
+    d.box("o3", "Claim-checked\nreport", 415, 330, 210, 50, kind="data", size=14)
+    d.box("ppl", "Reviewer or\napprover", 670, 160, 190, 80, kind="person", size=14)
+    d.box("dr", "Decision records: rule,\nevidence, rejected\nalternatives", 670, 290, 190, 90, kind="govern", size=14)
+    for x in ("x0", "x1", "x2"):          # fan out through the gutter at x = 170
+        d.edge("m", x, exit="right", entry="left",
+               points=[(170, d.cy("m")), (170, d.cy(x))])
+    for x in ("x0", "x1"):                # both per-customer methods produce the reasons
+        d.edge(x, "o0", exit="right", entry="left",
+               points=[(398, d.cy(x)), (398, d.cy("o0"))])
+    d.edge("m", "o1", exit="right", entry="left")                # through the gap at y = 200
+    d.edge("x2", "o2", exit="right", entry="left")
+    d.edge("o1", "o2", exit="bottom", entry="top")
+    d.edge("o2", "o3", exit="bottom", entry="top")
+    # What the reviewer reads, each in its own lane of the right-hand gutter.
+    d.edge("o0", "ppl", dashed=True, exit="right", entry=(0, 0.2),
+           points=[(645, d.cy("o0")), (645, 176)])
+    d.edge("o1", "ppl", dashed=True, exit="right", entry=(0, 0.5))
+    d.edge("o2", "ppl", dashed=True, exit="right", entry=(0, 0.8),
+           points=[(645, d.cy("o2")), (645, 224)])
+    d.edge("o3", "ppl", dashed=True, exit="right", entry="bottom",
+           points=[(655, d.cy("o3")), (655, 270), (d.cx("ppl"), 270)])
+    d.edge("dr", "ppl", dashed=True, exit=(0.8, 0), entry=(0.8, 1))
     return d
 
 
@@ -348,7 +405,8 @@ def fig15() -> Diagram:
     d = Diagram("Fig 15 Trustworthy Analytics Model", W, 430)
     comps = [("Audit chain verifies", "chain"), ("All nine gates passed", "gates"),
              ("Calibrated within the limit", "calib"), ("Report claim check passed", "claims"),
-             ("Approved by another person", "approval"), ("Inputs and outputs traceable", "lineage")]
+             ("Approved by another person", "approval"),
+             ("Input versions and code hashes recorded", "lineage")]   # as trust_score.py reads it
     for i, (label, key) in enumerate(comps):
         y = 20 + i * 64
         d.box(f"c{i}", f"{label}\ns_{key}", 20, y, 300, 54, kind="govern", size=14)
@@ -356,29 +414,37 @@ def fig15() -> Diagram:
           420, 150, 240, 110, kind="agent", bold=True, size=15)
     for i in range(len(comps)):
         d.edge(f"c{i}", "ts")
-    d.box("note", "Equal weights: a stated design choice,\nnot a validated result.\nFairness is reported per segment,\nnot folded into the score.",
-          690, 140, 170, 130, kind="white", size=13)
+    # No hard breaks: in a box this narrow they combined with wrapping to strand single words.
+    d.box("note", "Equal weights: a stated design choice, not a validated result. Fairness is "
+          "reported per segment, not folded into the score.", 690, 140, 170, 130, kind="white", size=13)
     return d
 
 
 # --- Section 11 -----------------------------------------------------------------------------
 def fig16() -> Diagram:
-    d = Diagram("Fig 16 Agent Orchestration Workflow", W, 470)
-    happy = row(d, "s", ["RECEIVED", "PROFILED", "PLANNED", "FEATURES_\nREADY", "TRAINING", "EVALUATED"],
-                40, kind="agent", h=56, size=14)
+    d = Diagram("Fig 16 Agent Orchestration Workflow", W, 490)
+    happy = row(d, "s", ["RECEIVED", "PROFILED", "PLANNED", "FEATURES_READY", "TRAINING", "EVALUATED"],
+                40, kind="agent", h=56, size=12, gap=20)   # FEATURES_READY on one line
     chain(d, happy)
     end = row(d, "e", ["APPROVAL_REQUIRED\n(waits for a person)", "PUBLISHED", "SELECTED\n(champion kept)"],
-              170, kind="govern", h=64, size=14, x0=300, x1=W - 20)
-    d.edge(happy[5], end[0], exit="bottom")
+              170, kind="govern", h=64, size=13, x0=300, x1=W - 20)
+    ev = happy[5]
+    # Two exits from EVALUATED, each on its own line: "keep" drops straight into SELECTED, and
+    # "propose" turns left in the gap above the outcome row.
+    d.edge(ev, end[2], "keep", exit=(d.at(ev, d.cx(end[2])), 1), entry="top")
+    d.edge(ev, end[0], "propose", exit=(0.1, 1), entry="top",
+           points=[(d.geom[ev][0] + 0.1 * d.geom[ev][2], 132), (d.cx(end[0]), 132)])
     d.edge(end[0], end[1], "approved")
-    d.edge(happy[5], end[2], "keep", exit="bottom")
     fail = row(d, "f", ["REJECTED_INPUT", "ESCALATED\n(resumable)", "FAILED", "CANCELLED"],
-               320, kind="alert", h=60, size=14)
-    d.edge(happy[0], fail[0], dashed=True, exit="bottom")
-    d.edge(happy[2], fail[1], dashed=True, exit="bottom")
-    d.edge(fail[1], happy[2], "resume", dashed=True)
+               330, kind="alert", h=60, size=13)
+    d.edge(happy[0], fail[0], "contract refused", dashed=True,
+           exit=(d.at(happy[0], d.cx(happy[0])), 1), entry=(d.at(fail[0], d.cx(happy[0])), 0))
+    # Escalation, failure, and cancellation can happen from any state, not from one; edges
+    # from a single state said otherwise.
+    d.text("any", "From any state: ESCALATED (resumable from where it stopped), FAILED, or CANCELLED.",
+           240, 280, W - 260, 30, size=13)
     d.text("t", "Every transition is committed with its audit entry; a dead worker's lease expires and the task is re-queued.",
-           20, 410, W - 40, 40, italic=True, size=14)
+           20, 420, W - 40, 40, italic=True, size=14)
     return d
 
 
@@ -406,7 +472,10 @@ def fig18() -> Diagram:
     ids2 = row(d, "w", ["Worker", "Tool registry\nallowlist, schema", "Sandbox runner\nsocket, token,\nimage allowlist",
                         "Job container\nno network, uid 1000,\nread-only, limits"], 170, kind="compute", h=80, size=14)
     chain(d, ids2)
-    d.edge(ids[3], ids2[1], "governed action", dashed=True)
+    # Down into the gap between the rows and along it: routed automatically it ran through
+    # the authentication and authorization boxes.
+    d.edge(ids[3], ids2[1], "governed action", dashed=True, exit="bottom", entry="top",
+           points=[(d.cx(ids[3]), 138), (d.cx(ids2[1]), 138)])
     row(d, "x", ["Untrusted content:\nfenced and scanned", "Generated code:\nslots and nine gates",
                  "Model integrity:\nhash verified on load", "Secrets: none in source,\nlogs, or job environment"],
         310, kind="white", h=70, size=14)
@@ -452,8 +521,9 @@ def fig20() -> Diagram:
 
 # --- Section 18 (conceptual) ------------------------------------------------------------------
 def fig26() -> Diagram:
-    d = Diagram("Fig 26 Smart Manufacturing Analytics Ecosystem", W, 400)
-    d.text("c", "Conceptual transfer analysis - not implemented or measured", 20, 5, W - 40, 26, italic=True, size=14)
+    d = Diagram("Fig 26 Smart Manufacturing Analytics Ecosystem", W, 430)
+    # The disclaimer goes under the figure: at the top it read as an in-image title.
+    d.text("c", "Conceptual transfer analysis - not implemented or measured", 20, 392, W - 40, 26, italic=True, size=14)
     src = row(d, "s", ["Machine sensors\n(streaming)", "Maintenance\nrecords", "Quality\ninspections"],
               45, kind="data", h=64, size=14, dashed=True)
     d.box("ing", "Governed ingestion: contracts, profiling, quarantine (reused)", 20, 140, W - 40, 50, kind="govern", size=14)
@@ -470,8 +540,9 @@ def fig26() -> Diagram:
 
 
 def fig27() -> Diagram:
-    d = Diagram("Fig 27 Healthcare Intelligence Platform", W, 400)
-    d.text("c", "Conceptual transfer analysis - not implemented or measured", 20, 5, W - 40, 26, italic=True, size=14)
+    d = Diagram("Fig 27 Healthcare Intelligence Platform", W, 430)
+    # The disclaimer goes under the figure: at the top it read as an in-image title.
+    d.text("c", "Conceptual transfer analysis - not implemented or measured", 20, 392, W - 40, 26, italic=True, size=14)
     src = row(d, "s", ["Clinical records\n(de-identified, new)", "Scheduling and\noperations data", "Laboratory\nresults"],
               45, kind="data", h=64, size=14, dashed=True)
     d.box("ing", "Governed ingestion and profiling; transport encryption required (new)", 20, 140, W - 40, 50, kind="govern", size=14)
@@ -508,18 +579,20 @@ def fig29() -> Diagram:
 def fig30() -> Diagram:
     d = Diagram("Fig 30 Future Research Roadmap", W, 330)
     ids = row(d, "r", ["Statistically aware\ngovernance", "LLM-assisted\nprogramming in gates", "Self-evolving\npipelines",
-                       "Federated data\nscience", "Cognitive programming,\nhuman-agent loops"],
+                       "Federated data\nscience", "Cognitive\nprogramming,\nhuman-agent loops"],
               80, kind="agent", h=90, size=14)
     chain(d, ids)
-    d.box("ax", "nearer term                                                                                       longer term",
-          20, 200, W - 40, 30, kind="white", size=13)
+    # A time axis, as an arrow between its two ends; spaces in one label collapsed to one.
+    d.text("near", "nearer term", 20, 200, 110, 30, align="left", size=13)
+    d.text("far", "longer term", W - 130, 200, 110, 30, align="right", size=13)
+    d.edge("near", "far", exit="right", entry="left")
     d.text("t", "Each direction starts from a limitation measured or stated in this report.", 20, 260, W - 40, 30, italic=True, size=14)
     return d
 
 
 def fig31() -> Diagram:
     d = Diagram("Fig 31 Next-Generation Agentic Analytics Ecosystem", W, 430)
-    d.text("c", "Proposed - not implemented", 20, 5, W - 40, 26, italic=True, size=14)
+    d.text("c", "Proposed - not implemented", 20, 385, W - 40, 26, italic=True, size=14)
     d.box("llm", "LLM agents propose\nslot code, plans, narratives", 20, 50, 260, 70, kind="agent", dashed=True, size=14)
     d.box("pol", "Interval-based policies decide\n(error rates stated)", 310, 50, 260, 70, kind="govern", dashed=True, size=14)
     d.box("tun", "Tuning loop adapts\nexecution from history", 600, 50, 260, 70, kind="compute", dashed=True, size=14)
@@ -529,8 +602,10 @@ def fig31() -> Diagram:
         d.edge(cid, "core")
     d.box("fed", "Federated participants\nshare decisions, not data", 20, 290, 400, 70, kind="data", dashed=True, size=14)
     d.box("hum", "People's decisions feed back\ninto the rules they apply", 460, 290, 400, 70, kind="person", dashed=True, size=14)
-    d.edge("core", "fed", dashed=True)
-    d.edge("hum", "core", dashed=True)
+    # Separate points on the core's lower edge: sharing one, the outgoing and incoming edges
+    # read as a single line with arrows at both ends.
+    d.edge("core", "fed", dashed=True, exit=(d.at("core", d.cx("fed")), 1), entry="top")
+    d.edge("hum", "core", dashed=True, exit="top", entry=(d.at("core", d.cx("hum")), 1))
     return d
 
 
@@ -538,8 +613,8 @@ def fig32() -> Diagram:
     d = Diagram("Fig 32 Research Contribution Framework", W, 400)
     contribs = row(d, "c", ["Bounded agent\nautonomy", "Template-constrained\ncode generation", "Point-in-time\nfeature engineering",
                             "Evidence-first\nevaluation", "Honest evaluation\nof limits"], 30, kind="agent", h=80, size=14)
-    evid = row(d, "e", ["Sections 5, 6, 11", "Sections 6, 7, 9, 12", "Sections 7, 8", "Sections 10, 14, 17",
-                        "Sections 13, 15, 20"], 150, kind="white", h=50, size=14)
+    evid = row(d, "e", ["Sections V, VI, XI", "Sections VI, VII, IX, XII", "Sections VII, VIII",
+                        "Sections X, XIV, XVII", "Sections XIII, XV, XX"], 150, kind="white", h=50, size=14)
     for a, b in zip(contribs, evid, strict=True):
         d.edge(a, b)
     d.box("goal", "Automate the engineering between decision points; keep the decisions with rules and people",

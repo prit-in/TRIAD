@@ -60,7 +60,7 @@ tree ensembles remain strong on tabular data [@shwartz2022tabular] [@borisov2024
 imbalance is handled by class weighting [@he2009imbalanced], which distorts probabilities and
 is one reason calibration is mandatory.
 
-Selection then proceeds in four stages. Stage A screens every candidate on validation data
+Selection then proceeds in five stages. Stage A screens every candidate on validation data
 against the rules that do not depend on calibration, including the leakage alarm and the cost
 limits. Stage B tunes the finalists' hyperparameters with Optuna [@akiba2019optuna]
 [@yang2020hpo] [@bischl2023hpo] within the run's optimization budget. Stage C calibrates the
@@ -68,7 +68,8 @@ best candidate on the held-out calibration slice - isotonic regression where at 
 are available, Platt-style sigmoid scaling otherwise [@zadrozny2002calibration]
 [@niculescu2005probabilities] [@bocker2021platt] - and applies the calibration-sensitive rules;
 if calibration fails, a remedy chain tries sigmoid scaling and then refitting without class
-weighting before giving up. Stage D scores the test snapshot exactly once.
+weighting before giving up. Stage D scores the test snapshot exactly once, and Stage E compares
+the result with the deployed champion (AP-8, below) and decides among the three outcomes.
 
 ## 8.5 The acceptance policy
 
@@ -132,7 +133,7 @@ have been replaced.
 - Candidates and split: `pipelines/churn_v1.yaml` (`split`, `candidates`); `python_ml/triad_ml/splits.py`.
 - Hygiene H2/H3/H4/H7: `python_ml/triad_ml/hygiene.py`; decision records on run-2026-10-03-002.
 - Leakage alarm 0.98: `python_ml/triad_ml/evaluate.py`; sentinel: TC-026; EXP-9.
-- Selection stages A-D: `python_ml/triad_ml/train.py`; tuning `python_ml/triad_ml/tune.py`;
+- Selection stages A-E: `python_ml/triad_ml/train.py`; tuning `python_ml/triad_ml/tune.py`;
   sigmoid below 500 rows: `calibrate`; remedy chain: DEC-03.
 - AP-1 to AP-8: PRD section 17.6; DEC-01, DEC-02, DEC-19, DEC-26.
 - Explanations: `python_ml/triad_ml/predict.py` (SHAP TreeExplainer; coefficients x

@@ -27,10 +27,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from datasets.synthetic.generator import GeneratorConfig, SyntheticGenerator  # noqa: E402
-from dataeng.ingest import DatasetRegistry  # noqa: E402
-from triad_core.db import session_scope  # noqa: E402
-from triad_core.storage import storage  # noqa: E402
+from dataeng.ingest import DatasetRegistry
+from datasets.synthetic.generator import GeneratorConfig, SyntheticGenerator
+from triad_core.db import session_scope
+from triad_core.storage import storage
 
 ENTITY = {"transactions": "transaction", "customers": "customer", "products": "product",
           "returns": "return", "web_sessions": "web_session",

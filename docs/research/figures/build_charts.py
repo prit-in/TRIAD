@@ -20,8 +20,8 @@ from typing import Any
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib import font_manager  # noqa: E402
+import matplotlib.pyplot as plt
+from matplotlib import font_manager
 
 ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENTS = ROOT / "experiments"
@@ -150,10 +150,10 @@ def fig22() -> None:
         failed = [(n, v.get(f"{key}_wall_clock_s") or 0) for n, v in rungs
                   if f"{key}_completed" in v and not v.get(f"{key}_completed")]
         if ok:
-            ax.plot(*zip(*ok), marker=marker, markersize=3.5, color=colour,
+            ax.plot(*zip(*ok, strict=True), marker=marker, markersize=3.5, color=colour,
                     label=f"{key.upper()} completed")
         if failed:
-            ax.scatter(*zip(*failed), marker="x", s=36, color=COLOURS["warn"], zorder=5,
+            ax.scatter(*zip(*failed, strict=True), marker="x", s=36, color=COLOURS["warn"], zorder=5,
                        label=f"{key.upper()} failed")
     ax.set_xscale("log")
     ax.set_xlabel("Customers in the synthetic dataset")
@@ -167,7 +167,15 @@ def fig22() -> None:
     for key, name, colour, marker in series:
         pts = [(n, v[key]) for n, v in rungs if isinstance(v.get(key), (int, float))]
         if pts:
-            ax.plot(*zip(*pts), marker=marker, markersize=3.5, color=colour, label=name)
+            ax.plot(*zip(*pts, strict=True), marker=marker, markersize=3.5, color=colour, label=name)
+    # B3's Python driver shares the container with its JVM. The two peaks need not coincide,
+    # so their sum is an upper bound on what B3 held at once, and is labelled as one.
+    both = [(n, v["b3_jvm_peak_rss_mb"] + v["b3_peak_rss_mb"]) for n, v in rungs
+            if isinstance(v.get("b3_jvm_peak_rss_mb"), (int, float))
+            and isinstance(v.get("b3_peak_rss_mb"), (int, float))]
+    if both:
+        ax.plot(*zip(*both, strict=True), marker="s", markersize=2.5, color=COLOURS["B3"], linestyle="--",
+                linewidth=0.9, label="B3 JVM + Python driver (sum of peaks)")
     ax.axhline(3000, color=COLOURS["warn"], linestyle="--", linewidth=0.8)
     ax.annotate("container limit (3 000 MiB)", xy=(0.02, 3000), xycoords=("axes fraction", "data"),
                 xytext=(0, 2), textcoords="offset points", fontsize=6.5, color=COLOURS["warn"])

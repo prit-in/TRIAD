@@ -34,8 +34,9 @@ evidence, rather than a default.
 
 **Scaling claims need the hardware to test them.** On one four-core laptop, two Spark cores were
 1.63 times faster than one and four were slower than two, because parallel tasks competed for
-shared cores; and the single-node baseline did not fail before the data generator itself did.
-<!-- RESULTS-PENDING: EXP-2's final ladder, and EXP-1's overhead comparison. -->
+shared cores; and as the data grew on a 3 GB node, it was Spark, not pandas, that gave out
+first, because its JVM held most of the node's memory before the data arrived.
+<!-- RESULTS-PENDING: EXP-1's overhead comparison. -->
 
 **Governance must be exercised to be trusted.** Walking the override end to end, and reviewing
 the code that implements it, found an evidence bundle that omitted what approvers needed, a model
@@ -64,5 +65,7 @@ with enough repetitions to tell an effect from noise.
   0.655/0.971/0.951/0.809/0.396 at 494/1000/2000/4000/8000 rows, all four segmentations).
 - Override: run-2026-10-07-001; segment review (0.164 vs 0.4578/0.4947; flagged 0.1525 -> 0.176,
   i.e. 2.35 more per hundred).
-- Scaling: EXP-3 (1.628x; 0.842x; task time 35/45/108 s); EXP-2 (generator OOM at 100 000).
+- Scaling: EXP-3 (1.628x; 0.842x; task time 35/45/108 s); EXP-2 run 20261008T171242Z (B2
+  completed 100 000 customers in 130 s at 2 294 MB; B3 past its 1 800 s ceiling there; B3 JVM
+  1 329 MB at 400 customers, 2 223 MB at 50 000).
 - Defects: commits 36038cb, 46dd494.
