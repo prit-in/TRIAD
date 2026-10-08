@@ -216,6 +216,8 @@ def run() -> Experiment:
         )
 
         crossover: str | None = None
+        b3_failed_at: str | None = None  # the rung where B3 failed, if it did
+        b2_failed_there = False
         for customers in LADDER:
             trial = exp.trial(f"customers_{customers}")
             source = root / f"n{customers}"
@@ -281,10 +283,11 @@ def run() -> Experiment:
                 )
                 break
             if not b3.ok:
+                b3_failed_at, b2_failed_there = trial.condition, not b2.ok
                 exp.limitation(
-                    f"The ladder stopped at {customers} customers because B3 failed too "
-                    f"({b3.detail[:150]}), so no crossover was observed below the machine's "
-                    "own ceiling."
+                    f"The ladder stopped at {customers} customers because B3 failed "
+                    + ("as well as B2" if not b2.ok else "while B2 completed")
+                    + f" ({b3.detail[:150]})."
                 )
                 break
 
@@ -304,6 +307,13 @@ def run() -> Experiment:
                     f"failed while the Spark configuration completed, which is the shape the "
                     f"hypothesis asserts."
                     if crossover
+                    else f"B3 failed at {b3_failed_at} while B2 completed: the single-node "
+                         f"configuration outlasted the Spark one, the opposite of the shape the "
+                         f"hypothesis asserts, so it is refuted here."
+                    if b3_failed_at and not b2_failed_there
+                    else f"Both configurations failed at {b3_failed_at}, so neither outlasted "
+                         f"the other and the hypothesis is not supported here."
+                    if b3_failed_at
                     else "No crossover was observed within the sizes this machine can hold, so "
                          "the hypothesis is neither supported nor refuted here."
                 )
