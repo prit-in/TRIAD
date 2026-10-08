@@ -3,7 +3,31 @@
 Updated: 08-10-2026. **Read this file first when resuming.** The newest handoff below supersedes
 everything after it where they disagree.
 
-## Progress, 08-10-2026 afternoon (read before the morning handoff below)
+## Progress, 08-10-2026 evening (read first)
+
+- EXP-2's 16:17 run stopped at 100 000 customers because *generating the data* was OOM-killed
+  (committed as `experiments/EXP-2/20261008T161715Z/`). DEC-37: the generator stores columns, writes
+  one table at a time, and shares repeated strings - identical output on seven configurations,
+  pinned by `tests/unit/test_generator.py`; 100 000 customers now generate at a 2 226 MB peak.
+  EXP-2's outcome logic also names "B3 failed first" (refuted) and "both failed" (not supported).
+  Full ladder re-run started 17:12 UTC (`experiments/EXP-2/20261008T171242Z/`).
+- DEC-38: EXP-8 runs gate 5 (fixture tests, uncached) on faults that pass gates 1-4, with the
+  unmutated control required to pass it; charts (Figs. 23, 25) and Table 10 read the new fields.
+- Manuscript assembly built: `docs/research/assemble_manuscript.py` (template filled: cover,
+  Index, lists, Contributions, IEEE header, faculty bio kept; Roman tables and sections; citations
+  in order of first use; OMML equations; page-wide figures and tables in one-column sections) and
+  `finalize_manuscript.ps1` (Word fills PAGEREFs, writes PDF). Draft runs clean: 28 figure
+  slots, 12 of 14 tables (10 and 11 wait on results), 10 equations, all 118 references cited.
+  Word counts (prose only) put every finished section in range after small additions to
+  Sections 3, 4, 8, 10, 11, 18, 21 and the Appendix; Section 11.4 now describes the DEC-31 loop.
+- Next, in order: EXP-2 result -> `docker compose -f docker/compose.yaml up -d` -> Python and
+  Scala suites + `npx tsc -b --noEmit` (diagram export in parallel, then a visual check of all
+  26) -> `ORDER="EXP-1 EXP-4 EXP-5 EXP-6 EXP-8" bash scripts/run_experiments_batch.sh` -> charts,
+  tables, trust scores, EXPERIMENTS.md -> Sections 15, 16 (new), 17, 19, 22, 00 -> assemble,
+  finalize, read the PDF -> audits -> team details from the user.
+- Word tools live in a scratch venv (python-docx, latex2mathml, PyMuPDF), not in the project.
+
+## Progress, 08-10-2026 afternoon
 
 - Done and committed: DEC-34 (EXP-1 reads an escalated P; escalations keep their references),
   DEC-35 (no swap past memory limits; ST-07 asserts it), DEC-36 (cleaning conforms numeric columns

@@ -113,10 +113,17 @@ class Block:
 
 
 def read(path: Path) -> tuple[list[Block], list[str]]:
-    """A section's manuscript blocks (its Evidence block dropped) and its pending markers."""
+    """A section's manuscript blocks (its Evidence block dropped) and its pending markers.
+
+    A line `{{include: tables/x.md}}` is replaced by that generated file, so a table built from
+    stored results reaches the manuscript as built rather than as last pasted.
+    """
     text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
     text = re.split(r"\n## Evidence", text)[0].rstrip()
     text = re.sub(r"\n---$", "", text).rstrip()
+    text = re.sub(r"^\{\{include: (.+?)\}\}$",
+                  lambda m: (RESEARCH / m[1].strip()).read_text(encoding="utf-8").strip(),
+                  text, flags=re.M)
     pending = [c.strip() for c in re.findall(r"<!--(.*?)-->", text, flags=re.S)]
     return parse(re.sub(r"<!--.*?-->", "", text, flags=re.S).split("\n")), pending
 

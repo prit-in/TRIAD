@@ -1,0 +1,65 @@
+{
+  "exp_id": "EXP-2",
+  "title": "Medium dataset: where a single node gives out",
+  "hypothesis": "The single-node pandas configuration (B2) is the first to fail as the data grows, while the Spark configuration (B3) keeps going.",
+  "independent_variable": "dataset size (customers), configuration",
+  "dependent_measures": [
+    "completed",
+    "wall_clock_s",
+    "peak_rss_mb",
+    "bytes_on_disk",
+    "rows_trained",
+    "test_pr_auc"
+  ],
+  "started_at": "2026-10-08T17:12:42.854878+00:00",
+  "config": {
+    "ladder_customers": [
+      400,
+      1500,
+      6000,
+      20000,
+      50000,
+      100000,
+      200000
+    ],
+    "months": 24,
+    "seed": 42,
+    "cutoffs": [
+      "2025-01-01",
+      "2025-02-01",
+      "2025-03-01",
+      "2025-04-01",
+      "2025-05-01",
+      "2025-06-01",
+      "2025-07-01",
+      "2025-08-01",
+      "2025-09-01",
+      "2025-10-01"
+    ],
+    "split": {
+      "train": [
+        "2025-01-01",
+        "2025-02-01",
+        "2025-03-01",
+        "2025-04-01"
+      ],
+      "valid": [
+        "2025-07-01"
+      ],
+      "test": [
+        "2025-10-01"
+      ]
+    },
+    "prd_tier_not_run": "10 GB on a 32 GB node",
+    "ceilings_s": {
+      "baseline": 1800,
+      "generate": 3600
+    },
+    "memory_at_start": {
+      "vm_mem_available_mib": 2810,
+      "container_memory_max": "3145728000",
+      "container_swap_max": "0"
+    },
+    "environment_ceiling": "Docker is given a 5.27 GB VM and the sandbox clamps containers to 3 GB (HOST_LIMITS, ADR-0002)"
+  }
+}

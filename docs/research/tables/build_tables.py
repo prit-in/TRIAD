@@ -138,9 +138,11 @@ def table11() -> str:
         cells = [num(t.get(c, {}).get(key), digits) for c in configs]
         rows.append(f"| {label} | " + " | ".join(cells) + " |")
     like = t.get("like_for_like_quality_on_one_feature_table", {})
-    note = (f"\n*Like-for-like, every shortlist refitted on P's feature table: test PR-AUC "
-            f"{num(like.get('baseline_shortlist_test_pr_auc'))}.*\n")
-    return "**Table 11. Comparative Performance Analysis**\n\n" + "\n".join(rows) + "\n" + note
+    # The parenthesis after the caption is set as the table's note at assembly.
+    note = (f"like-for-like, every shortlist refitted on P's feature table with the same split: "
+            f"test PR-AUC {num(like.get('baseline_shortlist_test_pr_auc'))}")
+    return (f"**Table 11. Comparative Performance Analysis** *({note})*\n\n"
+            + "\n".join(rows) + "\n")
 
 
 def main() -> None:
