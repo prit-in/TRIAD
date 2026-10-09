@@ -19,7 +19,7 @@ from backend.app import problems
 from backend.app.deps import CurrentUser, DbSession, require_roles
 from backend.app.schemas import AlertView, ApprovalView, DecisionRequest
 from backend.app.security import APPROVER_ROLES, BUSINESS_ANALYST
-from backend.app.services import enqueue_publish
+from backend.app.services import enqueue_publish, enqueue_resume
 from triad_core.config import settings
 from triad_core.governance import (
     CommentRequired,
@@ -152,6 +152,7 @@ def decide(
     # An approved promotion still has to be carried out, and a rejected one still has to
     # archive its shadow scores and say so in a report. Both are the orchestrator's work.
     enqueue_publish(session, decided, decision_status=service.group_status(decided))
+    enqueue_resume(session, decided)
     # An approved column mapping is applied here, in the same transaction as the decision: it
     # registers one renamed copy of a file, which is ingest's work, not a pipeline's.
     if decided.status == "approved":

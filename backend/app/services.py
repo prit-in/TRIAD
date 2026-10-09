@@ -17,6 +17,7 @@ from triad_core.models import AgentTask, Approval, PipelineRun
 
 PUBLISH_STAGE = "publish"
 PUBLISH_TASK = "publish"
+RUN_TASK = "run"
 
 
 def enqueue_publish(
@@ -67,4 +68,26 @@ def enqueue_publish(
         task_type=PUBLISH_TASK,
         input_refs={"approval_id": str(approval.id), "decision": approval.status},
         priority=200,   # a decided run is ahead of a new one: someone is waiting on it
+    )
+
+
+def enqueue_resume(session: Session, approval: Approval) -> AgentTask | None:
+    """Resume a run that paused for a destructive cleaning plan, once that plan is decided.
+
+    Approved: the run's phase is queued again with the inputs it recorded, and its cleaning
+    stage finds the approval and commits (PRD US-06). Rejected: the run is escalated, its
+    output never committed and its quarantine kept. Anything else: None.
+    """
+    if approval.action_type != "destructive_cleaning" or approval.status == "pending":
+        return None
+    run = session.get(PipelineRun, approval.run_id)
+    if run is None or run.state != "APPROVAL_REQUIRED":
+        return None
+    if approval.status != "approved":
+        q.set_state(session, run, "ESCALATED", stage="clean", actor="governance",
+                    error_summary="the cleaning plan was rejected")
+        return None
+    return q.enqueue(
+        session, run, stage="pipeline", agent_name="orchestrator", task_type=RUN_TASK,
+        input_refs=dict(run.input_versions or {}), priority=200,
     )

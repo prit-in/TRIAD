@@ -344,6 +344,19 @@ def prepare(
         input_rows=profile_out.get("row_count", 0),
     )
     if not clean_out:
+        escalation = pipeline.result.escalation or {}
+        if escalation.get("approval_id"):
+            # Over the cleaning limit (PRD US-06): the plan waits for a Data Engineer, with its
+            # output uncommitted and its quarantine kept. The phase did what it should, so it
+            # succeeds; an approval re-queues the run, which then commits (services).
+            reason = (f"cleaning would affect "
+                      f"{(escalation.get('evidence') or {}).get('rows_affected_pct')}% of rows: "
+                      f"approval {escalation['approval_id']} requested")
+            say("approval", reason, True)
+            pipeline.finish("APPROVAL_REQUIRED", ok=True, reason=reason)
+            return PhaseResult(True, "APPROVAL_REQUIRED", reason,
+                               {"escalation": escalation,
+                                "approval_id": escalation["approval_id"]})
         pipeline.finish("ESCALATED", ok=False, reason="cleaning failed")
         return PhaseResult(False, "ESCALATED", "cleaning failed",
                            {"escalation": pipeline.result.escalation})

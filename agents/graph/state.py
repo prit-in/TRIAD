@@ -80,7 +80,9 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "EVALUATED": {"OPTIMIZING", "SELECTED"} | _RESTART | _LIVE,
     "OPTIMIZING": {"TRAINING"} | _LIVE,
     "SELECTED": {"APPROVAL_REQUIRED", "PUBLISHED"} | _RESTART | _LIVE,
-    "APPROVAL_REQUIRED": {"DEPLOYED", "PUBLISHED"} | _LIVE,
+    # A run paused for a destructive cleaning plan (PRD US-06) restarts its phase once the
+    # plan is approved.
+    "APPROVAL_REQUIRED": {"DEPLOYED", "PUBLISHED"} | _RESTART | _LIVE,
     "DEPLOYED": {"PUBLISHED"} | _LIVE,
     "PUBLISHED": {"MONITORING", "COMPLETED", "CANCELLED"},
     "MONITORING": {"COMPLETED", "CANCELLED"},

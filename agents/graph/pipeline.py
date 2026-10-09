@@ -14,6 +14,7 @@ import json
 import math
 import re
 import shutil
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -765,7 +766,7 @@ class ChurnPipeline:
 
         if outcome.ok and policy_action:
             verdict = self._check_stage_policy(policy_action, stage, outcome.outputs,
-                                               quarantine_dir is not None)
+                                               quarantine_dir)
             if verdict is not None:
                 self.result.escalation = verdict
                 return {}
@@ -877,13 +878,17 @@ class ChurnPipeline:
         )
 
     def _check_stage_policy(
-        self, action: str, stage: str, outputs: dict[str, Any], has_quarantine: bool
+        self, action: str, stage: str, outputs: dict[str, Any], quarantine_dir: Path | None
     ) -> dict[str, Any] | None:
         """Hold the executed stage against its bounded-autonomy limits (PRD section 51).
 
         The job already ran in the sandbox; what is gated here is *committing* its output.
-        Returns None when the action is allowed, otherwise the escalation payload.
+        Returns None when the action is allowed, otherwise the escalation payload. Over a
+        limit that needs approval, the stage files the request and the payload carries its
+        id: the run pauses rather than fails (PRD US-06), and a run resumed after a person
+        approved it finds the approval here and commits.
         """
+        has_quarantine = quarantine_dir is not None
         metrics = outputs.get("job_metrics") or {}
         input_rows = int(metrics.get("input_rows") or 0)
         affected = int(metrics.get("quarantined_rows") or 0) + int(
@@ -894,23 +899,81 @@ class ChurnPipeline:
             context["rows_affected_pct"] = round(100.0 * affected / input_rows, 4)
 
         decision = self.policy.check(action, context=context)
+        target = f"{stage}@{self.run.run_key}"
+        approved = (
+            self._stage_approval(action, target, "approved")
+            if decision.verdict is Verdict.REQUIRE_APPROVAL else None
+        )
         self.runner.record_decision(
             agent="governance",
             decision_type="policy",
-            decision=f"{action} -> {decision.verdict.value}",
+            decision=f"{action} -> {decision.verdict.value}"
+                     + (f"; approved by a person ({approved.id})" if approved else ""),
             summary=decision.reason[:500],
             evidence={"stage": stage, **context},
             policy_rules=decision.rule_ids,
         )
-        if decision.verdict is Verdict.ALLOW:
+        if decision.verdict is Verdict.ALLOW or approved is not None:
             return None
-        return {
+        payload = {
             "stage": stage,
             "reason": f"{action}: {decision.reason}",
             "verdict": decision.verdict.value,
             "approvers": decision.approvers,
             "evidence": context,
         }
+        if decision.verdict is Verdict.REQUIRE_APPROVAL:
+            payload["approval_id"] = self._request_stage_approval(
+                action, target, context, metrics, quarantine_dir
+            )
+        return payload
+
+    def _stage_approval(self, action: str, target: str, status: str):
+        from triad_core.models import Approval
+
+        return self.session.execute(
+            select(Approval).where(
+                Approval.run_id == self.run.id, Approval.policy_action == action,
+                Approval.target_ref == target, Approval.status == status,
+            )
+        ).scalars().first()
+
+    def _request_stage_approval(
+        self, action: str, target: str, context: dict[str, Any], metrics: dict[str, Any],
+        quarantine_dir: Path | None,
+    ) -> str:
+        """File the approval a stage over its limit needs, once per run and stage."""
+        pending = self._stage_approval(action, target, "pending")
+        if pending is not None:
+            return str(pending.id)
+        evidence = EvidenceBundle(
+            action_type=action,
+            target_ref=target,
+            impact_estimate={
+                **context,
+                **{k: metrics.get(k) for k in ("input_rows", "quarantined_rows",
+                                               "removed_duplicates")},
+                "by_rule": {k.removeprefix("rule_"): v for k, v in metrics.items()
+                            if k.startswith("rule_")},
+            },
+            risk_notes=[
+                f"{context.get('rows_affected_pct')}% of rows would leave the "
+                f"{target.split('@')[0]} output, above the share the policy allows without "
+                "approval. Every one is kept in quarantine with its reason, and nothing is "
+                "committed before a decision.",
+            ],
+        )
+        uri = self.storage.write_json(
+            self.storage.reports_dir(self.run.run_key)
+            / f"{target.split('@')[0]}_approval_evidence_{uuid.uuid4().hex[:12]}.json",
+            {**evidence.to_dict(), "sample_rows": _sample_rows(quarantine_dir)},
+        )
+        approval = self.governance.request_approval(
+            self.run, action=action, target_ref=target,
+            requested_by="agent:data_engineering", evidence=evidence,
+            evidence_uri=self.storage.uri(uri),
+        )
+        return str(approval.id)
 
     # -- governance ------------------------------------------------------------
     def request_promotion(
@@ -950,6 +1013,20 @@ class ChurnPipeline:
         )
         self.session.commit()
         return self.result
+
+
+def _sample_rows(folder: Path | None, n: int = 5) -> list[dict[str, Any]]:
+    """A few quarantined rows with their reasons, for the approver; empty if unreadable."""
+    if folder is None or not folder.exists():
+        return []
+    try:
+        import pyarrow.dataset as ds
+
+        rows = ds.dataset(str(folder), format="parquet").head(n).to_pylist()
+    except Exception:  # a sample is a courtesy; the request must still be filed
+        return []
+    plain = (str, int, float, bool, type(None))
+    return [{k: v if isinstance(v, plain) else str(v) for k, v in row.items()} for row in rows]
 
 
 def _newest_jar(folder: Path) -> Path | None:
