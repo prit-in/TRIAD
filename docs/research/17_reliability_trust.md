@@ -53,17 +53,19 @@ which is the strongest argument for exercising it.
 
 ## 17.5 The trust score in practice
 
-<!-- RESULTS-PENDING: trust scores for a failed run alongside these. -->
-
 On the published override run every applicable component of equation (6) scored 1: the audit
 chain verified, all three final generated jobs passed all nine gates, calibration error was
 within the limit after calibration, the report passed its claim check, both approvals came from
-people other than the requester and the run's starter, and every output had a recorded lineage.
-Two escalated runs scored 1 on the four components that applied to them; calibration, claims,
-and approval did not apply because nothing was calibrated, reported, or promoted. The score
-therefore separates runs whose evidence is incomplete from runs whose evidence is whole, and it
-does not distinguish a good model from a bad one - an escalated run with complete evidence is
-trustworthy as a record, which is the property the score measures.
+people other than the requester and the run's starter, and its input versions and generated code
+were recorded with their hashes. Two escalated runs scored 1 on the three components that applied
+to them; calibration, claims, and approval did not apply because nothing was calibrated,
+reported, or promoted. A run whose evidence is not whole scores lower and shows why: an EXP-1
+run whose generated cleaning job failed compilation on each of its three attempts, and which was
+then stopped, scored 0.67 - its chain verified and its inputs and code were recorded, but none of
+its final generated jobs had passed all nine gates. The score therefore separates runs whose
+evidence is incomplete from runs whose evidence is whole, and it does not distinguish a good
+model from a bad one - an escalated run with complete evidence is trustworthy as a record, which
+is the property the score measures.
 
 **Table 12. Trustworthiness Evaluation Criteria**
 
@@ -77,7 +79,7 @@ trustworthy as a record, which is the property the score measures.
 | Governance under attack | Bypass attempts refused and audited | 4 of 4 | EXP-10 |
 | Separation of duties | Override shares decided by distinct, eligible people | 2 of 2 | approvals of run-2026-10-07-001 |
 | Tamper evidence | Audit chain verifies | 1 753 entries | `/audit-logs/verify` |
-| Trust score | Equation (6), applicable components | 1.00 on the published run | `trust_scores.json` |
+| Trust score | Equation (6), applicable components | 1.00 on the published run; 0.67 on a run whose generated job failed its gates | `trust_scores.json` |
 
 ---
 
@@ -89,5 +91,7 @@ trustworthy as a record, which is the property the score measures.
 - 17.3: EXP-8, EXP-9, EXP-10 `latest.json`; lease recovery run-2026-10-03-002.
 - 17.4: run-2026-10-07-001 audit entries and approvals (Section 15/19 evidence); defects:
   commits 36038cb (bundle, card), 46dd494 (rollback).
-- 17.5: `docs/research/analysis/trust_scores.json` (runs 2026-10-07-001, 2026-10-04-006,
-  2026-10-04-004).
+- 17.5: `docs/research/analysis/trust_scores.json`, computed 09-10-2026 (runs 2026-10-07-001
+  1.00; 2026-10-04-006 and 2026-10-04-004 1.00 on chain, gates, lineage; 2026-10-08-002 0.67 -
+  chain 1, gates 0, lineage 1 - the EXP-1 run whose generated CleanJob failed gate 4 three times,
+  state CANCELLED).

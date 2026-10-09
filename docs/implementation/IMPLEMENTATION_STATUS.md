@@ -422,6 +422,12 @@ than reading it. The ones that mattered most:
 - **Partitioned and unpartitioned reads disagreed on a key's type**, so the feature/label join
   returned 0 rows from 6422 on each side while both counts looked right.
 - **Run keys were numbered from a row count**, so two concurrent creators collided.
+- **The DEC-36 CleanJob template compiled but its generated copies did not** (09-10-2026). It
+  passed an `Array` to a varargs `drop`, a Scala 2.13 deprecation; the build made warnings fatal
+  only under `generated/`, so `sbt test` passed and every run failed gate 4 three times and
+  escalated at cleaning - EXP-1's P and every EXP-4 condition. Fixed with `.toIndexedSeq`, and
+  the jobs module now makes any warning an error, so a template that warns fails the build
+  itself; all three templates were rendered and passed gates 4 and 5.
 
 The full list with causes and fixes is in `docs/implementation/ENVIRONMENT_STATUS.md` (F-1 to
 F-18) and `docs/implementation/DECISIONS.md` (DEC-01 to DEC-19).

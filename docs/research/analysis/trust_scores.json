@@ -2,7 +2,7 @@
   "equation": "TS = mean of applicable components (Section 10.5)",
   "tau": 0.05,
   "chain_verified": true,
-  "chain_entries": 1834,
+  "chain_entries": 2210,
   "runs": [
     {
       "run": "run-2026-10-07-001",
@@ -50,6 +50,24 @@
       "components": {
         "chain": 1.0,
         "gates": 1.0,
+        "calib": null,
+        "claims": null,
+        "approval": null,
+        "lineage": 1.0
+      },
+      "applicable": [
+        "chain",
+        "gates",
+        "lineage"
+      ]
+    },
+    {
+      "run": "run-2026-10-08-002",
+      "state": "CANCELLED",
+      "trust_score": 0.6666666666666666,
+      "components": {
+        "chain": 1.0,
+        "gates": 0.0,
         "calib": null,
         "claims": null,
         "approval": null,
