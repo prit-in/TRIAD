@@ -5,9 +5,6 @@ answers. Every number is read from an experiment's stored output; Table 10 is ge
 same files, and so are Fig. 21 to Fig. 23. A hypothesis that did not hold is reported as not
 holding, with what the measurement shows instead.
 
-<!-- RESULTS-PENDING: 15.4 data robustness (EXP-4, EXP-5, EXP-6) is written once those
-experiments complete. -->
-
 ## 15.1 End to end: what governance costs at a small size
 
 EXP-1 ran TRIAD (P) and the two conventional pipelines on the same 400 customers, with the same
@@ -90,6 +87,27 @@ was not measured, so how much of the slowdown is frequency rather than contentio
 separated here. Task skew stayed low (at most 1.87 times
 the median task), which rules out an uneven partition as the cause. This is intra-node scaling on
 one machine; it says nothing about distributed workers, which were not run.
+
+## 15.4 Data robustness: schema faults, missing values, and failing jobs
+
+EXP-4 put three schema faults through ingestion, profiling, cleaning and, where the claim needs
+it, feature construction, each beside a clean baseline that ran the same stages and was flagged
+by none of them. All three were detected and handled as the hypothesis states. A renamed
+customer key, `customer_id` arriving as `cust_id`, was refused at ingestion: the contract found
+the required column missing, proposed `cust_id` as its source - the most similar unnamed column,
+of the same type - and filed a schema-change approval. While that request was pending nothing
+was registered and an attempt to apply the mapping was refused; once a data engineer approved it
+(in the experiment, the harness acting in that role), the platform registered a renamed copy
+whose version records the original file and the approval, and the copy cleaned with balanced row
+accounting 230 s after the decision. Prices written as text with currency codes were converted by
+the cleaning job, every value parsing, with the row accounting balanced. Without the optional
+support tickets table, the feature job marked the customer-service group unavailable and produced
+none of its six features - 40 columns where the baseline had 46. No mapping was applied without a
+person, and no condition lost rows silently. The first two runs of this experiment could not
+show this: the mapping proposal the requirements describe did not exist, and the feature stage
+was not part of the protocol.
+
+<!-- RESULTS-PENDING: EXP-5 (missing values) and EXP-6 (Spark failures) paragraphs. -->
 
 ## 15.5 Code generation: what the gates stop, and how quickly
 
@@ -176,6 +194,13 @@ verdict, and the result it turned on.
   2.917 of 2.93 GiB, and `ps` the B3 JVM at 2 261 888 kB resident.
 - EXP-3: `experiments/EXP-3/latest.json` (run of 07-10-2026 21:57 UTC); per-stage observations in
   `trials[].observations.stages`; host CPU: Section 13 evidence.
+- EXP-4: `experiments/EXP-4/20261009T184842Z/result.json` (09-10-2026 18:48 to 19:19 UTC):
+  renamed column refused at ingest, proposal `cust_id -> customer_id` (name similarity 0.778,
+  types match), `schema_change` approval pending before the decision, `registered_before_decision`
+  false, `applied_while_pending` false, recovery 229.7 s after the decision; price as text
+  converted, `price_quarantined` 0, balanced; dropped tickets: `customer_service` unavailable,
+  `ticket_features_present` [] of 6, feature columns 40 against 46. Earlier runs kept as records:
+  `20261009T003414Z` (CleanJob deprecation), `20261009T174535Z` (no proposal, no feature stage).
 - EXP-8: `experiments/EXP-8/latest.json` (07-10-2026 22:54 UTC), `raw/per_class.json`.
 - EXP-7: `experiments/EXP-7/latest.json` (07-10-2026 21:57 UTC), `raw/thresholds.json`.
 - EXP-9: `experiments/EXP-9/latest.json` (07-10-2026 21:56 UTC).
