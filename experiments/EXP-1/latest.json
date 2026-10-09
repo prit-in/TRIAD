@@ -11,11 +11,11 @@
     "test_pr_auc",
     "source_lines"
   ],
-  "started_at": "2026-10-09T16:15:55.646206+00:00",
-  "duration_s": 3540.35,
+  "started_at": "2026-10-09T17:21:31.688758+00:00",
+  "duration_s": 1098.37,
   "status": "partial",
   "hypothesis_held": true,
-  "conclusion": "Wall-clock: P 3396.87s, B3 92.1s, B2 8.8s, B1 not measured. P is slower than B2: True, which is the expected observation at this size and the argument for local-mode routing (LR-07). P's candidate was escalated by the acceptance policy (calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED) on a validation split of 243 rows - a decision left to a person, which is the platform working as designed, and at this size inside the calibration estimator's measured noise floor (experiments/calibration_noise_floor.py). P required 0 approval(s) and 0 other manual steps, so the first half of the hypothesis holds. Whole-pipeline test PR-AUC: P 0.7405 (full feature catalogue), B3 0.7871 and B2 0.79 (twelve features each) - not comparable as model quality, because the feature sets differ. Hand-written pipeline lines: B2 188, B3 228. P made 0 LLM calls, ran 4 sandboxed Spark jobs and wrote 17 audit entries and 8 decision records - the governance and evidence the baselines produce none of, which is the cost the wall-clock difference is buying. See the like-for-like trial for the only PR-AUC comparison in which the features are held constant.",
+  "conclusion": "Wall-clock: P 988.97s, B3 71.3s, B2 5.5s, B1 not measured. P is slower than B2: True, which is the expected observation at this size and the argument for local-mode routing (LR-07). P's candidate was escalated by the acceptance policy (calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED) on a validation split of 243 rows - a decision left to a person, which is the platform working as designed, and at this size inside the calibration estimator's measured noise floor (experiments/calibration_noise_floor.py). P required 0 approval(s) and 0 other manual steps, so the first half of the hypothesis holds. Whole-pipeline test PR-AUC: P 0.7405 (full feature catalogue), B3 0.7871 and B2 0.79 (twelve features each) - not comparable as model quality, because the feature sets differ. Hand-written pipeline lines: B2 188, B3 228. P made 0 LLM calls, ran 4 sandboxed Spark jobs and wrote 17 audit entries and 8 decision records - the governance and evidence the baselines produce none of, which is the cost the wall-clock difference is buying. See the like-for-like trial for the only PR-AUC comparison in which the features are held constant.",
   "limitations": [
     "B1 is not measured: it is defined as a person following a runbook, and its metrics are engineer hours. Inventing them would fabricate the comparison.",
     "The dataset is TRIAD's synthetic generator, not Online Retail II, which has no customer, session, ticket or return tables and so cannot support the churn definition or most of the feature catalogue (ADR-0002).",
@@ -45,17 +45,17 @@
     {
       "condition": "P_triad",
       "ok": true,
-      "detail": "ran end to end in 3397s over 4 Spark jobs; xgboost at test PR-AUC 0.7405; the acceptance policy escalated it (calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED), so a person decides what happens next; no other manual step",
+      "detail": "ran end to end in 989s over 4 Spark jobs; xgboost at test PR-AUC 0.7405; the acceptance policy escalated it (calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED), so a person decides what happens next; no other manual step",
       "measurements": [
         {
           "name": "wall_clock_s",
-          "value": 3396.87,
+          "value": 988.97,
           "unit": "s",
           "note": ""
         },
         {
           "name": "ingest_s",
-          "value": 0.73,
+          "value": 0.6,
           "unit": "s",
           "note": ""
         },
@@ -172,10 +172,10 @@
       ],
       "observations": {
         "per_stage_s": {
-          "spark:069656": 0.0,
-          "scala_spark:cedfb2": 80.59,
-          "scala_spark:295b58": 70.35,
-          "scala_spark:ba73dc": 44.49
+          "spark:5f8120": 0.0,
+          "scala_spark:7abb80": 49.47,
+          "scala_spark:04ebe4": 59.84,
+          "scala_spark:40461e": 41.4
         }
       }
     },
@@ -186,7 +186,7 @@
       "measurements": [
         {
           "name": "wall_clock_s",
-          "value": 8.81,
+          "value": 5.5,
           "unit": "s",
           "note": ""
         },
@@ -240,7 +240,7 @@
         },
         {
           "name": "peak_rss_mb",
-          "value": 356.2,
+          "value": 356.0,
           "unit": "MB",
           "note": ""
         },
@@ -265,8 +265,8 @@
       ],
       "observations": {
         "per_stage_s": {
-          "features": 0.67,
-          "train_and_select": 8.13
+          "features": 0.5,
+          "train_and_select": 4.99
         },
         "families_tried": [
           "logreg",
@@ -283,7 +283,7 @@
       "measurements": [
         {
           "name": "wall_clock_s",
-          "value": 92.06,
+          "value": 71.25,
           "unit": "s",
           "note": ""
         },
@@ -337,13 +337,13 @@
         },
         {
           "name": "peak_rss_mb",
-          "value": 356.2,
+          "value": 356.0,
           "unit": "MB",
           "note": ""
         },
         {
           "name": "jvm_peak_rss_mb",
-          "value": 1223.5,
+          "value": 1171.8,
           "unit": "MB",
           "note": ""
         },
@@ -362,8 +362,8 @@
       ],
       "observations": {
         "per_stage_s": {
-          "features_spark": 60.66,
-          "train_and_select": 31.22
+          "features_spark": 46.85,
+          "train_and_select": 24.34
         },
         "families_tried": [
           "logreg",
@@ -375,18 +375,73 @@
     },
     {
       "condition": "like_for_like_quality_on_one_feature_table",
-      "ok": false,
-      "detail": "could not refit on the shared table: ValueError: Cannot use median strategy with non-numeric data:\ncould not convert string to float: 'cod'",
+      "ok": true,
+      "detail": "on P's 44 features and P's split, the baselines' shortlist reaches test PR-AUC 0.7757 with random_forest; compare with P's own selected model, which additionally has calibration, tuning and the acceptance policy applied",
       "measurements": [
         {
-          "name": "test_pr_auc",
-          "value": null,
+          "name": "feature_count",
+          "value": 44,
           "unit": "",
-          "note": "not measured"
+          "note": ""
+        },
+        {
+          "name": "rows_trained",
+          "value": 390,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "rows_tested",
+          "value": 280,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "baseline_shortlist_test_pr_auc",
+          "value": 0.7757,
+          "unit": "",
+          "note": "the four families B2 and B3 screen, fitted on P's feature table"
+        },
+        {
+          "name": "baseline_shortlist_test_roc_auc",
+          "value": 0.8169,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "baseline_shortlist_test_brier",
+          "value": 0.1414,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "selected_family",
+          "value": "random_forest",
+          "unit": "",
+          "note": ""
         }
       ],
-      "observations": {}
+      "observations": {
+        "families_tried": [
+          {
+            "family": "random_forest",
+            "valid_pr_auc": 0.7029
+          },
+          {
+            "family": "hist_gb",
+            "valid_pr_auc": 0.6991
+          },
+          {
+            "family": "logreg",
+            "valid_pr_auc": 0.6032
+          },
+          {
+            "family": "dummy",
+            "valid_pr_auc": 0.2716
+          }
+        ]
+      }
     }
   ],
-  "run_dir": "20261009T161555Z"
+  "run_dir": "20261009T172131Z"
 }
