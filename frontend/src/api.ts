@@ -504,6 +504,9 @@ export interface EvidenceBundle {
   risk_notes: string[];
   override_note: string | null;
   model_card_uri: string | null;
+  /** Filled for a schema change: what the proposed column mapping alters and touches. */
+  schema_diff?: { missing_required?: string[]; not_in_contract?: string[] };
+  impact_estimate?: { rows?: number | null; effect?: string };
 }
 
 export interface Alert {

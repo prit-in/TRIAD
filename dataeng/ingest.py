@@ -10,7 +10,11 @@ Rules that hold for every path into the system:
 
 from __future__ import annotations
 
+import csv
 import datetime as dt
+import json
+import shutil
+import tempfile
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -24,7 +28,7 @@ from triad_core import audit
 from triad_core.config import settings
 from triad_core.contracts import Contract, ContractResult
 from triad_core.ids import sha256_file, utcnow
-from triad_core.models import Dataset, DatasetVersion, Event
+from triad_core.models import Approval, Dataset, DatasetVersion, Event, PipelineRun
 from triad_core.storage import Storage, schema_hash, storage
 
 SUPPORTED_FORMATS = ("csv", "json", "jsonl", "parquet")
@@ -67,6 +71,9 @@ class RegistrationResult:
     checksum: str | None = None
     contract_result: ContractResult | None = None
     quarantined: bool = False
+    # A renamed required column: {observed name: contract name}, and the approval it awaits.
+    proposed_mapping: dict[str, str] | None = None
+    approval_id: uuid.UUID | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -79,6 +86,8 @@ class RegistrationResult:
             "checksum_sha256": self.checksum,
             "quarantined": self.quarantined,
             "contract": self.contract_result.to_dict() if self.contract_result else None,
+            "proposed_mapping": self.proposed_mapping,
+            "approval_id": str(self.approval_id) if self.approval_id else None,
         }
 
 
@@ -295,6 +304,7 @@ class DatasetRegistry:
         actor: str = "system",
         contract: Contract | None = None,
         settle_check: bool = False,
+        run: PipelineRun | None = None,
     ) -> RegistrationResult:
         """The UC-01 main flow. Returns without creating anything for a duplicate checksum.
 
@@ -304,6 +314,12 @@ class DatasetRegistry:
         API, the demo script and the experiments all called this without a contract, so the
         only caller that ever passed one was `watch_folder`. EXP-4 found it by renaming
         `customer_id` and watching the run profile and clean the data without complaint.
+
+        A refused file is kept in quarantine. When every missing required column has a likely
+        source under another name, the mapping is applied at once if the contract lists those
+        names as aliases, and otherwise proposed: a `schema.change` approval is requested on
+        `run` (or on an ingestion run made for it) and nothing is registered before a decision
+        (PRD 20.2, ATC-06).
         """
         dataset = self.get(dataset_name)
         if dataset is None:
@@ -349,10 +365,14 @@ class DatasetRegistry:
         if contract is not None:
             contract_result = contract.validate_schema(schema)
             if not contract_result.passed:
-                quarantine_dir = self.storage.path(
-                    self.storage.root / "quarantine" / dataset_name / "rejected"
-                )
-                quarantine_dir.mkdir(parents=True, exist_ok=True)
+                # The result has always said `quarantined`; the file is now actually kept, so
+                # an approved mapping has the bytes it was decided on.
+                kept = self._keep_refused(dataset_name, obs)
+                proposals = contract.propose_mappings(schema)
+                missing = {v.check_id.removeprefix("schema.required.")
+                           for v in contract_result.blocking}
+                renamed = bool(proposals) and {p["column"] for p in proposals} == missing
+                mapping = {p["source"]: p["column"] for p in proposals} if renamed else None
                 audit.record(
                     self.session,
                     actor_type="system",
@@ -363,19 +383,31 @@ class DatasetRegistry:
                     outcome="rejected",
                     details={
                         "path": str(obs.path),
+                        "kept_as": self.storage.uri(kept),
                         "violations": [v.to_dict() for v in contract_result.blocking],
+                        "proposed_mapping": mapping,
                     },
                 )
+                if mapping and all(p["pre_approved"] for p in proposals):
+                    return self.apply_mapping(dataset_name, kept, mapping, actor=actor,
+                                              basis="pre-approved alias",
+                                              original_checksum=obs.checksum)
+                approval = self._request_mapping_approval(
+                    dataset, obs, kept, schema, proposals, actor=actor, run=run
+                ) if mapping else None
                 return RegistrationResult(
                     dataset_name,
                     None,
                     None,
                     False,
-                    "blocking contract violation",
+                    "required column renamed: mapping proposed, awaiting approval"
+                    if approval else "blocking contract violation",
                     None,
                     obs.checksum,
                     contract_result,
                     quarantined=True,
+                    proposed_mapping=mapping,
+                    approval_id=approval.id if approval else None,
                 )
 
         version_no = self._next_version_no(dataset)
@@ -435,6 +467,139 @@ class DatasetRegistry:
             version.storage_uri,
             obs.checksum,
             contract_result,
+        )
+
+    # -- renamed columns (PRD 20.2) ----------------------------------------------
+    def _keep_refused(self, dataset_name: str, obs: FileObservation) -> Path:
+        target = self.storage.root / "quarantine" / dataset_name / "rejected" / obs.checksum[:16]
+        kept = self.storage.path(target) / obs.path.name
+        return kept if kept.exists() else self.storage.copy_immutable(obs.path, target)
+
+    def _request_mapping_approval(
+        self, dataset: Dataset, obs: FileObservation, kept: Path, schema: dict[str, str],
+        proposals: list[dict[str, Any]], *, actor: str, run: PipelineRun | None,
+    ) -> Approval:
+        from agents.graph import queue as q
+        from triad_core.governance import EvidenceBundle, GovernanceService
+        from triad_core.policy import PolicyEngine
+
+        target = f"{dataset.name}@sha256:{obs.checksum[:16]}"
+        pending = self.session.execute(
+            select(Approval).where(Approval.target_ref == target, Approval.status == "pending")
+        ).scalars().first()
+        if pending is not None:
+            return pending  # the same file again: one question, not two
+        if run is None:
+            run = q.create_run(
+                self.session, pipeline_name=f"ingest:{dataset.name}"[:64], trigger_type="data",
+                triggered_by=actor, config={"dataset": dataset.name, "file": obs.path.name},
+            )
+            q.set_state(self.session, run, "REJECTED_INPUT", stage="ingest", actor=actor,
+                        error_summary="required column renamed: mapping proposed, "
+                                      "awaiting approval")
+        mapping = {p["source"]: p["column"] for p in proposals}
+        contract = self.contract_for(dataset)
+        named = {c.name.lower() for c in contract.columns} if contract else set()
+        evidence = EvidenceBundle(
+            action_type="schema.change",
+            target_ref=target,
+            schema_diff={
+                "missing_required": sorted(mapping.values()),
+                "not_in_contract": sorted(c for c in schema if c.lower() not in named),
+                "proposals": proposals,
+            },
+            impact_estimate={
+                "rows": count_rows(kept, obs.fmt),
+                "size_bytes": obs.size_bytes,
+                "effect": "registers a copy of the file with the columns renamed; the file "
+                          "as it arrived stays in quarantine and is not changed",
+            },
+            risk_notes=[
+                f"{p['source']} -> {p['column']}: name similarity {p['similarity']}, "
+                f"type {p['type']} against {p['expected_type']}"
+                for p in proposals
+            ],
+        )
+        # The apply step reads the file and the mapping from here, so what is applied is
+        # exactly what was approved. One file per request: a decided bundle is never rewritten.
+        uri = self.storage.uri(self.storage.write_json(
+            kept.parent / f"mapping_evidence_{uuid.uuid4().hex[:12]}.json",
+            {**evidence.to_dict(), "dataset": dataset.name, "kept_uri": self.storage.uri(kept),
+             "checksum_sha256": obs.checksum, "mapping": mapping},
+        ))
+        service = GovernanceService(self.session, PolicyEngine(settings().governance_policy_path))
+        return service.request_approval(
+            run, action="schema.change", target_ref=target, requested_by="agent:ingest",
+            evidence=evidence, evidence_uri=uri,
+        )
+
+    def apply_mapping(
+        self, dataset_name: str, source: Path, mapping: dict[str, str], *, actor: str,
+        basis: str, original_checksum: str, approval_id: uuid.UUID | None = None,
+    ) -> RegistrationResult:
+        """Register a copy of `source` with its columns renamed; the source is not changed.
+
+        The version records what it was mapped from, so the rename is part of its lineage.
+        """
+        fmt = detect_format(source)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / source.name
+            if fmt == "parquet":
+                import pyarrow.parquet as pq
+
+                table = pq.read_table(source)
+                pq.write_table(
+                    table.rename_columns([mapping.get(n, n) for n in table.column_names]), out
+                )
+            elif fmt == "csv":
+                # Only the header changes, so every value keeps its exact bytes.
+                with open(source, encoding="utf-8", newline="") as src, \
+                        open(out, "w", encoding="utf-8", newline="") as dst:
+                    line = src.readline()
+                    ending = "\r\n" if line.endswith("\r\n") else "\n"
+                    header = next(csv.reader([line]))
+                    csv.writer(dst, lineterminator=ending).writerow(
+                        [mapping.get(n, n) for n in header]
+                    )
+                    shutil.copyfileobj(src, dst)
+            else:
+                raise IngestError(f"a {fmt} file cannot be mapped here; re-export it with the "
+                                  "contract's column names")
+            result = self.register_version(dataset_name, out, actor=actor)
+        if result.version_id is not None:
+            version = self.session.get(DatasetVersion, result.version_id)
+            lineage = {"checksum_sha256": original_checksum, "mapping": mapping, "basis": basis,
+                       "approval_id": str(approval_id) if approval_id else None}
+            version.schema_json = {**(version.schema_json or {}), "mapped_from": lineage}
+            self.session.flush()
+            audit.record(
+                self.session,
+                actor_type="system",
+                actor_id=actor,
+                action="dataset.mapping_applied",
+                resource_type="dataset_version",
+                resource_id=str(version.id),
+                details={"dataset": dataset_name, **lineage},
+            )
+        result.proposed_mapping = mapping
+        result.approval_id = approval_id
+        return result
+
+    def apply_approved_mapping(
+        self, approval: Approval, *, actor: str
+    ) -> RegistrationResult | None:
+        """Carry out an approved mapping. None when the approval holds no mapping."""
+        if approval.action_type != "schema_change" or not approval.evidence_uri:
+            return None
+        doc = json.loads(self.storage.path(approval.evidence_uri).read_text(encoding="utf-8"))
+        if not doc.get("mapping"):
+            return None
+        if approval.status != "approved":
+            raise IngestError(f"approval {approval.id} is {approval.status}; a mapping is "
+                              "applied only after it is approved")
+        return self.apply_mapping(
+            doc["dataset"], self.storage.path(doc["kept_uri"]), doc["mapping"], actor=actor,
+            basis="approved", original_checksum=doc["checksum_sha256"], approval_id=approval.id,
         )
 
 

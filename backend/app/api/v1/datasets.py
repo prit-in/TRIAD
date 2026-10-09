@@ -29,6 +29,27 @@ router = APIRouter(tags=["datasets"])
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024
 
 
+def _refused(session: DbSession, result) -> problems.Problem:
+    """A file the ingest contract refused, as the caller's error - committed first.
+
+    It used to come back as 200 and the dataset's summary, which read as success. The refusal
+    is committed before the problem is raised, because raising rolls the request back, and the
+    audit entry and any approval request for a proposed mapping must outlive the response.
+    """
+    session.commit()
+    reasons = "; ".join(v.message for v in result.contract_result.blocking)
+    if result.approval_id is None:
+        return problems.unprocessable(f"Not registered: {reasons}. The file is kept in quarantine.")
+    mapping = ", ".join(f"{src} -> {dst}" for src, dst in result.proposed_mapping.items())
+    return problems.Problem(
+        status=422, title="Mapping proposed",
+        detail=f"Not registered: {reasons}. The mapping {mapping} awaits approval; nothing "
+               "runs before a decision.",
+        problem_type="mapping-proposed",
+        extra={"approval_id": str(result.approval_id), "proposed_mapping": result.proposed_mapping},
+    )
+
+
 def _latest(session: DbSession, dataset_id: uuid.UUID):
     from triad_core.models import DatasetVersion
 
@@ -167,6 +188,8 @@ def register_dataset(
         # A source that is not one readable file, or one a contract refuses: the caller
         # sent it, so the caller is told. This used to reach them as a 500.
         raise problems.unprocessable(str(exc)) from exc
+    if result.quarantined:
+        raise _refused(session, result)
     if result.version_id is None:
         # An identical checksum: the existing version already holds these bytes.
         response.status_code = 200
@@ -228,6 +251,8 @@ async def upload_version(
     except IngestError as exc:
         target.unlink(missing_ok=True)
         raise problems.unprocessable(str(exc)) from exc
+    if result.quarantined:
+        raise _refused(session, result)
     if result.version_id is None:
         response.status_code = 200
     return _summary(session, dataset)

@@ -148,6 +148,15 @@ function Evidence({ approvalId }: { approvalId: string }) {
               {bundle.risk_notes.map((note) => <li key={note}>{note}</li>)}
             </ul>
           )}
+          {/* A schema change has no model behind it: its notes above name each proposed
+              mapping, and the impact says what approving does. */}
+          {bundle.impact_estimate?.effect && (
+            <p>
+              {bundle.impact_estimate.rows ?? "An unknown number of"} rows. Approving{" "}
+              {bundle.impact_estimate.effect}.
+            </p>
+          )}
+          {bundle.action_type !== "schema.change" && (
           <dl className="metrics">
             <div>
               <dt>PR-AUC against the champion (AP-8)</dt>
@@ -166,6 +175,7 @@ function Evidence({ approvalId }: { approvalId: string }) {
                 </div>
               ))}
           </dl>
+          )}
           {bundle.segment_checks.map((check) => (
             <SegmentCheck key={check.rule} check={check} />
           ))}

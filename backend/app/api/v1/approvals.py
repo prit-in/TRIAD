@@ -152,6 +152,15 @@ def decide(
     # An approved promotion still has to be carried out, and a rejected one still has to
     # archive its shadow scores and say so in a report. Both are the orchestrator's work.
     enqueue_publish(session, decided, decision_status=service.group_status(decided))
+    # An approved column mapping is applied here, in the same transaction as the decision: it
+    # registers one renamed copy of a file, which is ingest's work, not a pipeline's.
+    if decided.status == "approved":
+        from dataeng.ingest import DatasetRegistry, IngestError
+
+        try:
+            DatasetRegistry(session).apply_approved_mapping(decided, actor=str(user.id))
+        except IngestError as exc:
+            raise problems.unprocessable(str(exc)) from exc
     return ApprovalView.model_validate(decided)
 
 

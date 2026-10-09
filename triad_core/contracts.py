@@ -8,6 +8,7 @@ output contract, and carries the row-accounting identity used after every cleani
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,15 @@ class ColumnSpec:
     required: bool = False
     nullable: bool = True
     note: str = ""
+    # Names this column may arrive under that a person has already approved (PRD 20.2: a
+    # renamed required column "always needs approval unless in the alias list").
+    aliases: tuple[str, ...] = ()
+
+
+# How alike two names must be before one is proposed as the other (difflib ratio). Against
+# customer_id, cust_id scores 0.78, store_id 0.74 and client_id 0.50. The bar is low on
+# purpose: a proposal is a question put to a person, and the approval is the filter.
+MIN_NAME_SIMILARITY = 0.6
 
 
 @dataclass(frozen=True)
@@ -103,7 +113,8 @@ class Contract:
         return cls(
             name=raw.get("contract", raw.get("name", "unnamed")),
             version=str(raw.get("version", "1.0")),
-            columns=[ColumnSpec(**c) for c in raw.get("columns", [])],
+            columns=[ColumnSpec(**{**c, "aliases": tuple(c.get("aliases") or ())})
+                     for c in raw.get("columns", [])],
             checks=[CheckSpec(**c) for c in raw.get("checks", [])],
             grain=list(raw.get("grain", [])),
         )
@@ -159,6 +170,44 @@ class Contract:
                 )
         return ContractResult(passed=not any(v.severity == "blocking" for v in violations),
                               violations=violations)
+
+    def propose_mappings(self, schema: dict[str, str]) -> list[dict[str, Any]]:
+        """For each missing required column, the observed column it most likely arrived as.
+
+        Candidates are the observed columns the contract does not name. One listed in the
+        column's `aliases` is pre-approved; any other must be at least MIN_NAME_SIMILARITY alike
+        by name and is only a proposal, applied after a person approves it (PRD 20.2, ATC-06).
+        Type agreement is reported, not required: a CSV's inferred types rarely match a
+        contract's, so filtering on them would hide exactly the renames this is for.
+        """
+        # ponytail: name similarity only; comparing values with the previous version would
+        # separate two equally named candidates, add it when a dataset has such a pair.
+        present = {k.lower() for k in schema}
+        named = {c.name.lower() for c in self.columns}
+        free = [k for k in schema if k.lower() not in named]
+        proposals: list[dict[str, Any]] = []
+        for col in self.columns:
+            if not col.required or col.name.lower() in present or not free:
+                continue
+            aliases = {a.lower() for a in col.aliases}
+
+            def score(name: str, col: ColumnSpec = col, aliases: set[str] = aliases) -> float:
+                if name.lower() in aliases:
+                    return 1.0
+                return SequenceMatcher(None, col.name.lower(), name.lower()).ratio()
+
+            best = max(free, key=score)
+            pre_approved = best.lower() in aliases
+            if not pre_approved and score(best) < MIN_NAME_SIMILARITY:
+                continue
+            free.remove(best)
+            proposals.append({
+                "column": col.name, "source": best, "similarity": round(score(best), 3),
+                "type": schema[best], "expected_type": col.type,
+                "type_matches": _type_matches(col.type, schema[best]),
+                "pre_approved": pre_approved,
+            })
+        return proposals
 
     def check_expressions(self) -> list[tuple[str, str]]:
         """Compile checks to (check_id, Spark SQL aggregate) pairs (CR-11).

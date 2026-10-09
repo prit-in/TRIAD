@@ -1045,3 +1045,43 @@ def test_rolling_back_to_the_previous_champion_moves_it_and_raises_an_alert(
         select(Alert).where(Alert.model_id == model.id, Alert.alert_type == "model_rolled_back")
     ).scalar_one()
     assert "from v3" in alert.message and alert.evidence["to_version"] == "2"
+
+
+def test_a_renamed_column_upload_is_proposed_then_applied_once_approved(
+    client, users, db_session, tmp_path, monkeypatch
+) -> None:
+    """ATC-06 through the endpoints. A refused upload used to come back as 200 and the
+    dataset summary, which read as success; nothing proposed a mapping and nothing applied one."""
+    import triad_core.storage as storage_module
+    from dataeng.ingest import DatasetRegistry
+
+    store = storage_module.Storage(tmp_path / "data")
+    monkeypatch.setattr(storage_module, "_default", store)
+    registry = DatasetRegistry(db_session, store)
+    registry.register_source(
+        "mapping_probe", entity_type="transactions", source_type="csv",
+        contract_yaml=(settings().repo_root / "pipelines/contracts/transactions.yaml")
+        .read_text(encoding="utf-8"),
+    )
+    db_session.flush()
+
+    body = b"order_id,line_id,cust_id,order_date,quantity,price\nO1,1,C1,2026-01-01,2,9.99\n"
+    response = client.post(
+        "/api/v1/datasets/mapping_probe/upload", headers=_auth(users["data_engineer"]),
+        files={"file": ("day1.csv", body, "text/csv")},
+    )
+    assert response.status_code == 422, response.text
+    problem = response.json()
+    assert problem["proposed_mapping"] == {"cust_id": "customer_id"}
+    assert registry.latest_version(registry.get("mapping_probe")) is None
+
+    decided = client.post(
+        f"/api/v1/approvals/{problem['approval_id']}/decision",
+        headers=_auth(users["data_engineer"]),
+        json={"approved": True, "comment": "cust_id is the customer key"},
+    )
+    assert decided.status_code == 200, decided.text
+    version = registry.latest_version(registry.get("mapping_probe"))
+    assert version is not None, "the approval registered nothing"
+    assert "customer_id" in version.schema_json["columns"]
+    assert version.schema_json["mapped_from"]["mapping"] == {"cust_id": "customer_id"}

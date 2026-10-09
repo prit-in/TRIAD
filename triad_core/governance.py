@@ -73,6 +73,9 @@ class EvidenceBundle:
     risk_notes: list[str] = field(default_factory=list)
     # The written justification PRD section 30 requires for a promotion despite a failed check.
     override_note: str | None = None
+    # What a schema change alters and what it touches (governance.yaml, schema.change).
+    schema_diff: dict[str, Any] = field(default_factory=dict)
+    impact_estimate: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -87,6 +90,8 @@ class EvidenceBundle:
             "decision_records": self.decision_records,
             "risk_notes": self.risk_notes,
             "override_note": self.override_note,
+            "schema_diff": self.schema_diff,
+            "impact_estimate": self.impact_estimate,
         }
 
     def missing(self, required: list[str]) -> list[str]:

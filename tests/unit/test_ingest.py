@@ -350,3 +350,95 @@ class TestTheProfileReachesTheVersionItDescribes:
         version = self.session.get(DatasetVersion, result.version_id)
         assert version.quality_score is None
         assert version.profile_uri is None
+
+
+def test_a_renamed_required_column_is_proposed_and_an_alias_is_pre_approved() -> None:
+    """PRD 20.2: a candidate is proposed by name; only a listed alias skips the approval."""
+    contract = Contract.from_dict({"contract": "t", "columns": [
+        {"name": "customer_id", "type": "string", "required": True, "aliases": ["client_ref"]},
+        {"name": "order_id", "type": "string", "required": True},
+    ]})
+    [proposal] = contract.propose_mappings({"cust_id": "string", "order_id": "string"})
+    assert (proposal["source"], proposal["column"]) == ("cust_id", "customer_id")
+    assert proposal["pre_approved"] is False
+    [alias] = contract.propose_mappings({"client_ref": "string", "order_id": "string"})
+    assert alias["pre_approved"] is True, "an alias, however unlike the name it stands for"
+    assert contract.propose_mappings({"promo_code": "string", "order_id": "string"}) == []
+
+
+@pytest.mark.postgres
+class TestARenamedColumnIsProposedNotApplied:
+    """ATC-06: mapping proposed, approval requested, nothing registered before a decision."""
+
+    @pytest.fixture(autouse=True)
+    def _db(self, postgres_available, db_session, storage):
+        if not postgres_available:
+            pytest.skip("postgres service is not reachable")
+        self.session = db_session
+        self.registry = DatasetRegistry(db_session, storage)
+        self.registry.register_source(
+            "transactions", entity_type="transactions", source_type="parquet"
+        )
+
+    def _renamed_file(self, tmp_path: Path, name: str) -> Path:
+        path = tmp_path / name / "part-00000.parquet"
+        write_parquet(_sample_frame(30).rename(columns={"customer_id": name}), path)
+        return path
+
+    def test_the_mapping_waits_for_a_person_and_then_carries_its_lineage(
+        self, tmp_path: Path
+    ) -> None:
+        import uuid
+
+        from triad_core.config import settings
+        from triad_core.governance import GovernanceService
+        from triad_core.models import Approval, DatasetVersion, User
+        from triad_core.policy import PolicyEngine
+
+        path = self._renamed_file(tmp_path, "cust_id")
+        result = self.registry.register_version("transactions", path, actor="test")
+        assert result.version_id is None and result.quarantined
+        assert result.proposed_mapping == {"cust_id": "customer_id"}
+        approval = self.session.get(Approval, result.approval_id)
+        assert (approval.action_type, approval.status) == ("schema_change", "pending")
+        with pytest.raises(IngestError, match="only after it is approved"):
+            self.registry.apply_approved_mapping(approval, actor="test")
+        before = self.registry.latest_version(self.registry.get("transactions"))
+        again = self.registry.register_version("transactions", path, actor="test")
+        assert again.approval_id == approval.id, "the same file again is the same question"
+
+        engineer = User(email=f"de-{uuid.uuid4().hex[:8]}@triad.test", display_name="de",
+                        role="data_engineer", is_active=True)
+        self.session.add(engineer)
+        self.session.flush()
+        GovernanceService(self.session, PolicyEngine(settings().governance_policy_path)).decide(
+            approval.id, approver=engineer, approved=True, comment="cust_id is the customer key"
+        )
+        applied = self.registry.apply_approved_mapping(approval, actor=str(engineer.id))
+        assert applied.created is True, applied.reason
+        version = self.session.get(DatasetVersion, applied.version_id)
+        assert before is None or version.version_no > before.version_no
+        assert "customer_id" in version.schema_json["columns"]
+        assert version.schema_json["mapped_from"] == {
+            "checksum_sha256": result.checksum, "mapping": {"cust_id": "customer_id"},
+            "basis": "approved", "approval_id": str(approval.id),
+        }
+
+    def test_an_alias_the_contract_lists_is_applied_without_asking(self, tmp_path: Path) -> None:
+        import yaml
+
+        from triad_core.config import settings
+
+        raw = yaml.safe_load(
+            (settings().repo_root / "pipelines/contracts/transactions.yaml").read_text("utf-8")
+        )
+        for column in raw["columns"]:
+            if column["name"] == "customer_id":
+                column["aliases"] = ["client_ref"]
+        result = self.registry.register_version(
+            "transactions", self._renamed_file(tmp_path, "client_ref"), actor="test",
+            contract=Contract.from_dict(raw),
+        )
+        assert result.created is True, result.reason
+        assert result.approval_id is None
+        assert result.proposed_mapping == {"client_ref": "customer_id"}
