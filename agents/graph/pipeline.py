@@ -744,7 +744,11 @@ class ChurnPipeline:
             StageRequest(
                 stage=stage,
                 agent_name="code_generation",
-                inputs={"shuffle_partitions": partitions},
+                # The memory the first attempt runs with, so a memory remedy raises it from
+                # what actually failed rather than from a default.
+                inputs={"shuffle_partitions": partitions,
+                        "executor_memory": self.config.get("spark", {}).get("driver_memory",
+                                                                            "1g")},
                 generate=generate,
                 validate=validate,
                 execute=execute,

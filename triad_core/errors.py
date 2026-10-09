@@ -171,8 +171,15 @@ _PATTERNS: list[tuple[ErrorClass, re.Pattern[str]]] = [
         r"CAST_INVALID_INPUT|NUMERIC_VALUE_OUT_OF_RANGE|cannot be cast to|invalid input syntax", re.I)),
     (ErrorClass.UNRESOLVED_COLUMN, re.compile(
         r"UNRESOLVED_COLUMN|cannot resolve '?[`\w.]+'? given input columns", re.I)),
+    # Local mode runs every task in one JVM, whose executor Spark names "driver", so a task
+    # that exhausts the heap reads "Lost task 0.0 ... (localhost executor driver):
+    # java.lang.OutOfMemoryError: Java heap space". The driver pattern below took that for a
+    # result collected to the driver - whose remedy needs code rewritten - and a bare heap
+    # error fell through to PYTHON_EXCEPTION, so no out-of-memory here could ever be repaired.
     (ErrorClass.EXECUTOR_OOM, re.compile(
-        r"ExecutorLostFailure.*(OutOfMemory|memory)|Container killed.*memory|java\.lang\.OutOfMemoryError.*executor", re.I)),
+        r"ExecutorLostFailure.*(OutOfMemory|memory)|Container killed.*memory"
+        r"|java\.lang\.OutOfMemoryError.*executor|Lost task[^\n]*OutOfMemoryError"
+        r"|OutOfMemoryError: (Java heap space|GC overhead limit exceeded)", re.I)),
     (ErrorClass.DRIVER_OOM, re.compile(
         r"driver.*OutOfMemoryError|Total size of serialized results.*bigger than spark\.driver\.maxResultSize", re.I)),
     (ErrorClass.EXECUTOR_LOST, re.compile(

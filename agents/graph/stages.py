@@ -17,6 +17,7 @@ here in the orchestrator, never in an agent (FR-058, NFR-REL-05).
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -388,11 +389,16 @@ class StageRunner:
         fixes = out.setdefault("_applied_fixes", [])
         remedy = diagnosis.remedy
 
+        memory_before = out.get("executor_memory", "1g")
         if remedy is Remedy.RAISE_SHUFFLE_PARTITIONS:
             current = int(out.get("shuffle_partitions", 200))
             out["shuffle_partitions"] = min(current * 2, 2000)
+            if diagnosis.error_class is ErrorClass.EXECUTOR_OOM:
+                # PRD 20.2: "raise shuffle partitions; raise executor memory within quota".
+                # Smaller partitions alone cannot help a heap too small for one task.
+                out["executor_memory"] = _bump_memory(memory_before)
         elif remedy is Remedy.RAISE_EXECUTOR_MEMORY:
-            out["executor_memory"] = _bump_memory(out.get("executor_memory", "1g"))
+            out["executor_memory"] = _bump_memory(memory_before)
         elif remedy is Remedy.ENABLE_SKEW_HANDLING:
             out["skew_handling"] = True
         elif remedy is Remedy.TRY_CAST_WITH_QUARANTINE:
@@ -405,17 +411,24 @@ class StageRunner:
             out["shuffle_partitions"] = int(out.get("shuffle_partitions", 200)) * 2
 
         applied = remedy in self.APPLIED_REMEDIES
+        note = "" if applied else (
+            f"{remedy.value} needs the generated code rewritten, which requires an LLM "
+            "provider; no input the stage reads was changed, so the next attempt is identical"
+        )
+        if remedy is Remedy.RAISE_EXECUTOR_MEMORY and out["executor_memory"] == memory_before:
+            # PRD 20.2's stop condition: "quota would be exceeded".
+            applied = False
+            note = (f"executor memory is already {memory_before}, the most the sandbox can "
+                    "hold; raising it further needs a person")
+        if "executor_memory" in out and out["executor_memory"] != memory_before:
+            note = f"executor memory {memory_before} -> {out['executor_memory']}"
         fixes.append({
             "remedy": remedy.value,
             "error_class": diagnosis.error_class.value,
             "applied": applied,
             # Said plainly, because an escalation that hides this is the reason a reader
             # concludes the repair loop is broken when the truth is narrower.
-            "note": "" if applied else (
-                f"{remedy.value} needs the generated code rewritten, which requires an LLM "
-                "provider; no input the stage reads was changed, so the next attempt is "
-                "identical"
-            ),
+            "note": note,
         })
         return out
 
@@ -471,12 +484,26 @@ class StageRunner:
         return outcome
 
 
+# The largest heap a sandbox can hold. Its container is clamped to the host's memory limit,
+# and a JVM needs room beyond the heap - metaspace, threads, off-heap buffers - so the heap
+# stays under 70% of that. A fixed 4g used to be the ceiling, above this host's 3 GB clamp.
+def _max_heap_mb() -> int:
+    from sandbox.runner import HOST_LIMITS
+
+    return int(HOST_LIMITS["memory_gb"] * 1024 * 0.7)
+
+
 def _bump_memory(value: str) -> str:
-    try:
-        n = int(str(value).lower().rstrip("g"))
-    except ValueError:
+    """Double a JVM memory setting ("512m", "1g"), within what the sandbox can hold.
+
+    It read only gigabytes: "512m" came back unchanged, so a stage started below a gigabyte
+    could never be given more.
+    """
+    match = re.fullmatch(r"(\d+)([mg])", str(value).strip().lower())
+    if not match:
         return value
-    return f"{min(n * 2, 4)}g"
+    mb = int(match[1]) * (1024 if match[2] == "g" else 1)
+    return f"{max(mb, min(mb * 2, _max_heap_mb()))}m"
 
 
 def _suggested_actions(diagnoses: list[dict[str, Any]], reason: str) -> list[str]:

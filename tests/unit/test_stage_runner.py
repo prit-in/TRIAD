@@ -329,3 +329,27 @@ class TestARemedyThatCannotBeAppliedSaysSo(TestStageRunner):
         ]
         assert tickets, "an escalation must leave a decision record"
         assert "try_cast_with_quarantine" in tickets[-1].evidence_refs["unapplied_remedies"]
+
+
+def test_a_local_mode_heap_exhaustion_is_an_executor_oom() -> None:
+    """Spark names the local-mode executor "driver"; the task still ran out of heap."""
+    from triad_core.errors import classify
+
+    lost_task = ("org.apache.spark.SparkException: Job aborted due to stage failure: Lost task "
+                 "0.0 in stage 3.0 (TID 3) (localhost executor driver): "
+                 "java.lang.OutOfMemoryError: Java heap space")
+    for message in (lost_task, "java.lang.OutOfMemoryError: GC overhead limit exceeded"):
+        assert classify(message).error_class is ErrorClass.EXECUTOR_OOM, message
+    # Below Spark's own minimum is a setting a person fixes, not an out-of-memory.
+    refused = "System memory 259522560 must be at least 471859200. Please increase heap size"
+    assert classify(refused).error_class is ErrorClass.RESOURCE_CONFIG_INVALID
+
+
+def test_memory_is_raised_from_megabytes_and_never_past_the_sandbox() -> None:
+    from agents.graph.stages import _bump_memory, _max_heap_mb
+
+    assert _bump_memory("512m") == "1024m", "megabytes used to come back unchanged"
+    assert _bump_memory("1g") == "2048m"
+    ceiling = f"{_max_heap_mb()}m"
+    assert _bump_memory("2048m") == ceiling
+    assert _bump_memory(ceiling) == ceiling
