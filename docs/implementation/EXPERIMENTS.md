@@ -16,7 +16,7 @@ carrying an estimate.
 | EXP-1 | Small dataset against the non-agentic baselines | **partial** | **held** (P end to end, no manual step; escalated on AP-5 at 243 rows) | `experiments/EXP-1/latest.json` |
 | EXP-2 | Medium dataset: where a single node gives out | **partial** | **refuted on this node** (B3 stopped first, at 100 000 customers) | `experiments/EXP-2/latest.json` |
 | EXP-3 | Scaling with parallelism | **partial** | **did not hold** | `experiments/EXP-3/latest.json` |
-| EXP-4 | Schema errors | **partial** | **held** | `experiments/EXP-4/latest.json` |
+| EXP-4 | Schema errors | **completed** | **held** (every fault detected and handled; the mapping proposed, approved, then applied) | `experiments/EXP-4/latest.json` |
 | EXP-5 | Missing values | **partial** | **no verdict on PR-AUC; the reason for that is now measured** | `experiments/EXP-5/latest.json`, `experiments/EXP-5/calibration_noise_floor.json` |
 | EXP-6 | Spark failures and recovery | **partial** | **did not hold** | `experiments/EXP-6/latest.json` |
 | EXP-7 | Model degradation | **partial** | **held** | `experiments/EXP-7/latest.json` |
@@ -108,38 +108,35 @@ gate (AT-08, AT-13) and is not re-tested here, and because replay is over synthe
 rather than Online Retail II — only the generator can be told to shift one feature or change one
 segment's behaviour on demand.
 
-### EXP-4, schema errors — held, partial
+### EXP-4, schema errors — held, completed
 
-| Fault | Detected at | Cleaning | Row accounting |
+Run `20261009T184842Z` (09-10-2026 18:48 to 19:19 UTC), 400 customers, every condition through
+ingestion, profiling and cleaning; the baseline and the dropped table also through the feature job.
+
+| Fault | Detected at | What the platform did | Row accounting |
 | --- | --- | --- | --- |
-| clean baseline | not detected | succeeded | balanced |
-| renamed required column | **ingest** | not reached | — |
-| price as text with currency symbols | **clean** | escalated | — |
-| dropped optional table | not detected (not scored) | succeeded | balanced |
+| clean baseline | not detected | cleaned; all five feature groups available, 46 feature columns | balanced |
+| renamed required column (`customer_id` -> `cust_id`) | **ingest** | refused; proposed `cust_id -> customer_id` (name similarity 0.778, types match); a `schema_change` approval pending, nothing registered, applying it refused; after approval the renamed copy registered and cleaned 229.7 s later | balanced |
+| price as text with currency codes | **clean** | converted by `try_cast` after the currency code was checked against the row's own `currency` (DEC-36); 0 values quarantined | balanced |
+| dropped optional table (`support_tickets`) | **features** | the customer-service group marked unavailable; none of its 6 catalogue features produced (40 columns) | balanced |
 
-2 of 2 scored faults detected, 0 mappings applied without a person, 0 conditions lost rows
-silently. The dropped optional table is excluded from the detection rate on purpose: the
-contract declares that table optional, so nothing at these stages ought to object to it, and
-counting it as a miss would make the rate a statement about the experiment's scope rather than
-about the platform. The clean baseline is what makes the other numbers mean anything — a
-detector that flagged everything would otherwise score perfectly.
+3 of 3 faults detected and handled correctly, 0 mappings applied without a person, 0 conditions
+lost rows silently. The approval was given by the harness acting as a Data Engineer, through the
+same `GovernanceService.decide` the API calls, so the time to recovery covers the platform's work
+after a decision and not the time a person takes to make one.
 
-Two deviations from the PRD's expected observation, both honest:
+Earlier runs, kept as records, are why the protocol looks the way it does:
 
-- The renamed column is caught at **ingest**, not by a proposed mapping. FR-007 is now reachable
-  (see below); no mapping proposal is generated, so "a mapping is proposed but not applied" is
-  half met — nothing is applied, and nothing is proposed either.
-- The bad price **escalates** rather than being "fixed by `try_cast` and quarantine". The
-  playbook prescribes `TRY_CAST_WITH_QUARANTINE`, and honouring it means rewriting the generated
-  slot, which needs an LLM provider. The escalation ticket now says so explicitly rather than
-  reporting only "attempt budget exhausted".
-
-EXP-4 found three defects on the live path, all now fixed: FR-007's contract enforcement existed
-in `register_version` and no caller ever passed it a contract, so a renamed required column was
-registered, profiled and cleaned without a word; the generator's `rename_column` option had
-never worked at all, because it renamed the column before `returns` derived from it; and the
-profiler called a nullable-by-design column blocking, so every healthy run reported a blocking
-issue and the count was useless as a signal.
+- `20261009T174535Z` held on a narrower reading: the renamed column was refused but **no mapping
+  was proposed** - `Remedy.PROPOSE_MAPPING` existed and nothing used it - and the feature stage
+  was not run, so "the missing optional table disables its features" was unmeasured and the
+  condition was excluded from the detection rate. `optional_table_absent` was also recorded as
+  true for the baseline, which had dropped nothing. The mapping proposal is DEC-39.
+- `20261009T003414Z` failed its baseline on the CleanJob varargs deprecation that `-Wconf:any:error`
+  made fatal (fixed in `CleanJob.scala`).
+- Before those, EXP-4 found FR-007's contract enforcement unreachable (no caller passed a
+  contract), the generator's `rename_column` broken, the profiler calling a nullable-by-design
+  column blocking, and prices as text escalating instead of being converted (DEC-36).
 
 ### EXP-6, Spark failures — did NOT hold, partial
 
