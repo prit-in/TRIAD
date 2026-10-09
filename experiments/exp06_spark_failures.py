@@ -12,15 +12,19 @@ PRD section 33:
     Expected observation: recovered outputs identical to the clean run.
 
 This is the experiment the repair loop was built for, and - unlike EXP-8 - it can be run in
-full here, because every remedy it needs is deterministic. Raising the driver memory, raising
-the shuffle partitions and enabling adaptive skew handling are all infrastructure changes that
-`StageRunner._apply_fix` makes to the stage inputs and `stage_scala_job` reads on the next
-attempt. None of them needs a model to rewrite code.
+full here, because every remedy it needs is deterministic. Raising the executor memory, raising
+the shuffle partitions, resubmitting a lost job and enabling adaptive skew handling are all
+infrastructure changes that `StageRunner._apply_fix` makes to the stage inputs and
+`stage_scala_job` reads on the next attempt. None of them needs a model to rewrite code.
 
-That was not true when this experiment was written. `RAISE_EXECUTOR_MEMORY` bumped an input
-that nothing read, so an out-of-memory retry was submitted with exactly the memory that had
-just failed and the remedy could only ever exhaust the attempt budget. The plumbing is fixed;
-this experiment is what proves it, and would catch it breaking again.
+**Every arm checks that its fault happened.** An arm that "recovers" from a fault that never
+landed measures an ordinary run. The first version of this experiment did exactly that twice:
+its kill thread called a docker CLI the image does not have, and its memory arm set 256m, below
+the roughly 450 MB of heap Spark needs to start at all - so Spark refused to start, which is a
+configuration error the playbook deliberately leaves to a person (RESOURCE_CONFIG_INVALID), not
+an out-of-memory. So the memory arm now starts just above that minimum and counts only if the
+first attempt really failed with an executor out-of-memory, and the kill arm counts only if a
+running job's container was killed.
 
 **The checksum comparison needs identical inputs, so the data is generated once and shared.**
 Three of the four arms - the clean baseline, the low-memory fault and the killed container -
@@ -28,10 +32,17 @@ read byte-identical source data, which is what makes "recovered output identical
 run" a meaningful claim. The skew arm necessarily has different input data, so its checksum is
 reported but not compared; comparing it would be comparing two different datasets.
 
-**The executor kill is real, not simulated.** A watcher thread waits for the sandbox container
-to appear and then `docker kill`s it mid-job. In local mode the driver *is* the executor, so
-killing the container is losing the executor - the closest this environment gets to the PRD's
-fault, and it is stated as that rather than as a distributed executor loss.
+**Skew is measured where it can act.** Cleaning de-duplicates on order and line, so one
+customer holding 20% of the lines never meets a customer-keyed shuffle there; the feature job
+aggregates per customer and does. The baseline and the skew arm therefore also run the feature
+job, and the slowest task over the median task of its stages is compared between them.
+
+**The executor kill is real, not simulated.** A watcher thread waits for the job's own sandbox
+container, lets it run into the job, and kills it through the Docker engine. In local mode the
+driver *is* the executor, so killing the container is losing the executor - the closest this
+environment gets to the PRD's fault, and it is stated as that rather than as a distributed
+executor loss. Spark's own task retries cannot be observed here at all: local mode retries no
+task, so what absorbs the loss is the platform resubmitting the job.
 """
 
 from __future__ import annotations
@@ -48,7 +59,13 @@ CUSTOMERS = 400
 MONTHS = 24
 SEED = 42
 DATA_START = "2024-01-01"
-KILL_AFTER_SECONDS = 25.0
+# Just above the minimum Spark needs to start (1.5 x its 300 MB reservation, about 450 MB of
+# usable heap), so the job starts and must then fit its work into what is left. Chosen from
+# Spark's documented minimum before any run, not from a result.
+OOM_DRIVER_MEMORY = "512m"
+# How far into the running job the container is killed: past JVM and Spark start-up, inside
+# the work. The baseline's own job duration is recorded beside it, to show the kill landed.
+KILL_INTO_JOB_SECONDS = 10.0
 
 
 def _spark(app: str):
@@ -95,16 +112,17 @@ def _config_with(overrides: dict[str, Any], scratch: Path) -> Path:
 
 
 class _ContainerKiller:
-    """Kills the first sandbox container that appears, once, after a delay.
+    """Kills the first job container that appears, once, a set time into its run.
 
     Runs in a thread because the stage call is blocking. `killed` records whether it actually
     found and killed something: an arm that reports recovery from a kill that never happened
     would be worthless, so the measurement says which.
     """
 
-    def __init__(self, delay: float) -> None:
-        self.delay = delay
+    def __init__(self, into_job: float) -> None:
+        self.into_job = into_job
         self.killed: str | None = None
+        self.seconds_into_job: float | None = None
         self.error = ""
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -117,12 +135,9 @@ class _ContainerKiller:
         self._thread.join(timeout=5)
 
     def _run(self) -> None:
-        if self._stop.wait(self.delay):
-            return
-        # Through the SDK: the image has no docker CLI, so the `docker ps` this used to run
-        # could never find anything, and the arm could never land. The socket is given to the
-        # experiment's container for this experiment only; no platform service but
-        # sandbox-runner has it (DD-04).
+        # Through the SDK: the image has no docker CLI. The socket is given to the experiment's
+        # container for this experiment only; no platform service but sandbox-runner has it
+        # (DD-04).
         try:
             import docker
 
@@ -131,28 +146,59 @@ class _ContainerKiller:
         except Exception as exc:  # no engine reachable is a recorded limitation, not a crash
             self.error = f"{type(exc).__name__}: {exc}"
             return
-        deadline = time.perf_counter() + 240
+        # Long enough for the gates before the job: compiling, the fixture tests when their
+        # cache is cold, and gate 6's dry run.
+        deadline = time.perf_counter() + 900
         while time.perf_counter() < deadline and not self._stop.is_set():
             # The job itself, not gate 6's dry run on a sample, which runs first and is named
             # `<stage>-dryrun`: the arm is about losing the executor mid-stage.
             running = [c for c in client.containers.list(filters={"name": "triad-sbx-"})
                        if "dryrun" not in c.name]
             if running:
-                running[0].kill()
-                self.killed = running[0].name
+                target, seen = running[0], time.perf_counter()
+                if self._stop.wait(self.into_job):
+                    return
+                target.reload()
+                if target.status != "running":
+                    self.error = f"the job's container was {target.status} before the kill"
+                    return
+                target.kill()
+                self.killed = target.name
+                self.seconds_into_job = round(time.perf_counter() - seen, 1)
                 return
-            self._stop.wait(1.0)
+            self._stop.wait(0.5)
 
 
-def _clean_stage(
+def _execution_metric(session: Any, run_id: Any, stage: str) -> dict[str, Any]:
+    """The succeeded execution of a stage: its duration and Spark's own measurements."""
+    from sqlalchemy import select
+
+    from triad_core.models import Execution
+
+    row = session.execute(
+        select(Execution).where(Execution.run_id == run_id, Execution.stage == stage,
+                                Execution.status == "succeeded")
+        .order_by(Execution.started_at.desc())
+    ).scalars().first()
+    if row is None:
+        return {}
+    totals = ((row.metrics_json or {}).get("spark") or {}).get("totals") or {}
+    return {"duration_s": round((row.duration_ms or 0) / 1000, 1),
+            "max_task_skew": totals.get("max_task_skew"),
+            "disk_spill_bytes": totals.get("disk_spill_bytes")}
+
+
+def _arm(
     exp: Experiment,
     name: str,
     source: Path,
     *,
     config_overrides: dict[str, Any] | None = None,
     kill_container: bool = False,
+    features: bool = False,
 ) -> dict[str, Any]:
-    """Profile, then run the cleaning stage, and report how the repair loop behaved."""
+    """Profile and clean - and, for the skew comparison, build features - and report how the
+    repair loop behaved."""
     from agents.graph import queue as q
     from agents.graph.pipeline import ChurnPipeline
     from dataeng.ingest import DatasetRegistry
@@ -183,7 +229,7 @@ def _clean_stage(
             )
             files = sorted((source / table).glob("*.parquet"))
             if files:
-                result = registry.register_version(dataset, files[0], actor="exp06")
+                result = registry.register_version(dataset, files[0], actor="exp06", run=run)
                 if result.version_id:
                     registered[table] = result.storage_uri or ""
 
@@ -203,8 +249,9 @@ def _clean_stage(
 
         pipeline = ChurnPipeline(session, run, store=store, config_path=config_path)
         output_dir = store.clean_dir("transactions", 1)
-        killer = _ContainerKiller(KILL_AFTER_SECONDS) if kill_container else None
+        killer = _ContainerKiller(KILL_INTO_JOB_SECONDS) if kill_container else None
         spark = _spark(f"triad-exp06-{name}")
+        feature_out: dict[str, Any] = {}
         try:
             profile = pipeline.stage_profile(spark, "transactions", registered["transactions"])
             if not profile:
@@ -217,6 +264,7 @@ def _clean_stage(
 
             if killer is not None:
                 killer.start()
+            stage_started = time.perf_counter()
             clean = pipeline.stage_scala_job(
                 stage="clean",
                 template_id="CleanJob",
@@ -227,6 +275,24 @@ def _clean_stage(
                 policy_action="cleaning.execute",
                 input_rows=profile.get("row_count", 0),
             )
+            trial.record("stage_wall_clock_s", round(time.perf_counter() - stage_started, 1),
+                         "s", note="the cleaning stage, gates and every attempt included")
+            if clean and features:
+                from agents.graph.churn import FEATURE_SOURCES, cutoff_window
+
+                window = cutoff_window(spark, clean["uri"])
+                inputs = {"transactions": clean["uri"]}
+                inputs.update({s: registered[s] for s in FEATURE_SOURCES if registered.get(s)})
+                feature_out = pipeline.stage_scala_job(
+                    stage="features",
+                    template_id="FeatureJob",
+                    inputs=inputs,
+                    output_dir=store.features_dir("churn_features", 1),
+                    params={"max_window_days": 365, **window},
+                    partition_by=["snapshot_date"],
+                    required_columns=["customer_id", "snapshot_date", "recency_days"],
+                    input_rows=clean.get("row_count", 0),
+                )
         finally:
             if killer is not None:
                 killer.stop()
@@ -240,6 +306,7 @@ def _clean_stage(
         if killer is not None:
             trial.record("container_killed", killer.killed is not None)
             trial.record("killed_container", killer.killed or "")
+            trial.record("killed_seconds_into_job", killer.seconds_into_job, "s")
             if killer.error:
                 trial.record("killer_error", killer.error)
 
@@ -247,14 +314,21 @@ def _clean_stage(
         stage_record = next(
             (s for s in pipeline.result.stages if s.get("stage") == "clean"), {}
         )
+        diagnoses = stage_record.get("diagnoses") or []
         trial.record("attempts", stage_record.get("attempts"))
         trial.record("retries", max(0, int(stage_record.get("attempts") or 1) - 1))
         trial.record("escalated", bool(stage_record.get("escalated")))
+        trial.record("first_error_class", diagnoses[0].get("error_class") if diagnoses else None,
+                     note="how the first failed attempt was classified; None if none failed")
         applied = stage_record.get("applied_fixes") or []
         trial.record("remedies_applied", [f["remedy"] for f in applied if f.get("applied")])
         trial.record("remedies_unapplied", [f["remedy"] for f in applied if not f.get("applied")])
-        trial.observations["diagnoses"] = stage_record.get("diagnoses")
+        trial.observations["diagnoses"] = diagnoses
         trial.observations["applied_fixes"] = applied
+
+        job = _execution_metric(session, run.id, "clean")
+        trial.record("job_duration_s", job.get("duration_s"), "s",
+                     note="the successful attempt's sandboxed job alone")
 
         if recovered:
             trial.record("clean_rows", clean.get("row_count"))
@@ -273,21 +347,32 @@ def _clean_stage(
             trial.observations["escalation"] = pipeline.result.escalation
             trial.record("content_hash", None, note="the stage did not produce an output")
 
+        if features:
+            feature_record = next(
+                (s for s in pipeline.result.stages if s.get("stage") == "features"), {}
+            )
+            trial.record("features_succeeded", bool(feature_out))
+            trial.record("feature_attempts", feature_record.get("attempts"))
+            measured = _execution_metric(session, run.id, "features")
+            trial.record("feature_job_duration_s", measured.get("duration_s"), "s")
+            trial.record("feature_max_task_skew", measured.get("max_task_skew"),
+                         note="the worst stage's slowest task over its median task")
+            trial.record("feature_disk_spill_bytes", measured.get("disk_spill_bytes"))
+            trial.record("feature_rows", feature_out.get("row_count") if feature_out else None)
+
         q.set_state(session, run, "CANCELLED", actor="exp06")
 
-    trial.ok = recovered
+    trial.ok = recovered and (not features or bool(feature_out))
     trial.detail = (
-        f"recovered={recovered} after {trial.get('attempts')} attempt(s); remedies "
-        f"{trial.get('remedies_applied')}"
+        f"recovered={recovered} after {trial.get('attempts')} attempt(s); first failure "
+        f"{trial.get('first_error_class')}; remedies {trial.get('remedies_applied')}"
     )
     return out
 
 
-def _identical(trial: Any) -> Any:
-    """The `identical_to_clean_run` measurement, or None when it was never recorded."""
-    return next(
-        (m.value for m in trial.measurements if m.name == "identical_to_clean_run"), None
-    )
+def _value(trial: Any, name: str) -> Any:
+    """A measurement's value, or None when it was never recorded."""
+    return next((m.value for m in trial.measurements if m.name == name), None)
 
 
 def run() -> Experiment:
@@ -301,22 +386,29 @@ def run() -> Experiment:
         "EXP-6",
         title="Spark failures and recovery",
         hypothesis=(
-            "Spark's task retries absorb an executor loss; the playbook fixes out-of-memory "
-            "within 2 retries; adaptive execution handles skew."
+            "An executor loss is absorbed by retrying; the playbook fixes out-of-memory "
+            "within 2 retries; adaptive execution handles skew; recovered outputs are "
+            "identical to the clean run."
         ),
         independent_variable="fault type",
         dependent_measures=[
-            "recovered", "attempts", "retries", "wall_clock_s", "content_hash",
-            "remedies_applied", "identical_to_clean_run",
+            "recovered", "first_error_class", "attempts", "retries", "wall_clock_s",
+            "content_hash", "remedies_applied", "identical_to_clean_run",
+            "feature_max_task_skew",
         ],
         config={
             "customers": CUSTOMERS, "months": MONTHS, "seed": SEED,
-            "kill_after_seconds": KILL_AFTER_SECONDS,
+            "oom_driver_memory": OOM_DRIVER_MEMORY,
+            "kill_into_job_seconds": KILL_INTO_JOB_SECONDS,
             "arms": {
-                "clean_baseline": "no fault; the reference output checksum",
-                "low_driver_memory": "first attempt given 256m, so it must be raised to finish",
-                "sandbox_container_killed": "the sandbox container is killed mid-job",
-                "skewed_one_customer_20pct": "one account holds 20% of all order lines",
+                "clean_baseline": "no fault; the reference output checksum, and the reference "
+                                  "feature-job skew",
+                "low_executor_memory": f"first attempt given {OOM_DRIVER_MEMORY}, just above "
+                                       "Spark's minimum, so the work itself must not fit",
+                "sandbox_container_killed": "the job's container is killed "
+                                            f"{KILL_INTO_JOB_SECONDS:.0f} s into its run",
+                "skewed_one_customer_20pct": "one account holds 20% of all order lines; "
+                                             "cleaning and the feature job",
             },
             "shared_source_note": (
                 "the first three arms read byte-identical source data, which is what makes the "
@@ -332,18 +424,15 @@ def run() -> Experiment:
         ).write(shared)
 
         # --- arm 1: the reference -------------------------------------------------
-        baseline = _clean_stage(exp, "clean_baseline", shared)
+        baseline = _arm(exp, "clean_baseline", shared, features=True)
         reference_hash = baseline.get("content_hash")
 
         # --- arm 2: out of memory ------------------------------------------------
-        # 256m of JVM heap is not enough for the job; the playbook has to raise it.
-        _clean_stage(
-            exp, "low_driver_memory", shared,
-            config_overrides={"spark.driver_memory": "256m"},
-        )
+        _arm(exp, "low_executor_memory", shared,
+             config_overrides={"spark.driver_memory": OOM_DRIVER_MEMORY})
 
         # --- arm 3: the executor is killed ---------------------------------------
-        _clean_stage(exp, "sandbox_container_killed", shared, kill_container=True)
+        _arm(exp, "sandbox_container_killed", shared, kill_container=True)
 
         # --- arm 4: skew ---------------------------------------------------------
         skewed = root / "skewed"
@@ -351,71 +440,75 @@ def run() -> Experiment:
             GeneratorConfig(customers=CUSTOMERS, months=MONTHS, seed=SEED,
                             start_date=DATA_START, skew_customer_share=0.2)
         ).write(skewed)
-        _clean_stage(exp, "skewed_one_customer_20pct", skewed)
+        _arm(exp, "skewed_one_customer_20pct", skewed, features=True)
 
         # --- read it -------------------------------------------------------------
         by_name = {t.condition: t for t in exp.trials}
-        comparable = ["clean_baseline", "low_driver_memory", "sandbox_container_killed"]
-        for name in comparable[1:]:
-            trial = by_name[name]
-            got = next((m.value for m in trial.measurements if m.name == "content_hash"), None)
+        base, oom = by_name["clean_baseline"], by_name["low_executor_memory"]
+        kill, skew = by_name["sandbox_container_killed"], by_name["skewed_one_customer_20pct"]
+        for trial in (oom, kill):
             trial.record(
                 "identical_to_clean_run",
-                bool(reference_hash) and got == reference_hash,
+                bool(reference_hash) and _value(trial, "content_hash") == reference_hash,
                 note="the committed output's content hash against the clean run's",
             )
-        by_name["skewed_one_customer_20pct"].record(
-            "identical_to_clean_run", None,
-            note="not compared: the skewed arm reads different source data by construction",
-        )
+        skew.record("identical_to_clean_run", None,
+                    note="not compared: the skewed arm reads different source data by design")
 
-        faults = [by_name[n] for n in comparable[1:]] + [
-            by_name["skewed_one_customer_20pct"]
-        ]
-        recovered = [t for t in faults if t.get("recovered")]
-        identical = [
-            t for t in faults
-            if any(m.name == "identical_to_clean_run" and m.value is True
-                   for m in t.measurements)
-        ]
-        killed_for_real = by_name["sandbox_container_killed"].get("container_killed")
+        # Each arm counts only if its fault landed (module docstring).
+        oom_landed = _value(oom, "first_error_class") == "EXECUTOR_OOM"
+        kill_landed = bool(_value(kill, "container_killed"))
+        oom_ok = (oom_landed and oom.ok and (_value(oom, "retries") or 0) <= 2
+                  and _value(oom, "identical_to_clean_run") is True)
+        kill_ok = kill_landed and kill.ok and _value(kill, "identical_to_clean_run") is True
+        skew_ok = skew.ok and not _value(skew, "escalated")
 
         exp.limitation(
-            "Spark runs in local mode inside the sandbox, so the driver is the executor. "
-            "Killing the sandbox container is therefore losing the executor, which is the "
-            "closest this environment reaches to the PRD's distributed executor loss - not a "
-            "measurement of a multi-executor cluster shedding one worker (ADR-0002)."
+            "Spark runs in local mode inside the sandbox, so the driver is the executor and no "
+            "task is retried by Spark itself. Killing the sandbox container is therefore losing "
+            "the executor, and what absorbs it is the platform resubmitting the job - not "
+            "Spark's task retries on a multi-executor cluster, which this environment cannot "
+            "show (ADR-0002)."
         )
-        if not killed_for_real:
+        exp.limitation(
+            f"At {CUSTOMERS} customers one account's 20% of the lines is a small partition, so "
+            "the skew arm shows whether the feature job completes and how uneven its tasks "
+            "were, not how skew handling behaves at the sizes where it decides the run time."
+        )
+        if not oom_landed:
             exp.limitation(
-                "The container kill did not land: no sandbox container was seen while the job "
-                "ran, so that arm measures an ordinary run and not a recovery. "
-                + (by_name["sandbox_container_killed"].get("killer_error") or "")
+                f"The memory fault did not land: at {OOM_DRIVER_MEMORY} the first attempt "
+                f"failed as {_value(oom, 'first_error_class')} (None means it did not fail), so "
+                "that arm measures no out-of-memory recovery."
+            )
+        if not kill_landed:
+            exp.limitation(
+                "The container kill did not land, so that arm measures an ordinary run and not "
+                "a recovery. " + (_value(kill, "killer_error") or "")
             )
 
         exp.conclude(
             status="partial",
-            hypothesis_held=(
-                bool(reference_hash)
-                and len(recovered) == len(faults)
-                and len(identical) == len(comparable) - 1
-            ),
+            hypothesis_held=bool(reference_hash) and base.ok and oom_ok and kill_ok and skew_ok,
             conclusion=(
                 f"Reference clean run: {baseline.get('row_count')} rows, content hash "
-                f"{str(reference_hash)[:16]}. "
+                f"{str(reference_hash)[:16]}, job {_value(base, 'job_duration_s')} s. "
                 + " ".join(
-                    f"{t.condition}: recovered={t.get('recovered')} in {t.get('attempts')} "
-                    f"attempt(s) ({t.get('retries')} retries, {t.get('wall_clock_s')}s), "
-                    f"remedies {t.get('remedies_applied')}, output identical to the clean "
-                    f"run: {_identical(t)}."
-                    for t in faults
+                    f"{t.condition}: recovered={_value(t, 'recovered')} in "
+                    f"{_value(t, 'attempts')} attempt(s), first failure "
+                    f"{_value(t, 'first_error_class')}, remedies "
+                    f"{_value(t, 'remedies_applied')}, output identical to the clean run: "
+                    f"{_value(t, 'identical_to_clean_run')}."
+                    for t in (oom, kill, skew)
                 )
-                + f" {len(recovered)} of {len(faults)} injected faults recovered. The executor "
-                f"kill landed on a real container: {killed_for_real}. "
-                "The out-of-memory arm is the one that matters most here: it is the test that "
-                "RAISE_EXECUTOR_MEMORY reaches the submitted job at all, which it did not until "
-                "this experiment was written - the retry used to be given exactly the memory "
-                "that had just failed."
+                + f" Out-of-memory landed: {oom_landed}; fixed within 2 retries with identical "
+                f"output: {oom_ok}. The kill landed {_value(kill, 'killed_seconds_into_job')} s "
+                f"into the job: {kill_landed}; recovered identically: {kill_ok}. Feature job "
+                f"task skew (slowest over median task): baseline "
+                f"{_value(base, 'feature_max_task_skew')}, skewed "
+                f"{_value(skew, 'feature_max_task_skew')}; the skewed feature job completed: "
+                f"{_value(skew, 'features_succeeded')} in {_value(skew, 'feature_attempts')} "
+                "attempt(s)."
             ),
         )
         return exp
