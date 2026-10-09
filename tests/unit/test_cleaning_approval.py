@@ -94,3 +94,9 @@ class TestCleaningOverItsLimit:
         approval = self._decide(self._paused(), approved=False)
         assert enqueue_resume(self.session, approval) is None
         assert self.run.state == "ESCALATED"
+
+    def test_cancelling_the_run_withdraws_its_open_request(self) -> None:
+        approval_id = self._paused()
+        q.set_state(self.session, self.run, "CANCELLED")
+        approval = self.session.get(Approval, uuid.UUID(approval_id))
+        assert approval.status == "expired", "a cancelled run leaves nothing to approve"

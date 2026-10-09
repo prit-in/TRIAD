@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from triad_core import audit
 from triad_core.ids import run_key as make_run_key
 from triad_core.ids import utcnow
-from triad_core.models import AgentTask, Event, PipelineRun
+from triad_core.models import AgentTask, Approval, Event, PipelineRun
 
 CLAIM_SQL = text(
     """
@@ -429,6 +429,8 @@ def set_state(
         run_id=run.id,
         details={"from": previous, "to": state, "stage": stage},
     )
+    if state == "CANCELLED":
+        _withdraw_pending_approvals(session, run, actor)
     session.add(
         Event(
             event_type="run.stage.completed",
@@ -452,3 +454,23 @@ def pending_tasks(session: Session, run_id: uuid.UUID) -> int:
             )
         ).scalars().all()
     )
+
+
+def _withdraw_pending_approvals(session: Session, run: PipelineRun, actor: str) -> None:
+    """A cancelled run acts on no decision, so its open requests leave the queue.
+
+    Left pending, a promotion or cleaning request stayed approvable for a run that would never
+    carry it out. Closed as expired, which counts as rejected (PRD 30.5).
+    """
+    for approval in session.execute(
+        select(Approval).where(Approval.run_id == run.id, Approval.status == "pending")
+    ).scalars():
+        approval.status = "expired"
+        approval.decided_at = utcnow()
+        approval.decision_note = "withdrawn: the run was cancelled"
+        audit.record(
+            session, actor_type="system", actor_id=actor, action="approval.withdrawn",
+            resource_type="approval", resource_id=str(approval.id), run_id=run.id,
+            outcome="expired", details={"action_type": approval.action_type},
+        )
+    session.flush()

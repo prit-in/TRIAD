@@ -27,6 +27,10 @@ tables and are handled inside the model pipeline by the imputer in `candidates.p
 So the measurable claim is not "the cleaner filled them in" - it is that non-key nulls do not
 cause rows to be quarantined, and that the model still trains and degrades gracefully. That is
 what is measured.
+
+**"Key nulls are quarantined" is measured, not inferred.** The nulls the generator put into
+`customer_id` are counted in the registered file and compared with what the cleaning job's
+`null_customer` rule quarantined: all of them, and only them, is the claim.
 """
 
 from __future__ import annotations
@@ -51,11 +55,21 @@ DATA_START = "2024-01-01"
 # The PRD's rates. The key-null rate is held at 1% throughout, because the hypothesis about
 # key nulls is about *what happens to them*, not about how many there are; varying both at once
 # would confound the two halves of the claim.
-CONDITIONS: dict[str, dict[str, Any]] = {
+TREND_CONDITIONS: dict[str, dict[str, Any]] = {
     "nulls_0pct_baseline": {"null_rate_non_key": 0.0, "null_rate_key": 0.0},
     "nulls_5pct_nonkey": {"null_rate_non_key": 0.05, "null_rate_key": 0.01},
     "nulls_20pct_nonkey": {"null_rate_non_key": 0.20, "null_rate_key": 0.01},
     "nulls_50pct_nonkey": {"null_rate_non_key": 0.50, "null_rate_key": 0.01},
+}
+# One condition the PRD's expected observation implies and its setup never reaches: approval
+# "when more than 5% of rows are affected". A 1% key-null rate quarantines about 1% of rows,
+# so no PRD condition comes near the limit; a 10% rate does. It stops at the cleaning gate by
+# design, costs one cleaning job rather than a training run, and is not part of the PR-AUC
+# trend. Chosen from the policy's limit before running, not from any result.
+OVER_LIMIT = "nulls_key_10pct_over_limit"
+CONDITIONS: dict[str, dict[str, Any]] = {
+    **TREND_CONDITIONS,
+    OVER_LIMIT: {"null_rate_non_key": 0.0, "null_rate_key": 0.10},
 }
 
 
@@ -79,7 +93,14 @@ def _spark():
     return session
 
 
+def _value(trial: Any, name: str) -> Any:
+    """A measurement's value, or None when it was not recorded."""
+    return next((m.value for m in trial.measurements if m.name == name), None)
+
+
 def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
+    import pyarrow.parquet as pq
+
     from agents.graph import churn
     from agents.graph import queue as q
     from dataeng.ingest import DatasetRegistry
@@ -117,6 +138,13 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
             files = sorted(Path(path).glob("*.parquet"))
             if not files:
                 continue
+            if table == "transactions":
+                # Counted in the file that is registered, so the comparison with the quarantine
+                # is like for like.
+                key_nulls = pq.read_table(files[0], columns=["customer_id"]) \
+                    .column("customer_id").null_count
+                trial.record("key_nulls_injected", int(key_nulls),
+                             note="null customer_id values in the registered file")
             result = registry.register_version(table, files[0], actor="exp05")
             if result.version_id:
                 registered[table] = result.storage_uri or ""
@@ -145,7 +173,7 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
 
         trial.record("prepare_ok", prepared.ok)
         trial.record("prepare_state", prepared.state)
-        if not prepared.ok:
+        if not prepared.ok or prepared.state == "APPROVAL_REQUIRED":
             trial.record("stop_reason", prepared.reason[:300])
             trial.observations["details"] = prepared.details
 
@@ -190,7 +218,13 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
                 round(100.0 * affected / int(clean_metrics["input_rows"]), 4), "%",
                 note="what the cleaning.execute policy limit of 5% is compared against",
             )
-        trial.observations["quarantine_by_rule"] = clean_metrics.get("quarantined_by_rule")
+            by_key = int(clean_metrics.get("rule_null_customer") or 0)
+            trial.record("quarantined_null_customer", by_key,
+                         note="rows the null_customer rule quarantined (NO_CUSTOMER_KEY)")
+            trial.record("key_nulls_all_quarantined", by_key == _value(trial, "key_nulls_injected"))
+        trial.observations["quarantine_by_rule"] = {
+            k.removeprefix("rule_"): v for k, v in clean_metrics.items() if k.startswith("rule_")
+        }
 
         # --- the model: PR-AUC and calibration ----------------------------------
         # The selected candidate's own figures, scored once on the sealed test cutoff, whether
@@ -225,28 +259,42 @@ def _run_one(exp: Experiment, name: str, overrides: dict[str, Any]) -> None:
             sa_select(DecisionRecord).where(DecisionRecord.run_id == run.id)
         ).scalars().all()
         trial.record("approval_requests", len(approvals))
+        trial.record("cleaning_approval_requests",
+                     sum(1 for a in approvals if a.action_type == "destructive_cleaning"))
         trial.record(
             "cleaning_policy_decisions",
             [d.decision[:120] for d in decisions
              if d.decision_type == "policy" and "cleaning" in d.decision],
         )
         trial.observations["approvals"] = [
-            {"action": a.action_type, "status": a.status} for a in approvals
+            {"action": a.action_type, "status": a.status, "target": a.target_ref}
+            for a in approvals
         ]
 
         trial.record("wall_clock_s", round(time.perf_counter() - started, 1), "s")
+        # Cancelling withdraws a still-pending request, so the queue is left as it was found.
         q.set_state(session, run, "CANCELLED", actor="exp05")
 
-    # A condition succeeded as a measurement when it produced the model's test figures, which
-    # an escalated run now does; whether the policy accepted the model is `prepare_ok`.
-    trial.ok = bool(trial.get("prepare_ok")) or isinstance(trial.get("test_pr_auc"), (int, float))
-    stopped = next(
-        (m.value for m in trial.measurements if m.name == "stop_reason"), ""
-    )
+    stopped = _value(trial, "stop_reason") or ""
+    if name == OVER_LIMIT:
+        # The claim for this condition is the pause itself: over the limit, the cleaning plan
+        # waits for a person, with its quarantine kept and nothing committed.
+        trial.ok = (_value(trial, "prepare_state") == "APPROVAL_REQUIRED"
+                    and (_value(trial, "cleaning_approval_requests") or 0) >= 1
+                    and (_value(trial, "rows_affected_pct") or 0) > 5.0)
+    else:
+        # A condition succeeded as a measurement when it produced the model's test figures,
+        # which an escalated run now does; whether the policy accepted the model is
+        # `prepare_ok`. `prepare_ok` alone no longer counts: a run paused at the cleaning gate
+        # also succeeds as a phase, and produces no model.
+        trial.ok = isinstance(_value(trial, "test_pr_auc"), (int, float))
     trial.detail = (
-        f"quarantined {trial.get('quarantined_rows')} of {trial.get('input_rows')} rows; "
-        f"test PR-AUC {trial.get('test_pr_auc')}, ECE {trial.get('test_ece')}; "
-        f"approvals {trial.get('approval_requests')}"
+        f"quarantined {trial.get('quarantined_rows')} of {trial.get('input_rows')} rows "
+        f"({_value(trial, 'rows_affected_pct')}%); key nulls "
+        f"{_value(trial, 'key_nulls_injected')}, quarantined by the key rule "
+        f"{_value(trial, 'quarantined_null_customer')}; test PR-AUC "
+        f"{trial.get('test_pr_auc')}, ECE {trial.get('test_ece')}; "
+        f"cleaning approvals {_value(trial, 'cleaning_approval_requests')}"
         + (f"; the run stopped: {stopped}" if stopped else "")
     )
 
@@ -268,16 +316,20 @@ def run() -> Experiment:
         title="Missing values",
         hypothesis=(
             "Key nulls are quarantined, others are handled without losing rows; PR-AUC "
-            "declines gradually with the null rate."
+            "declines gradually with the null rate; a cleaning plan affecting more than 5% of "
+            "rows waits for approval."
         ),
         independent_variable="null rate, column role",
         dependent_measures=[
-            "quarantined_rows", "rows_affected_pct", "row_accounting_balanced",
-            "test_pr_auc", "test_ece", "approval_requests",
+            "key_nulls_injected", "quarantined_null_customer", "quarantined_rows",
+            "rows_affected_pct", "row_accounting_balanced", "test_pr_auc", "test_ece",
+            "cleaning_approval_requests",
         ],
         config={
             "customers": CUSTOMERS, "months": MONTHS, "seed": SEED,
             "conditions": dict(CONDITIONS),
+            "trend_conditions": list(TREND_CONDITIONS),
+            "over_limit_condition": OVER_LIMIT,
             "pipeline_phase": "churn.prepare (profile -> clean -> features -> labels -> "
                               "train -> select)",
             "tuning": "left enabled, as production has it; held constant across conditions",
@@ -291,7 +343,9 @@ def run() -> Experiment:
         for name, overrides in CONDITIONS.items():
             _run_one(exp, name, overrides)
 
-        ok = [t for t in exp.trials if t.ok]
+        trend = [t for t in exp.trials if t.condition in TREND_CONDITIONS]
+        over = next(t for t in exp.trials if t.condition == OVER_LIMIT)
+        ok = [t for t in trend if t.ok]
         if not ok:
             exp.conclude(
                 status="failed",
@@ -302,10 +356,7 @@ def run() -> Experiment:
             return exp
 
         # Is the decline monotone in the null rate? Reported as measured, not asserted.
-        ordered = [t for t in CONDITIONS if any(x.condition == t for x in ok)]
-        pr_aucs = [
-            (t, next(x for x in ok if x.condition == t).get("test_pr_auc")) for t in ordered
-        ]
+        pr_aucs = [(t.condition, _value(t, "test_pr_auc")) for t in ok]
         numeric = [(n, v) for n, v in pr_aucs if isinstance(v, (int, float))]
         # `all()` over an empty or single-element sequence is True, so a run where only the
         # baseline produced a PR-AUC previously reported "monotone decline: True" from one
@@ -315,34 +366,41 @@ def run() -> Experiment:
             if len(numeric) >= 2
             else None
         )
-        balanced = all(t.get("row_accounting_balanced") in (True, "true") for t in ok)
-        quarantine_rises = None
-        if len(numeric) >= 2:
-            first = next(x for x in ok if x.condition == ordered[0])
-            last = next(x for x in ok if x.condition == ordered[-1])
-            quarantine_rises = (
-                int(last.get("quarantined_rows") or 0) >= int(first.get("quarantined_rows") or 0)
-            )
+        balanced = all(_value(t, "row_accounting_balanced") in (True, "true") for t in ok)
+        # Every injected key null quarantined by the key rule, and nothing else by it.
+        keys_quarantined = all(_value(t, "key_nulls_all_quarantined") is True
+                               for t in exp.trials
+                               if _value(t, "key_nulls_all_quarantined") is not None)
+        # Under the limit, no cleaning approval; over it, a request and a paused run.
+        quiet_under_limit = all((_value(t, "cleaning_approval_requests") or 0) == 0 for t in ok)
 
-        if len(ok) < len(CONDITIONS):
+        if len(ok) < len(TREND_CONDITIONS):
             exp.limitation(
-                f"{len(CONDITIONS) - len(ok)} of {len(CONDITIONS)} conditions did not complete "
-                "the pipeline; their measurements are absent rather than estimated: "
-                + "; ".join(
-                    f"{t.condition}: {t.detail}" for t in exp.trials if not t.get("prepare_ok")
-                )
+                f"{len(TREND_CONDITIONS) - len(ok)} of {len(TREND_CONDITIONS)} conditions did "
+                "not complete the pipeline; their measurements are absent rather than "
+                "estimated: " + "; ".join(f"{t.condition}: {t.detail}"
+                                          for t in trend if not t.ok)
             )
         exp.limitation(
             "The word 'imputed' in the PRD hypothesis is not measured as such: cleaning does "
             "not impute, the model pipeline does. What is measured is that non-key nulls do "
             "not cost rows."
         )
+        exp.limitation(
+            f"{OVER_LIMIT} is not one of the PRD's conditions. It was added, from the policy's "
+            "5% limit and before any run, because no PRD condition reaches that limit, so the "
+            "expected observation about approval could not otherwise be observed."
+        )
 
+        complete = len(ok) == len(TREND_CONDITIONS) and over.ok
         exp.conclude(
-            status="completed" if len(ok) == len(CONDITIONS) else "partial",
+            status="completed" if complete else "partial",
             # `None` when the decline could not be assessed at all: no verdict is the honest
             # answer when three of four conditions never produced a model.
-            hypothesis_held=(monotone and balanced) if monotone is not None else None,
+            hypothesis_held=(
+                (monotone and balanced and keys_quarantined and quiet_under_limit and over.ok)
+                if monotone is not None else None
+            ),
             conclusion=(
                 "PR-AUC on the sealed test split by null rate: "
                 + ", ".join(f"{n}={v}" for n, v in pr_aucs)
@@ -353,26 +411,28 @@ def run() -> Experiment:
                          "produced a test PR-AUC. "
                 )
                 + "Calibration error: "
-                + ", ".join(
-                    f"{t.condition}={t.get('test_ece')}" for t in ok
-                )
-                + ". Quarantine: "
-                + ", ".join(
-                    f"{t.condition} {t.get('quarantined_rows')}/{t.get('input_rows')} rows "
-                    f"({t.get('rows_affected_pct')}%)" for t in ok
-                )
+                + ", ".join(f"{t.condition}={_value(t, 'test_ece')}" for t in ok)
+                + ". Key nulls quarantined by the key rule, of those injected: "
+                + ", ".join(f"{t.condition} {_value(t, 'quarantined_null_customer')}/"
+                            f"{_value(t, 'key_nulls_injected')}" for t in exp.trials)
+                + f" (all of them in every condition: {keys_quarantined}). Rows affected: "
+                + ", ".join(f"{t.condition} {_value(t, 'rows_affected_pct')}%"
+                            for t in exp.trials)
                 + f". Row accounting balanced in every completed condition: {balanced}, so no "
-                "rows were lost silently at any null rate. Quarantine rises with the key-null "
-                f"rate: {quarantine_rises}. "
-                "Policy outcome: "
-                + ", ".join(f"{t.condition} {t.get('selection_outcome')}"
-                            + (f" ({', '.join(t.get('failed_rules'))})"
-                               if t.get("failed_rules") else "")
+                "rows were lost silently at any null rate. Policy outcome: "
+                + ", ".join(f"{t.condition} {_value(t, 'selection_outcome')}"
+                            + (f" ({', '.join(_value(t, 'failed_rules'))})"
+                               if _value(t, 'failed_rules') else "")
                             for t in ok)
-                + ". Approval requests: "
-                + ", ".join(f"{t.condition}={t.get('approval_requests')}" for t in ok)
-                + ". The 5% limit in the cleaning.execute policy is compared against "
-                "rows_affected_pct, recorded above for each condition."
+                + ". Cleaning approvals under the 5% limit: "
+                + ", ".join(f"{t.condition}={_value(t, 'cleaning_approval_requests')}"
+                            for t in ok)
+                + f". Over it ({OVER_LIMIT}, {_value(over, 'rows_affected_pct')}% of rows): "
+                + (
+                    f"{_value(over, 'cleaning_approval_requests')} approval requested and the "
+                    "run paused in APPROVAL_REQUIRED with its output uncommitted."
+                    if over.ok else f"not paused as claimed: {over.detail}."
+                )
             ),
         )
         return exp
