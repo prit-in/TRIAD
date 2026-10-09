@@ -153,6 +153,11 @@ far outside this noise; a gap of 0.115 on 494 rows, which escalated an earlier r
 inside it. The policy's verdicts are therefore informative at production sizes and unreliable at
 the sizes of a pilot, which is the case for stating such rules as intervals (Section 21).
 
+Table 10 collects the ten experiments: each hypothesis as written, the status of its run, the
+verdict, and the result it turned on.
+
+{{include: tables/table10_results_summary.md}}
+
 ---
 
 ## Evidence (not part of the manuscript)
