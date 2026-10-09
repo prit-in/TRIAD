@@ -1,0 +1,799 @@
+{
+  "exp_id": "EXP-4",
+  "title": "Schema errors",
+  "hypothesis": "A renamed required column is detected and a mapping proposed but not applied without approval; prices are fixed by try_cast and quarantine; the missing optional table disables its features.",
+  "independent_variable": "fault type",
+  "dependent_measures": [
+    "detected",
+    "cleaning_succeeded",
+    "quarantined_rows",
+    "row_accounting_balanced",
+    "approval_requests",
+    "auto_applied_without_a_person",
+    "wall_clock_s"
+  ],
+  "started_at": "2026-10-09T00:34:14.229765+00:00",
+  "duration_s": 1163.36,
+  "status": "partial",
+  "hypothesis_held": false,
+  "conclusion": "Detected at: renamed_required_column -> ingest, price_as_text_with_symbols -> clean, dropped_optional_table -> clean. 2 of 2 scored faults detected; the clean baseline passed: False. Prices written as text were not fixed by try_cast and quarantine: detected at clean; clean_ok=False approvals=0 auto_applied=0. 0 mappings were applied without a person. 0 conditions lost rows silently (cleaning reported success while the row accounting did not balance). Detection rate is reported against the baseline on purpose: a detector that flagged everything would otherwise score perfectly.",
+  "limitations": [
+    "`register_version` returns early on an identical checksum, before it validates anything. That is correct idempotence, but it means a file whose bytes were registered before a contract existed for its dataset is never re-validated. This experiment sidesteps it by registering each condition under a fresh dataset name; a deployment would need a re-validation pass when a contract is introduced or changed. Not a defect, but not covered either.",
+    "Only profile and clean are run, so what the feature stage does with a missing optional table - the 'disables its features' half of the hypothesis - is not measured here."
+  ],
+  "trials": [
+    {
+      "condition": "baseline_clean",
+      "ok": false,
+      "detail": "detected at clean; clean_ok=False approvals=0 auto_applied=0",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "optional_table_absent",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": 0.9336,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocking_issues",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiled_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_profile",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "new_issues_vs_baseline",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation_reason",
+          "value": "circuit breaker: error fingerprint 275ab34d6373 repeated",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_clean",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_cleaning",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "decision_records",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "auto_applied_without_a_person",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 831.2,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "clean",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "support_tickets",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [],
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-09-001_transactions.json",
+        "issues": [
+          "info:OUTLIERS.discount",
+          "info:OUTLIERS.price",
+          "info:OUTLIERS.quantity",
+          "warning:CONSTANT_COLUMN.currency",
+          "warning:CONSTANT_COLUMN.order_status",
+          "warning:HIGH_NULL_RATE.promo_code"
+        ],
+        "escalation": {
+          "stage": "clean",
+          "reason": "circuit breaker: error fingerprint 275ab34d6373 repeated",
+          "diagnoses": [
+            {
+              "error_class": "SCALA_COMPILE_ERROR",
+              "fingerprint": "2cfee22f9ada1d68e5aab8972c0bd801",
+              "message": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[warn] jline-2.14.6.jar no longer exists at /root/.cache/coursier/v1/https/repo1.maven.org/maven2/jline/jline/2.14.6/jline-2.14.6.jar\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[warn] scala-library-2.13.17.jar no longer exists at /root/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.13.17/scala-library-2.13.17.jar\n[success] Total time: 139 s (0:02:19.0), completed Oct 9, 2026, 12:46:57 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_8dc6f1c8.scala:48:68: Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=deprecation, site=triad.jobs.generated.CleanJob_8dc6f1c8.transform.deduped, version=2.13.0\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")): _*)\n[error]                                                                    ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 41 s, completed Oct 9, 2026, 12:47:37 AM\n[info] [launcher] getting org.scala-sbt sbt 1.13.0  (this may take some time)...\n[info] [launcher] getting Scala 2.12.21 (for sbt)...\n",
+              "remedy": "regenerate_code",
+              "recoverable": true,
+              "retry_limit": 3,
+              "needs_approval": false,
+              "matched_by": "taxonomy",
+              "details": {}
+            },
+            {
+              "error_class": "SCALA_COMPILE_ERROR",
+              "fingerprint": "275ab34d6373cdf9e7999822a5731a84",
+              "message": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 8 s, completed Oct 9, 2026, 12:48:14 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_8dc6f1c8.scala:48:68: Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=deprecation, site=triad.jobs.generated.CleanJob_8dc6f1c8.transform.deduped, version=2.13.0\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")): _*)\n[error]                                                                    ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 19 s, completed Oct 9, 2026, 12:48:33 AM\n",
+              "remedy": "regenerate_code",
+              "recoverable": true,
+              "retry_limit": 3,
+              "needs_approval": false,
+              "matched_by": "taxonomy",
+              "details": {}
+            },
+            {
+              "error_class": "SCALA_COMPILE_ERROR",
+              "fingerprint": "275ab34d6373cdf9e7999822a5731a84",
+              "message": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 7 s, completed Oct 9, 2026, 12:49:05 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_8dc6f1c8.scala:48:68: Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=deprecation, site=triad.jobs.generated.CleanJob_8dc6f1c8.transform.deduped, version=2.13.0\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")): _*)\n[error]                                                                    ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 19 s, completed Oct 9, 2026, 12:49:24 AM\n",
+              "remedy": "regenerate_code",
+              "recoverable": true,
+              "retry_limit": 3,
+              "needs_approval": false,
+              "matched_by": "taxonomy",
+              "details": {}
+            }
+          ]
+        },
+        "decisions": [
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "profile -> spark/python"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "clean -> spark/scala"
+          },
+          {
+            "agent": "code_generation",
+            "type": "diagnosis",
+            "decision": "SCALA_COMPILE_ERROR: remedy regenerate_code"
+          },
+          {
+            "agent": "code_generation",
+            "type": "diagnosis",
+            "decision": "SCALA_COMPILE_ERROR: remedy regenerate_code"
+          },
+          {
+            "agent": "code_generation",
+            "type": "diagnosis",
+            "decision": "SCALA_COMPILE_ERROR: remedy regenerate_code"
+          },
+          {
+            "agent": "code_generation",
+            "type": "escalation",
+            "decision": "escalate clean"
+          }
+        ],
+        "approvals": []
+      }
+    },
+    {
+      "condition": "renamed_required_column",
+      "ok": true,
+      "detail": "refused at ingest: required column customer_id missing",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "optional_table_absent",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "ingest_refusal",
+          "value": "required column customer_id missing",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "ingest",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": false,
+          "unit": "",
+          "note": "not reached"
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": false,
+          "unit": "",
+          "note": "not reached"
+        },
+        {
+          "name": "reached_cleaning",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 4.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "support_tickets",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [
+          {
+            "table": "transactions",
+            "reason": "blocking contract violation",
+            "blocking": [
+              {
+                "check_id": "schema.required.customer_id",
+                "severity": "blocking",
+                "message": "required column customer_id missing",
+                "count": null,
+                "pct": null
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "condition": "price_as_text_with_symbols",
+      "ok": false,
+      "detail": "detected at clean; clean_ok=False approvals=0 auto_applied=0",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "optional_table_absent",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": 0.9336,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocking_issues",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiled_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_profile",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "new_issues_vs_baseline",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation_reason",
+          "value": "circuit breaker: error fingerprint 275ab34d6373 repeated",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_clean",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_cleaning",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "decision_records",
+          "value": 5,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "auto_applied_without_a_person",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 140.5,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "clean",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "correct_action",
+          "value": false,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "support_tickets",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [],
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-09-003_transactions.json",
+        "issues": [
+          "info:OUTLIERS.discount",
+          "info:OUTLIERS.quantity",
+          "warning:CONSTANT_COLUMN.currency",
+          "warning:CONSTANT_COLUMN.order_status",
+          "warning:HIGH_NULL_RATE.promo_code"
+        ],
+        "escalation": {
+          "stage": "clean",
+          "reason": "circuit breaker: error fingerprint 275ab34d6373 repeated",
+          "diagnoses": [
+            {
+              "error_class": "SCALA_COMPILE_ERROR",
+              "fingerprint": "275ab34d6373cdf9e7999822a5731a84",
+              "message": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 7 s, completed Oct 9, 2026, 12:50:34 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_8dc6f1c8.scala:48:68: Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=deprecation, site=triad.jobs.generated.CleanJob_8dc6f1c8.transform.deduped, version=2.13.0\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")): _*)\n[error]                                                                    ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 23 s, completed Oct 9, 2026, 12:50:57 AM\n",
+              "remedy": "regenerate_code",
+              "recoverable": true,
+              "retry_limit": 3,
+              "needs_approval": false,
+              "matched_by": "taxonomy",
+              "details": {}
+            },
+            {
+              "error_class": "SCALA_COMPILE_ERROR",
+              "fingerprint": "275ab34d6373cdf9e7999822a5731a84",
+              "message": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 7 s, completed Oct 9, 2026, 12:51:27 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_8dc6f1c8.scala:48:68: Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=deprecation, site=triad.jobs.generated.CleanJob_8dc6f1c8.transform.deduped, version=2.13.0\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")): _*)\n[error]                                                                    ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 22 s, completed Oct 9, 2026, 12:51:50 AM\n",
+              "remedy": "regenerate_code",
+              "recoverable": true,
+              "retry_limit": 3,
+              "needs_approval": false,
+              "matched_by": "taxonomy",
+              "details": {}
+            }
+          ]
+        },
+        "decisions": [
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "profile -> spark/python"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "clean -> spark/scala"
+          },
+          {
+            "agent": "code_generation",
+            "type": "diagnosis",
+            "decision": "SCALA_COMPILE_ERROR: remedy regenerate_code"
+          },
+          {
+            "agent": "code_generation",
+            "type": "diagnosis",
+            "decision": "SCALA_COMPILE_ERROR: remedy regenerate_code"
+          },
+          {
+            "agent": "code_generation",
+            "type": "escalation",
+            "decision": "escalate clean"
+          }
+        ],
+        "approvals": []
+      }
+    },
+    {
+      "condition": "dropped_optional_table",
+      "ok": true,
+      "detail": "detected at clean; clean_ok=False approvals=0 auto_applied=0",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "optional_table_absent",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": 0.9336,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocking_issues",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiled_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_profile",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "new_issues_vs_baseline",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation_reason",
+          "value": "circuit breaker: error fingerprint 275ab34d6373 repeated",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_clean",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_cleaning",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "decision_records",
+          "value": 5,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "auto_applied_without_a_person",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 134.6,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "clean",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [],
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-09-004_transactions.json",
+        "issues": [
+          "info:OUTLIERS.discount",
+          "info:OUTLIERS.price",
+          "info:OUTLIERS.quantity",
+          "warning:CONSTANT_COLUMN.currency",
+          "warning:CONSTANT_COLUMN.order_status",
+          "warning:HIGH_NULL_RATE.promo_code"
+        ],
+        "escalation": {
+          "stage": "clean",
+          "reason": "circuit breaker: error fingerprint 275ab34d6373 repeated",
+          "diagnoses": [
+            {
+              "error_class": "SCALA_COMPILE_ERROR",
+              "fingerprint": "275ab34d6373cdf9e7999822a5731a84",
+              "message": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 9, 2026, 12:52:43 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_8dc6f1c8.scala:48:68: Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=deprecation, site=triad.jobs.generated.CleanJob_8dc6f1c8.transform.deduped, version=2.13.0\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")): _*)\n[error]                                                                    ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 30 s, completed Oct 9, 2026, 12:53:14 AM\n",
+              "remedy": "regenerate_code",
+              "recoverable": true,
+              "retry_limit": 3,
+              "needs_approval": false,
+              "matched_by": "taxonomy",
+              "details": {}
+            },
+            {
+              "error_class": "SCALA_COMPILE_ERROR",
+              "fingerprint": "275ab34d6373cdf9e7999822a5731a84",
+              "message": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 7 s, completed Oct 9, 2026, 12:53:47 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_8dc6f1c8.scala:48:68: Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=deprecation, site=triad.jobs.generated.CleanJob_8dc6f1c8.transform.deduped, version=2.13.0\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")): _*)\n[error]                                                                    ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 17 s, completed Oct 9, 2026, 12:54:04 AM\n",
+              "remedy": "regenerate_code",
+              "recoverable": true,
+              "retry_limit": 3,
+              "needs_approval": false,
+              "matched_by": "taxonomy",
+              "details": {}
+            }
+          ]
+        },
+        "decisions": [
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "profile -> spark/python"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "clean -> spark/scala"
+          },
+          {
+            "agent": "code_generation",
+            "type": "diagnosis",
+            "decision": "SCALA_COMPILE_ERROR: remedy regenerate_code"
+          },
+          {
+            "agent": "code_generation",
+            "type": "diagnosis",
+            "decision": "SCALA_COMPILE_ERROR: remedy regenerate_code"
+          },
+          {
+            "agent": "code_generation",
+            "type": "escalation",
+            "decision": "escalate clean"
+          }
+        ],
+        "approvals": []
+      }
+    }
+  ]
+}

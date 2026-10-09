@@ -1,0 +1,50 @@
+{
+  "exp_id": "EXP-4",
+  "title": "Schema errors",
+  "hypothesis": "A renamed required column is detected and a mapping proposed but not applied without approval; prices are fixed by try_cast and quarantine; the missing optional table disables its features.",
+  "independent_variable": "fault type",
+  "dependent_measures": [
+    "detected",
+    "correct_action",
+    "mapping_proposed",
+    "approval_requests",
+    "auto_applied_without_a_person",
+    "time_to_recovery_s",
+    "cleaning_succeeded",
+    "quarantined_rows",
+    "row_accounting_balanced",
+    "customer_service_group",
+    "wall_clock_s"
+  ],
+  "started_at": "2026-10-09T18:48:42.971332+00:00",
+  "config": {
+    "customers": 400,
+    "months": 24,
+    "seed": 42,
+    "faults": {
+      "baseline_clean": {},
+      "renamed_required_column": {
+        "rename_column": "customer_id:cust_id"
+      },
+      "price_as_text_with_symbols": {
+        "price_as_text": true
+      },
+      "dropped_optional_table": {
+        "drop_tables": [
+          "support_tickets"
+        ]
+      }
+    },
+    "stages_run": [
+      "ingest",
+      "profile",
+      "clean"
+    ],
+    "feature_stage_for": [
+      "baseline_clean",
+      "dropped_optional_table"
+    ],
+    "approver": "the harness, as a user with the data_engineer role",
+    "not_measured": "the effect of a disabled feature group on model quality (EXP-5), and the time a person takes to decide an approval"
+  }
+}

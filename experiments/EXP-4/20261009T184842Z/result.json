@@ -1,0 +1,1063 @@
+{
+  "exp_id": "EXP-4",
+  "title": "Schema errors",
+  "hypothesis": "A renamed required column is detected and a mapping proposed but not applied without approval; prices are fixed by try_cast and quarantine; the missing optional table disables its features.",
+  "independent_variable": "fault type",
+  "dependent_measures": [
+    "detected",
+    "correct_action",
+    "mapping_proposed",
+    "approval_requests",
+    "auto_applied_without_a_person",
+    "time_to_recovery_s",
+    "cleaning_succeeded",
+    "quarantined_rows",
+    "row_accounting_balanced",
+    "customer_service_group",
+    "wall_clock_s"
+  ],
+  "started_at": "2026-10-09T18:48:42.971332+00:00",
+  "duration_s": 1863.47,
+  "status": "completed",
+  "hypothesis_held": true,
+  "conclusion": "Detected at: renamed_required_column -> ingest, price_as_text_with_symbols -> clean, dropped_optional_table -> features. 3 of 3 faults detected and 3 handled correctly; the clean baseline passed: True. The renamed column was refused at ingest with the mapping cust_id -> customer_id proposed and a schema_change approval requested; while it was pending nothing was registered and applying it was refused, and once approved the mapped copy registered and cleaned with balanced rows 229.7 s after the decision. Prices written as text were fixed: the column was converted with try_cast and 0 value(s) that did not convert were quarantined, with the row accounting balanced. Without the support tickets table the feature job marked the customer service group unavailable and produced none of its 6 features, which the baseline produced. 0 mappings were applied without a person. 0 conditions lost rows silently (cleaning reported success while the row accounting did not balance). Detection is measured against the baseline on purpose: a detector that flagged everything would otherwise score perfectly.",
+  "limitations": [
+    "`register_version` returns early on an identical checksum, before it validates anything. That is correct idempotence, but it means a file whose bytes were registered before a contract existed for its dataset is never re-validated. This experiment sidesteps it by registering each condition under a fresh dataset name; a deployment would need a re-validation pass when a contract is introduced or changed. Not a defect, but not covered either.",
+    "The proposed mapping was approved by the harness acting as a Data Engineer, so the time to recovery covers the platform's work after the decision and not the time a person would take to make it."
+  ],
+  "trials": [
+    {
+      "condition": "baseline_clean",
+      "ok": true,
+      "detail": "detected at not detected; clean_ok=True approvals=0 auto_applied=0",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": 0.9336,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocking_issues",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiled_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_profile",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "new_issues_vs_baseline",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quarantined_rows",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "removed_duplicates",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": "input = output + quarantined + duplicates"
+        },
+        {
+          "name": "price_conformed",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_clean",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_cleaning",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "features_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "customer_service_group",
+          "value": "available",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_columns",
+          "value": 46,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "ticket_features_in_catalogue",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "ticket_features_present",
+          "value": [
+            "avg_csat_365d",
+            "avg_resolution_hours_365d",
+            "complaint_tickets_90d",
+            "open_tickets_at_cutoff",
+            "tickets_365d",
+            "tickets_90d"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "disabled_at_features",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "decision_records",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "auto_applied_without_a_person",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 995.1,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "not detected",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "support_tickets",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [],
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-09-015_transactions.json",
+        "issues": [
+          "info:OUTLIERS.discount",
+          "info:OUTLIERS.price",
+          "info:OUTLIERS.quantity",
+          "warning:CONSTANT_COLUMN.currency",
+          "warning:CONSTANT_COLUMN.order_status",
+          "warning:HIGH_NULL_RATE.promo_code"
+        ],
+        "job_metrics": {
+          "grain_unique": "true",
+          "input_rows": "8078",
+          "output_columns": "15",
+          "output_rows": "8078",
+          "quarantined_rows": "0",
+          "removed_duplicates": "0",
+          "row_accounting_balanced": "true",
+          "rule_non_positive_price": "0",
+          "rule_null_customer": "0",
+          "rule_null_order_date": "0",
+          "rule_zero_quantity": "0"
+        },
+        "feature_inputs": [
+          "products",
+          "returns",
+          "support_tickets",
+          "transactions",
+          "web_sessions"
+        ],
+        "feature_groups": {
+          "customer_service": "available",
+          "engagement": "available",
+          "payment": "available",
+          "purchase": "available",
+          "returns": "available"
+        },
+        "decisions": [
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "profile -> spark/python"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "clean -> spark/scala"
+          },
+          {
+            "agent": "governance",
+            "type": "policy",
+            "decision": "cleaning.execute -> allow"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "features -> spark/scala"
+          }
+        ],
+        "approvals": []
+      }
+    },
+    {
+      "condition": "renamed_required_column",
+      "ok": true,
+      "detail": "detected at ingest; clean_ok=True approvals=1 auto_applied=0",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "ingest_refusal",
+          "value": "required column customer_id missing",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "mapping_proposed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_action",
+          "value": "schema_change",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_status_before_decision",
+          "value": "pending",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registered_before_decision",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "applied_while_pending",
+          "value": false,
+          "unit": "",
+          "note": "approval d2785b4a-91f1-40a6-a707-d8ece6f858fe is pending; a mapping is applied only after it is approved"
+        },
+        {
+          "name": "mapping_applied_after_approval",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": 0.9336,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocking_issues",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiled_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_profile",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "new_issues_vs_baseline",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quarantined_rows",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "removed_duplicates",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": "input = output + quarantined + duplicates"
+        },
+        {
+          "name": "price_conformed",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "time_to_recovery_s",
+          "value": 229.7,
+          "unit": "s",
+          "note": "from the approval to cleaned, balanced output; the time a person takes to decide is not included"
+        },
+        {
+          "name": "detected_at_clean",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_cleaning",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "decision_records",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "auto_applied_without_a_person",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 232.8,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "ingest",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "correct_action",
+          "value": true,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "support_tickets",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [
+          {
+            "table": "transactions",
+            "reason": "required column renamed: mapping proposed, awaiting approval",
+            "blocking": [
+              {
+                "check_id": "schema.required.customer_id",
+                "severity": "blocking",
+                "message": "required column customer_id missing",
+                "count": null,
+                "pct": null
+              }
+            ],
+            "proposed_mapping": {
+              "cust_id": "customer_id"
+            },
+            "approval_id": "d2785b4a-91f1-40a6-a707-d8ece6f858fe"
+          }
+        ],
+        "proposed_mapping": {
+          "cust_id": "customer_id"
+        },
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-09-016_transactions.json",
+        "issues": [
+          "info:OUTLIERS.discount",
+          "info:OUTLIERS.price",
+          "info:OUTLIERS.quantity",
+          "warning:CONSTANT_COLUMN.currency",
+          "warning:CONSTANT_COLUMN.order_status",
+          "warning:HIGH_NULL_RATE.promo_code"
+        ],
+        "job_metrics": {
+          "grain_unique": "true",
+          "input_rows": "8078",
+          "output_columns": "15",
+          "output_rows": "8078",
+          "quarantined_rows": "0",
+          "removed_duplicates": "0",
+          "row_accounting_balanced": "true",
+          "rule_non_positive_price": "0",
+          "rule_null_customer": "0",
+          "rule_null_order_date": "0",
+          "rule_zero_quantity": "0"
+        },
+        "decisions": [
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "profile -> spark/python"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "clean -> spark/scala"
+          },
+          {
+            "agent": "governance",
+            "type": "policy",
+            "decision": "cleaning.execute -> allow"
+          }
+        ],
+        "approvals": [
+          {
+            "action": "schema_change",
+            "status": "approved",
+            "target": "transactions__exp04_renamed_required_column_4059c4@sha256:53e95c0e54edc1d9",
+            "decided_by_a_person": true
+          }
+        ]
+      }
+    },
+    {
+      "condition": "price_as_text_with_symbols",
+      "ok": true,
+      "detail": "detected at clean; clean_ok=True approvals=0 auto_applied=0",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": 0.9336,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocking_issues",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiled_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_profile",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "new_issues_vs_baseline",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quarantined_rows",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "removed_duplicates",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": "input = output + quarantined + duplicates"
+        },
+        {
+          "name": "price_conformed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "price_quarantined",
+          "value": 0,
+          "unit": "",
+          "note": "values that did not convert, quarantined with reason"
+        },
+        {
+          "name": "detected_at_clean",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_cleaning",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "decision_records",
+          "value": 3,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "auto_applied_without_a_person",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 209.7,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "clean",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "correct_action",
+          "value": true,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "support_tickets",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [],
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-09-017_transactions.json",
+        "issues": [
+          "info:OUTLIERS.discount",
+          "info:OUTLIERS.quantity",
+          "warning:CONSTANT_COLUMN.currency",
+          "warning:CONSTANT_COLUMN.order_status",
+          "warning:HIGH_NULL_RATE.promo_code"
+        ],
+        "job_metrics": {
+          "grain_unique": "true",
+          "input_rows": "8078",
+          "output_columns": "15",
+          "output_rows": "8078",
+          "quarantined_rows": "0",
+          "removed_duplicates": "0",
+          "row_accounting_balanced": "true",
+          "rule_cast_price": "0",
+          "rule_non_positive_price": "0",
+          "rule_null_customer": "0",
+          "rule_null_order_date": "0",
+          "rule_zero_quantity": "0"
+        },
+        "decisions": [
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "profile -> spark/python"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "clean -> spark/scala"
+          },
+          {
+            "agent": "governance",
+            "type": "policy",
+            "decision": "cleaning.execute -> allow"
+          }
+        ],
+        "approvals": []
+      }
+    },
+    {
+      "condition": "dropped_optional_table",
+      "ok": true,
+      "detail": "detected at features; clean_ok=True approvals=0 auto_applied=0",
+      "measurements": [
+        {
+          "name": "tables_generated",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "optional_table_absent",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "datasets_registered",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "registrations_refused",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_ingest",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiling_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quality_score",
+          "value": 0.9336,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocking_issues",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "profiled_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_profile",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "new_issues_vs_baseline",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "cleaning_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "quarantined_rows",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "removed_duplicates",
+          "value": "0",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": "input = output + quarantined + duplicates"
+        },
+        {
+          "name": "price_conformed",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_at_clean",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_cleaning",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "features_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "customer_service_group",
+          "value": "unavailable",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_columns",
+          "value": 40,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "ticket_features_in_catalogue",
+          "value": 6,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "ticket_features_present",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "disabled_at_features",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "decision_records",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approval_requests",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "auto_applied_without_a_person",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 420.0,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_where",
+          "value": "features",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "correct_action",
+          "value": true,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "tables": [
+          "customers",
+          "products",
+          "promotions",
+          "returns",
+          "transactions",
+          "web_sessions"
+        ],
+        "refusals": [],
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-09-018_transactions.json",
+        "issues": [
+          "info:OUTLIERS.discount",
+          "info:OUTLIERS.price",
+          "info:OUTLIERS.quantity",
+          "warning:CONSTANT_COLUMN.currency",
+          "warning:CONSTANT_COLUMN.order_status",
+          "warning:HIGH_NULL_RATE.promo_code"
+        ],
+        "job_metrics": {
+          "grain_unique": "true",
+          "input_rows": "8078",
+          "output_columns": "15",
+          "output_rows": "8078",
+          "quarantined_rows": "0",
+          "removed_duplicates": "0",
+          "row_accounting_balanced": "true",
+          "rule_non_positive_price": "0",
+          "rule_null_customer": "0",
+          "rule_null_order_date": "0",
+          "rule_zero_quantity": "0"
+        },
+        "feature_inputs": [
+          "products",
+          "returns",
+          "transactions",
+          "web_sessions"
+        ],
+        "feature_groups": {
+          "customer_service": "unavailable",
+          "engagement": "available",
+          "payment": "available",
+          "purchase": "available",
+          "returns": "available"
+        },
+        "decisions": [
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "profile -> spark/python"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "clean -> spark/scala"
+          },
+          {
+            "agent": "governance",
+            "type": "policy",
+            "decision": "cleaning.execute -> allow"
+          },
+          {
+            "agent": "spark_planning",
+            "type": "routing",
+            "decision": "features -> spark/scala"
+          }
+        ],
+        "approvals": []
+      }
+    }
+  ]
+}
