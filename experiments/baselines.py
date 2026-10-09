@@ -134,23 +134,33 @@ def candidate_models(seed: int = 42) -> dict[str, Any]:
 
 
 def fit_and_select(
-    train: Any, valid: Any, test: Any, feature_cols: list[str], *, seed: int = 42
+    train: Any, valid: Any, test: Any, feature_cols: list[str], *, seed: int = 42,
+    categorical: list[str] | None = None,
 ) -> dict[str, Any]:
     """Screen the families on validation, pick the best PR-AUC, score once on test.
 
     The test split is touched exactly once, by the family validation already chose. A baseline
     that picked its family on the test split would beat P by cheating, and the comparison would
     be worthless.
+
+    `categorical` names the categorical columns; by default, the baselines' own three. Refitting
+    on P's feature table passes P's list, and a column holding text is categorical whatever the
+    list says: EXP-1's like-for-like refit once sent P's payment-method column to the median
+    imputer, which failed on 'cod', and the one comparison that holds the features constant was
+    never made.
     """
     import numpy as np
+    from pandas.api.types import is_numeric_dtype
     from sklearn.compose import ColumnTransformer
     from sklearn.impute import SimpleImputer
     from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-    numeric = [c for c in feature_cols if c not in CATEGORICAL]
-    categorical = [c for c in feature_cols if c in CATEGORICAL]
+    declared = set(CATEGORICAL if categorical is None else categorical)
+    categorical = [c for c in feature_cols
+                   if c in declared or not is_numeric_dtype(train[c])]
+    numeric = [c for c in feature_cols if c not in categorical]
 
     def build(estimator: Any, linear: bool) -> Pipeline:
         num_steps: list[Any] = [("impute", SimpleImputer(strategy="median"))]

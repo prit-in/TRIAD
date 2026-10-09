@@ -459,7 +459,8 @@ def _like_for_like(trial: Any, shared: dict[str, Any], *, seed: int) -> None:
         dataset = features.merge(labels, on=["customer_id", "snapshot_date"], how="inner")
         split = apply_split(dataset, SplitSpec(**shared["split"]))
         cols = [c for c in shared["feature_columns"] if c in dataset.columns]
-        outcome = fit_and_select(split.train, split.valid, split.test, cols, seed=seed)
+        outcome = fit_and_select(split.train, split.valid, split.test, cols, seed=seed,
+                                 categorical=shared.get("categorical_columns"))
     except Exception as exc:
         trial.ok = False
         trial.detail = f"could not refit on the shared table: {type(exc).__name__}: {exc}"

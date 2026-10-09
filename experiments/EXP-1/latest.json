@@ -11,13 +11,15 @@
     "test_pr_auc",
     "source_lines"
   ],
-  "started_at": "2026-10-07T22:30:19.098764+00:00",
-  "duration_s": 1423.02,
-  "status": "failed",
-  "hypothesis_held": null,
-  "conclusion": "configuration P did not complete: stopped at ESCALATED: calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED",
+  "started_at": "2026-10-09T16:15:55.646206+00:00",
+  "duration_s": 3540.35,
+  "status": "partial",
+  "hypothesis_held": true,
+  "conclusion": "Wall-clock: P 3396.87s, B3 92.1s, B2 8.8s, B1 not measured. P is slower than B2: True, which is the expected observation at this size and the argument for local-mode routing (LR-07). P's candidate was escalated by the acceptance policy (calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED) on a validation split of 243 rows - a decision left to a person, which is the platform working as designed, and at this size inside the calibration estimator's measured noise floor (experiments/calibration_noise_floor.py). P required 0 approval(s) and 0 other manual steps, so the first half of the hypothesis holds. Whole-pipeline test PR-AUC: P 0.7405 (full feature catalogue), B3 0.7871 and B2 0.79 (twelve features each) - not comparable as model quality, because the feature sets differ. Hand-written pipeline lines: B2 188, B3 228. P made 0 LLM calls, ran 4 sandboxed Spark jobs and wrote 17 audit entries and 8 decision records - the governance and evidence the baselines produce none of, which is the cost the wall-clock difference is buying. See the like-for-like trial for the only PR-AUC comparison in which the features are held constant.",
   "limitations": [
-    "P did not reach selection, so there is no shared split for the baselines to use and no like-for-like quality comparison. The baselines were not run: splitting them differently from P would make the comparison meaningless."
+    "B1 is not measured: it is defined as a person following a runbook, and its metrics are engineer hours. Inventing them would fabricate the comparison.",
+    "The dataset is TRIAD's synthetic generator, not Online Retail II, which has no customer, session, ticket or return tables and so cannot support the churn definition or most of the feature catalogue (ADR-0002).",
+    "P made 0 LLM calls because no provider is configured (ADR-0003). The hypothesis that 'agent overhead dominates P's time' therefore cannot be tested for LLM time. The overhead that is present - validation gates including an sbt compile, sandbox container start-up per Spark job, governance and audit writes - is measured and reported instead, and is not a substitute for the untested claim."
   ],
   "trials": [
     {
@@ -42,18 +44,18 @@
     },
     {
       "condition": "P_triad",
-      "ok": false,
-      "detail": "stopped at ESCALATED: calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED",
+      "ok": true,
+      "detail": "ran end to end in 3397s over 4 Spark jobs; xgboost at test PR-AUC 0.7405; the acceptance policy escalated it (calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED), so a person decides what happens next; no other manual step",
       "measurements": [
         {
           "name": "wall_clock_s",
-          "value": 1414.24,
+          "value": 3396.87,
           "unit": "s",
           "note": ""
         },
         {
           "name": "ingest_s",
-          "value": 0.67,
+          "value": 0.73,
           "unit": "s",
           "note": ""
         },
@@ -94,21 +96,297 @@
           "note": ""
         },
         {
-          "name": "test_pr_auc",
-          "value": null,
+          "name": "escalated",
+          "value": true,
           "unit": "",
-          "note": "the pipeline did not reach selection"
+          "note": ""
+        },
+        {
+          "name": "escalation_reason",
+          "value": "calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "failed_rules",
+          "value": [
+            "AP-5"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "valid_rows",
+          "value": 243,
+          "unit": "",
+          "note": "the split AP-5's calibration error is measured on"
+        },
+        {
+          "name": "selected_family",
+          "value": "xgboost",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_pr_auc",
+          "value": 0.7405,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_roc_auc",
+          "value": 0.796,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_brier",
+          "value": 0.1453,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "selection_outcome",
+          "value": "ESCALATE",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "person_decision_required",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "human_actions_excluding_approval",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approvals_required",
+          "value": 0,
+          "unit": "",
+          "note": ""
         }
       ],
       "observations": {
         "per_stage_s": {
-          "spark:f914f4": 0.0,
-          "scala_spark:aad8e6": 44.06,
-          "scala_spark:142193": 62.46,
-          "scala_spark:469d62": 44.6
+          "spark:069656": 0.0,
+          "scala_spark:cedfb2": 80.59,
+          "scala_spark:295b58": 70.35,
+          "scala_spark:ba73dc": 44.49
         }
       }
+    },
+    {
+      "condition": "B2_pandas_only",
+      "ok": true,
+      "detail": "selected logreg on validation PR-AUC 0.7666",
+      "measurements": [
+        {
+          "name": "wall_clock_s",
+          "value": 8.81,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "rows_trained",
+          "value": 597,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "rows_tested",
+          "value": 291,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_pr_auc",
+          "value": 0.79,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_roc_auc",
+          "value": 0.8093,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_brier",
+          "value": 0.2085,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "llm_calls",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "human_actions_excluding_approval",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approvals_required",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "peak_rss_mb",
+          "value": 356.2,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "jvm_peak_rss_mb",
+          "value": null,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "source_lines",
+          "value": 188,
+          "unit": "lines",
+          "note": ""
+        },
+        {
+          "name": "selected_family",
+          "value": "logreg",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "per_stage_s": {
+          "features": 0.67,
+          "train_and_select": 8.13
+        },
+        "families_tried": [
+          "logreg",
+          "random_forest",
+          "hist_gb",
+          "dummy"
+        ]
+      }
+    },
+    {
+      "condition": "B3_spark_no_agents",
+      "ok": true,
+      "detail": "selected logreg on validation PR-AUC 0.7623",
+      "measurements": [
+        {
+          "name": "wall_clock_s",
+          "value": 92.06,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "rows_trained",
+          "value": 597,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "rows_tested",
+          "value": 291,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_pr_auc",
+          "value": 0.7871,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_roc_auc",
+          "value": 0.8068,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "test_brier",
+          "value": 0.2133,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "llm_calls",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "human_actions_excluding_approval",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "approvals_required",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "peak_rss_mb",
+          "value": 356.2,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "jvm_peak_rss_mb",
+          "value": 1223.5,
+          "unit": "MB",
+          "note": ""
+        },
+        {
+          "name": "source_lines",
+          "value": 228,
+          "unit": "lines",
+          "note": ""
+        },
+        {
+          "name": "selected_family",
+          "value": "logreg",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "per_stage_s": {
+          "features_spark": 60.66,
+          "train_and_select": 31.22
+        },
+        "families_tried": [
+          "logreg",
+          "random_forest",
+          "hist_gb",
+          "dummy"
+        ]
+      }
+    },
+    {
+      "condition": "like_for_like_quality_on_one_feature_table",
+      "ok": false,
+      "detail": "could not refit on the shared table: ValueError: Cannot use median strategy with non-numeric data:\ncould not convert string to float: 'cod'",
+      "measurements": [
+        {
+          "name": "test_pr_auc",
+          "value": null,
+          "unit": "",
+          "note": "not measured"
+        }
+      ],
+      "observations": {}
     }
   ],
-  "run_dir": "20261007T223019Z"
+  "run_dir": "20261009T161555Z"
 }
