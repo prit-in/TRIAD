@@ -40,7 +40,7 @@ to call it, a schema for its arguments and result, the governance action it requ
 side effect. A call is refused - and the refusal recorded - if the agent is not on the tool's
 allowlist, if the arguments do not match the schema, or if the policy engine does not allow the
 action; an allowed call is appended to the run's audit chain. Submitting a Spark job, for
-example, is permitted only to the Code Generation and Spark Optimization roles, requires the
+example, is permitted only to the Code Generation and Optimization roles, requires the
 `sandbox.run` action with a known resource profile, and is mediated by the sandbox runner. Tests
 show that a refusal at each of the three checks stops the work. Refusals by the authentication
 and governance layers are committed to the audit trail on their own, because a refusal is
@@ -56,8 +56,9 @@ the renderer proves that it did so by comparing the rendered file with the templ
 slot; a single differing character fails validation. Generated objects get a name derived from
 their content hash, so several can coexist and a stored artifact can be replayed exactly.
 
-Every generated job then passes nine validation gates before it runs (Table 5 in Section 7 lists
-the agents involved; Fig. 9 shows where the gates sit):
+Every generated job then passes nine validation gates before its output is published, the first
+six before it reads its full input (Table 5 in Section 7 lists the agents involved; Fig. 9 shows
+where the gates sit):
 
 1. the proposal is structured output of the expected shape;
 2. a static scan finds no forbidden API, unbounded collection to the driver, or out-of-slot edit;

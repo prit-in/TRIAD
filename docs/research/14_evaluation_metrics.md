@@ -4,7 +4,7 @@ The faculty plan asks for metrics of performance, scalability, automation, trust
 resource utilization, and operational efficiency. TRIAD's evaluation uses one rule for all of them:
 a metric is reported only if it was measured by an instrument named in Table 9 and stored with the
 experiment's output; a metric that could not be measured is reported as not measured, never as zero
-or as an estimate. Fig. 20 shows how the metrics attach to the platform.
+or as an estimate. Fig. 20 groups the metrics by what they evaluate, with the measures in each.
 
 **Fig. 20. Evaluation Framework.** *(figures/fig20_evaluation_framework.drawio)*
 

@@ -3,7 +3,7 @@
 TRIAD is organized as five layers with one job each, crossed by a governance layer that every
 other layer must pass through. Fig. 6, the core architecture figure, shows the components and the
 three languages; Fig. 7 shows the same system as a stack, from storage at the bottom to the
-people who approve its outputs at the top.
+dashboard through which people inspect and approve its outputs at the top.
 
 **Fig. 6. Agentic Data Science Programming Architecture Integrating Python, Scala, and Apache
 Spark.** *(figures/fig06_core_architecture.drawio)*

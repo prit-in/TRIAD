@@ -4,8 +4,9 @@ A modern analytics pipeline is not one program. For the churn case studied here 
 and profiling in Python, cleaning and feature construction as Spark jobs, a hand-off to Python
 for model training and calibration, a registry, scoring, monitoring, and a report - five or more
 components in three languages, run on a schedule, against data that change. Fig. 3 groups the
-difficulties this creates into five families, and Table 2 states, for each, what current
-practice does, what is missing, and what this work does about it.
+difficulties this creates into five families, and Table 2 divides them into the seven specific
+challenges this work takes on, stating for each what current practice does, what is missing, and
+what this work does about it.
 
 **Fig. 3. Challenges in Modern Data Science Platforms.** *(figures/fig03_challenges.drawio)*
 

@@ -65,7 +65,9 @@ class Diagram:
 
     def box(self, cid: str, label: str, x: int, y: int, w: int = 150, h: int = 50, *,
             kind: str = "neutral", dashed: bool = False, bold: bool = False,
-            size: int = 16, shape: str = "rounded", align: str = "center") -> str:
+            size: int = 16, shape: str = "rounded", align: str = "center",
+            raw: bool = False) -> str:
+        """A box. `raw` passes the label through as HTML (for <i> and <sub>), newlines kept."""
         fill, stroke = KINDS[kind]
         shapes = {
             "rounded": "rounded=1;arcSize=12;",
@@ -80,8 +82,9 @@ class Diagram:
                  f"fontFamily={FONT};fontSize={size};align={align};"
                  f"{'dashed=1;dashPattern=6 4;' if dashed else ''}"
                  f"{'fontStyle=1;' if bold else ''}")
+        value = escape(label.replace("\n", "<br>")) if raw else _label(label)
         self.cells.append(
-            f'<mxCell id="{self._id(cid)}" value="{_label(label)}" style="{style}" vertex="1" '
+            f'<mxCell id="{self._id(cid)}" value="{value}" style="{style}" vertex="1" '
             f'parent="1"><mxGeometry x="{x}" y="{y}" width="{w}" height="{h}" as="geometry"/>'
             f'</mxCell>')
         self.geom[cid] = (x, y, w, h)
@@ -121,9 +124,12 @@ class Diagram:
         `points` are waypoints, so a route that the automatic router would draw through another
         box can be laid along a gap instead."""
         cid = self._id(f"e{len(self.cells)}")
+        # The label's white background is padded so a dashed line stops short of the text
+        # instead of running into its first and last letters.
         style = (f"edgeStyle={'none' if curved else 'orthogonalEdgeStyle'};rounded=1;html=1;"
                  f"endArrow=block;endFill=1;strokeColor={color};strokeWidth=1.5;"
                  f"fontFamily={FONT};fontSize={size};labelBackgroundColor=#FFFFFF;"
+                 f"spacingLeft=4;spacingRight=4;"
                  f"{'startArrow=block;startFill=1;' if both else ''}"
                  f"{'dashed=1;dashPattern=6 4;' if dashed else ''}"
                  f"{self._port('exit', exit)}{self._port('entry', entry)}")

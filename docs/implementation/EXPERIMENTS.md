@@ -14,7 +14,7 @@ carrying an estimate.
 | ID | Title | Status | Hypothesis | Where |
 | --- | --- | --- | --- | --- |
 | EXP-1 | Small dataset against the non-agentic baselines | **partial** | **held** | `experiments/EXP-1/latest.json` |
-| EXP-2 | Medium dataset: where a single node gives out | **partial** | **did not hold** | `experiments/EXP-2/latest.json` |
+| EXP-2 | Medium dataset: where a single node gives out | **partial** | **refuted on this node** (B3 stopped first, at 100 000 customers) | `experiments/EXP-2/latest.json` |
 | EXP-3 | Scaling with parallelism | **partial** | **did not hold** | `experiments/EXP-3/latest.json` |
 | EXP-4 | Schema errors | **partial** | **held** | `experiments/EXP-4/latest.json` |
 | EXP-5 | Missing values | **partial** | **no verdict on PR-AUC; the reason for that is now measured** | `experiments/EXP-5/latest.json`, `experiments/EXP-5/calibration_noise_floor.json` |
@@ -228,26 +228,51 @@ is configured (ADR-0003), so the overhead that is present is validation gates in
 compile, per-job sandbox start-up, governance and audit writes. Attributing those to "agent
 overhead" would be reading a different experiment's conclusion into this one.
 
-### EXP-2, where a single node gives out — did NOT hold, partial
+### EXP-2, where a single node gives out — refuted on this node, partial
 
-| Customers | On disk | B2 (pandas) | B3 (Spark) | Peak RSS |
-| --- | --- | --- | --- | --- |
-| 400 | 0.4 MB | ok, 8.9s | ok, 46.1s | 246 MB |
-| 1 500 | 1.4 MB | ok, 6.7s | ok, 29.1s | 312 MB |
-| 6 000 | 5.1 MB | ok, 9.2s | ok, 32.8s | 525 MB |
-| 20 000 | 14.9 MB | ok, 19.8s | ok, 54.8s | 1 065 MB |
+Run `experiments/EXP-2/20261008T171242Z/` (08-10-2026, 17:12 to 18:15 UTC), the whole ladder in
+one run, each configuration in a process of its own inside the 3 GB dev container, 30-minute
+ceiling per run.
 
-The hypothesis is that B2 fails first as the data grows while B3 keeps going. **No crossover was
-observed at any size this machine can hold.** B2 finished every rung and was two to five times
-faster than B3 on all of them, because at 15 MB the Spark job is paying for planning and
-shuffling that pandas never does.
+| Customers | On disk | Training rows | B2 (pandas) | B2 peak | B3 (Spark) | B3 JVM peak | B3 driver peak | Test PR-AUC B2 / B3 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 400 | 0.4 MB | 769 | ok, 6.8 s | 229 MB | ok, 37.5 s | 1 329 MB | 214 MB | 0.793 / 0.792 |
+| 1 500 | 1.4 MB | 2 688 | ok, 5.7 s | 251 MB | ok, 47.6 s | 1 162 MB | 226 MB | 0.776 / 0.772 |
+| 6 000 | 5.1 MB | 11 331 | ok, 7.8 s | 343 MB | ok, 44.0 s | 1 379 MB | 257 MB | 0.766 / 0.765 |
+| 20 000 | 14.9 MB | 37 265 | ok, 19.0 s | 590 MB | ok, 150.2 s | 2 141 MB | 315 MB | 0.785 / 0.785 |
+| 50 000 | 36.4 MB | 92 429 | ok, 56.4 s | 1 295 MB | ok, 226.6 s | 2 223 MB | 607 MB | 0.777 / 0.778 |
+| 100 000 | 76.3 MB | 184 492 | ok, 130.4 s | 2 294 MB | **not completed**: stopped at the 1 800 s ceiling | - | - | 0.784 / - |
 
-This is a *failure to observe*, not evidence of absence, and the distinction is the whole point
-of reporting it this way. The PRD's 10 GB tier is where the hypothesis expects the crossover and
-that tier was not run: Docker has a 5.27 GB VM here and the sandbox clamps a container to 3 GB
-(ADR-0002), so 10 GB would fail for every configuration — three failures and no information.
-What is reported is the ladder that fits, with the rung the hypothesis is actually about marked
-absent.
+The hypothesis is that B2 fails first as the data grows while B3 keeps going. **On this node the
+opposite happened, so it is refuted here:** B3 stopped at 100 000 customers and B2 did not. The
+memory columns say why. B2's memory grows with the data; B3's starts high - its JVM held 1.3 GB
+at 400 customers - and with its Python driver it already used about 2.8 GB of the container's
+3 GB at 50 000 customers (the sum of the two processes' peaks, an upper bound on what it held at
+once). Spark's spill protects it from data larger than memory, not from a node too small for its
+fixed overhead: B3's time went from 227 s to beyond 1 800 s when the data doubled, B2's from
+56 s to 130 s. During that run `docker stats` showed the container at 2.917 of 2.93 GiB and `ps`
+the JVM at 2.16 GiB resident (operator observation at 17:55 UTC, not recorded by the harness).
+The models agreed at every size both completed (PR-AUC within 0.004), and B2 was 4.0 to 8.4
+times faster throughout.
+
+What this supports: at these sizes and on nodes of this size a single process is faster and
+smaller, which is what LR-06 acts on when it hands the modelling table to pandas. What it does
+not show: the crossover the hypothesis describes, which should exist above this node's memory
+and was not reached; it is not estimated. The ladder stops at the first rung where a
+configuration fails, so 200 000 customers was not run. The PRD's 10 GB tier was not run either
+(ADR-0002): on a 5.27 GB Docker VM with 3 GB containers it would fail for every configuration.
+
+**How this run came to be the one reported.** Two earlier runs that day are kept, not replaced.
+The 11:10 run measured the same rungs to 50 000 customers and then crashed *in its conclusion*,
+on a rung whose generation had failed and which therefore had no measurements (a `KeyError`,
+fixed with a tolerant getter; its outputs are in `experiments/_logs/aborted/`). The 16:17 run
+(`20261008T161715Z`, committed) reached 50 000 customers and stopped because **the data
+generator itself** was OOM-killed at 100 000 - the harness, not either configuration, was the
+limit. DEC-37 rewrote the generator to store columns and write one table at a time with exactly
+the same random draws (identical output on seven configurations, pinned by a test); the 17:12
+run is the first to reach the rung that decides the hypothesis. Its outcome logic also gained
+the two outcomes it had folded into "no crossover": B3 failing first (refuted, this run) and
+both failing together (not supported).
 
 ### EXP-3, scaling with parallelism — did NOT hold, partial
 

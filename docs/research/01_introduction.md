@@ -1,6 +1,6 @@
 # 1. Introduction
 
-Data science programming has moved through three stages, and each solved the previous stage's
+Data science programming has moved through four stages, and each solved the previous stage's
 bottleneck while creating a new one. The first stage was the single-machine scientific stack: an
 analyst wrote Python against array and statistics libraries such as NumPy and SciPy, which made
 numerical computing accessible and reproducible on one workstation [@harris2020numpy]
@@ -8,12 +8,14 @@ numerical computing accessible and reproducible on one workstation [@harris2020n
 clusters. MapReduce showed that a simple programming model could spread a computation over many
 machines [@dean2008mapreduce], and Apache Spark generalized it into an in-memory engine with a
 relational layer, so that transformations, queries, and machine learning ran in one system
-[@zaharia2016spark] [@armbrust2015sparksql] [@tang2020sparksurvey]. Its bottleneck was people:
-a production pipeline now spans Python for modelling, Scala or SQL for distributed
-transformation, and a growing apparatus of tests, deployment, and monitoring that the machine
-learning operations (MLOps) literature describes as most of the work of putting a model into use
-[@kreuzberger2023mlops] [@paleyes2022deploying]. The third stage, which this report addresses,
-asks whether software agents can carry part of that work.
+[@zaharia2016spark] [@armbrust2015sparksql] [@tang2020sparksurvey]. Its bottleneck was people
+and pipelines: a production pipeline now spans Python for modelling and Scala or SQL for
+distributed transformation. The third stage answered with process. The machine learning
+operations (MLOps) literature describes the tests, deployment, and monitoring that putting a
+model into use requires, and reports that this apparatus is most of the work
+[@kreuzberger2023mlops] [@paleyes2022deploying]; its bottleneck is the laborious discipline it
+demands. The fourth stage, which this report addresses, asks whether software agents can carry
+part of that work.
 
 Fig. 1 summarizes the progression. The point of the figure is not that later stages replace
 earlier ones - a modern platform still uses array libraries, a distributed engine, and an
@@ -62,7 +64,8 @@ written down, with its evidence, in a tamper-evident record.
 TRIAD (Tri-engine Reasoning for Intelligent, Autonomous Data Science) is a platform built on that
 position. It combines Python for profiling, modelling, and orchestration; Scala for typed,
 compiled Spark jobs; and Apache Spark for distributed transformation, and it places thirteen
-agent roles under a deterministic orchestrator. Fig. 2 gives the overview: data enter through a
+agent roles under a deterministic orchestrator. Fig. 2 gives the overview, with the seven roles on
+the main data path (the other six appear in Section 6): data enter through a
 governed ingestion layer, are transformed by generated Scala jobs running in an isolated sandbox,
 become point-in-time features and labels, are modelled in Python, and reach production only
 through an approval.

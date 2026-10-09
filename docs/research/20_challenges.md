@@ -47,9 +47,9 @@ a Spark error.
 ## 20.5 Organizational challenges
 
 Governance creates work for people. Every promotion needs an approver who is not the requester, and
-the requirements add that promoting despite a failed check needs two approvers - a path the policy
-defines but this implementation does not yet build, so an escalated run currently has no governed
-way forward except a new run. Escalations arrive with evidence, but someone must read it.
+promoting despite a failed check needs two approvers in different roles, each deciding on the
+same evidence bundle - a path that was walked end to end in this work and took two named people's
+time (Section 17). Escalations arrive with evidence, but someone must read it.
 The evaluation in Section 15 shows that two of the acceptance rules, applied as fixed thresholds to
 a few hundred validation rows, escalate on sampling noise much of the time - calibration error and
 the segment recall gap - so at small data sizes the platform would generate escalations faster than

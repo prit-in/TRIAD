@@ -39,15 +39,17 @@ def chain(d: Diagram, ids: list[str], *, dashed: bool = False, labels: list[str]
 # --- Section 1 ------------------------------------------------------------------------------
 def fig01() -> Diagram:
     d = Diagram("Fig 01 Evolution of Data Science Programming", W, 300)
-    ids = row(d, "s", ["Single-machine scientific stack\n(Python, NumPy, SciPy)",
-                       "Distributed engines\n(MapReduce, Spark, SQL)",
-                       "Machine learning operations\n(pipelines, registries, monitoring)",
-                       "Governed agentic data science\n(agents propose, rules decide)"],
-              60, kind="white", h=80)
+    # Breaks chosen by hand: left to wrap, two labels touched their borders and one ran to
+    # four lines with single words stranded.
+    ids = row(d, "s", ["Single-machine\nscientific stack\n(Python, NumPy, SciPy)",
+                       "Distributed engines\n(MapReduce, Spark,\nSQL)",
+                       "Machine learning\noperations (pipelines,\nregistries, monitoring)",
+                       "Governed agentic\ndata science (agents\npropose, rules decide)"],
+              60, kind="white", h=86, size=15)
     chain(d, ids)
-    row(d, "b", ["Bottleneck: one machine's memory", "Bottleneck: people and pipelines",
-                 "Bottleneck: laborious discipline", "Open question: what may an agent decide?"],
-        170, kind="neutral", h=56, size=14)
+    row(d, "b", ["Bottleneck: one\nmachine's memory", "Bottleneck: people\nand pipelines",
+                 "Bottleneck: laborious\ndiscipline", "Open question: what\nmay an agent decide?"],
+        176, kind="neutral", h=56, size=14)
     d.text("t", "Each stage moves the binding constraint; none removes the earlier stages.",
            20, 250, W - 40, 30, italic=True, size=14)
     return d
@@ -56,12 +58,15 @@ def fig01() -> Diagram:
 def fig02() -> Diagram:
     d = Diagram("Fig 02 Agentic Analytics Ecosystem Overview", W, 430)
     d.group("ga", "Agents (propose and compose)", 20, 10, W - 40, 80, kind="agent")
-    row(d, "a", ["Discovery", "Profiling", "Cleaning", "Spark planning", "Code generation",
-                 "Model selection", "Reporting"], 40, kind="agent", h=40, size=14, x0=30, x1=W - 30)
-    flow = row(d, "f", ["Versioned\nsources", "Governed\ningestion", "Generated Scala\njobs in sandbox",
-                        "Point-in-time\nfeatures, labels", "Python models:\ntrain, calibrate",
-                        "Approval by\na second person", "Champion and\nscored customers"],
-               150, kind="compute", h=80, size=14)
+    # Seven boxes a row leave little width: narrower gaps, 13 px text, and breaks set by hand,
+    # because the automatic wrap pushed several labels against their borders.
+    row(d, "a", ["Discovery", "Profiling", "Cleaning", "Spark\nplanning", "Code\ngeneration",
+                 "Model\nselection", "Reporting"], 40, kind="agent", h=44, size=13, x0=30, x1=W - 30,
+        gap=16)
+    flow = row(d, "f", ["Versioned\nsources", "Governed\ningestion", "Generated\nScala jobs\nin sandbox",
+                        "Point-in-time\nfeatures,\nlabels", "Python\nmodels: train,\ncalibrate",
+                        "Approval by\na second\nperson", "Champion\nand scored\ncustomers"],
+               150, kind="compute", h=80, size=13, gap=16)
     chain(d, flow)
     d.group("gg", "Governance (decides)", 20, 270, W - 40, 140, kind="govern")
     row(d, "g", ["Routing rules\nLR-01 to LR-10", "Nine validation\ngates", "Acceptance policy\nAP-1 to AP-8",
@@ -82,11 +87,12 @@ def fig03() -> Diagram:
     d = Diagram("Fig 03 Challenges in Modern Data Science Platforms", W, 400)
     d.box("c", "Modern data\nscience platform", 350, 160, 180, 80, kind="neutral", bold=True)
     items = [
-        ("w", "Workflow complexity\nfive components, three languages", 20, 20),
+        # Names and counts as Section 2 states them.
+        ("w", "Workflow complexity\nfive or more components,\nthree languages", 20, 20),
         ("m", "Code maintenance\nhand-written and generated jobs", 600, 20),
         ("s", "Scalability\nwhich engine, and who decides", 20, 300),
         ("h", "Heterogeneous environments\nversions across runtimes", 600, 300),
-        ("a", "Automation without accountability\nwho decided a model is fit to use?", 310, 300),
+        ("a", "Analytics automation without\naccountability: who decided a\nmodel is fit to use?", 310, 300),
     ]
     for cid, label, x, y in items:
         d.box(cid, label, x, y, 260, 76, kind="alert" if cid == "a" else "white", size=14)
@@ -108,7 +114,7 @@ def fig04() -> Diagram:
     d.group("g2", "Automation and assurance (Sections III-E to III-H)", 20, 230, W - 40, 110,
             kind="agent", size=14)
     row(d, "b", ["Data quality and provenance", "AutoML and hyperparameter optimization",
-                 "LLM agents and generated code", "Explainability, trust, and fairness"],
+                 "LLM agents and generated code", "Explainability,\ntrust, and fairness"],
         266, kind="agent", h=60, size=14, x0=32, x1=W - 32, gap=20)
     d.box("app", "Application: customer churn prediction (Section III-I)", 220, 380, 440, 50,
           kind="data", size=14)
@@ -133,55 +139,63 @@ def fig05() -> Diagram:
     d.edge(ids[3], "au", "", exit="bottom", entry="right",
            points=[(d.cx(ids[3]), d.cy("au"))])
     d.edge("au", ids[2], "corrects", exit=(d.at("au", d.cx(ids[2])), 0), entry="bottom")
-    d.text("t", "Every requirement maps to a test, and every test to a stored result.",
+    # The matrix's claim, not universal coverage: some requirements are recorded as not met
+    # or not run, and Section 4 says so.
+    d.text("t", "Every requirement is traced to its evidence, or recorded as not met or not run.",
            20, 310, W - 40, 30, italic=True, size=14)
     return d
 
 
 # --- Section 5 ------------------------------------------------------------------------------
 def fig06() -> Diagram:
-    d = Diagram("Fig 06 Agentic Data Science Programming Architecture Integrating Python Scala and Apache Spark", W, 620)
+    # The four layers are 30 units apart, so an edge label can sit in a gap rather than on a
+    # group's border, which is where the 15-unit gaps put the "queue" and "submit" labels.
+    d = Diagram("Fig 06 Agentic Data Science Programming Architecture Integrating Python Scala and Apache Spark", W, 660)
     d.group("gp", "Presentation and service", 20, 10, 690, 90, kind="person")
     d.box("ui", "Dashboard\nReact, 11 pages", 40, 40, 200, 50, kind="person", size=14)
     d.box("api", "API (Python, FastAPI)\n41 endpoints, roles", 260, 40, 220, 50, kind="person", size=14)
     d.box("ppl", "People: engineers,\napprovers, analysts", 500, 40, 190, 50, kind="person", size=14)
-    d.group("go", "Orchestration (Python)", 20, 115, 690, 150, kind="agent")
-    d.box("wk", "Worker\nstate machine, queue, leases", 40, 150, 210, 56, kind="agent", size=14)
+    d.group("go", "Orchestration (Python)", 20, 130, 690, 150, kind="agent")
+    d.box("wk", "Worker\nstate machine, queue, leases", 40, 165, 210, 56, kind="agent", size=14)
     # Routing beside the worker that consults it: with the scheduler between them, their edge
     # ran through the scheduler's box.
-    d.box("rt", "Routing rules\nLR-01 to LR-10", 270, 150, 200, 56, kind="agent", size=14)
-    d.box("sc", "Scheduler\nRT-1 to RT-9, landing folders", 490, 150, 200, 56, kind="agent", size=14)
-    d.box("cg", "Code generation\ntemplates, 9 gates", 40, 215, 210, 40, kind="agent", size=14)
-    d.box("tr", "Tool registry: allowlist, schema, policy", 270, 215, 420, 40, kind="agent", size=14)
-    d.group("gc", "Compute", 20, 280, 690, 160, kind="compute")
-    d.box("py", "Python ML\nscikit-learn, XGBoost, Optuna\ncalibration, SHAP", 40, 315, 210, 110, kind="compute", size=14)
-    d.box("sr", "Sandbox runner\nonly holder of the\ncontainer socket", 270, 315, 160, 110, kind="govern", size=14)
+    d.box("rt", "Routing rules\nLR-01 to LR-10", 270, 165, 200, 56, kind="agent", size=14)
+    d.box("sc", "Scheduler\nRT-1 to RT-9, landing folders", 490, 165, 200, 56, kind="agent", size=14)
+    d.box("cg", "Code generation\ntemplates, 9 gates", 40, 230, 210, 40, kind="agent", size=14)
+    d.box("tr", "Tool registry: allowlist, schema, policy", 270, 230, 420, 40, kind="agent", size=14)
+    d.group("gc", "Compute", 20, 310, 690, 160, kind="compute")
+    d.box("py", "Python ML\nscikit-learn, XGBoost, Optuna\ncalibration, SHAP", 40, 345, 210, 110, kind="compute", size=14)
+    d.box("sr", "Sandbox runner\nonly holder of the\ncontainer socket", 270, 345, 160, 110, kind="govern", size=14)
     d.box("sp", "Scala jobs on Apache Spark\nCleanJob, FeatureJob, LabelJob\none container each, no network",
-          450, 315, 240, 110, kind="compute", size=14)
-    d.group("gs", "State", 20, 455, 690, 140, kind="data")
-    d.box("pg", "PostgreSQL\n21 tables: runs, decisions,\napprovals, audit, lineage", 40, 490, 220, 90, kind="data", shape="cylinder", size=14)
+          450, 345, 240, 110, kind="compute", size=14)
+    d.group("gs", "State", 20, 500, 690, 140, kind="data")
+    d.box("pg", "PostgreSQL\n21 tables: runs, decisions,\napprovals, audit, lineage", 40, 535, 220, 90, kind="data", shape="cylinder", size=14)
     # MLflow under Python ML's side and Parquet under the Spark jobs: each writer then reaches
     # its store without crossing the other's path.
-    d.box("ml", "MLflow\nexperiments,\nmodel registry", 280, 490, 200, 90, kind="data", shape="cylinder", size=14)
-    d.box("fs", "Versioned Parquet\nraw, clean, features,\nlabels, quarantine", 500, 490, 190, 90, kind="data", shape="cylinder", size=14)
-    d.group("gg", "Governance", 725, 10, 135, 585, kind="govern")
+    d.box("ml", "MLflow\nexperiments,\nmodel registry", 280, 535, 200, 90, kind="data", shape="cylinder", size=14)
+    d.box("fs", "Versioned Parquet\nraw, clean, features,\nlabels, quarantine", 500, 535, 190, 90, kind="data", shape="cylinder", size=14)
+    d.group("gg", "Governance", 725, 10, 135, 630, kind="govern")
     # Approvals level with the people who decide them, the policy engine level with the tool
     # registry that consults it: the two dashed edges then run side by side instead of crossing.
     d.box("ap", "Approvals\nseparation\nof duties", 735, 40, 115, 90, kind="govern", size=14)
-    d.box("pe", "Policy engine\n23 actions,\nfail-closed", 735, 190, 115, 90, kind="govern", size=14)
-    d.box("au", "Audit\nhash chain\nper run", 735, 360, 115, 90, kind="govern", size=14)
-    # The queue drops into the gap between the two upper groups, clear of the dashboard and of
-    # the orchestration group's title.
+    d.box("pe", "Policy engine\n23 actions,\nfail-closed", 735, 205, 115, 90, kind="govern", size=14)
+    d.box("au", "Audit\nhash chain\nper run", 735, 390, 115, 90, kind="govern", size=14)
+    # Each labelled edge turns in the gap between two layers, clear of the dashboard and of the
+    # orchestration group's title.
     d.edge("api", "wk", "queue", exit=(d.at("api", 300), 1), entry=(d.at("wk", 230), 0),
-           points=[(300, 108), (230, 108)])
+           points=[(300, 115), (230, 115)])
     d.edge("wk", "rt")
     d.edge("cg", "tr")
-    d.edge("tr", "sr", "submit")
+    d.edge("tr", "sr", "submit", exit="bottom", entry="top",
+           points=[(d.cx("tr"), 295), (d.cx("sr"), 295)])
     d.edge("sr", "sp")
-    d.edge("sp", "fs", "staging, then publish", exit=(d.at("sp", d.cx("fs")), 1), entry="top")
+    # The job writes to staging and the platform publishes (Section 5): an edge labelled
+    # "publish" from the job said the opposite, so the edge is unlabelled and the text says it.
+    d.edge("sp", "fs", exit=(d.at("sp", d.cx("fs")), 1), entry="top")
     d.edge("py", "ml", exit=(d.at("py", 200), 1), entry="top",
-           points=[(200, 447), (d.cx("ml"), 447)])
-    d.edge("ppl", "ap", "decide", dashed=True, exit="right", entry="left",
+           points=[(200, 485), (d.cx("ml"), 485)])
+    # Unlabelled: in the 45-unit gutter a label covered the line and both borders.
+    d.edge("ppl", "ap", "", dashed=True, exit="right", entry="left",
            points=[(708, d.cy("ppl")), (708, d.cy("ap"))])
     d.edge("tr", "pe", "", dashed=True, exit="right", entry="left",
            points=[(708, d.cy("tr")), (708, d.cy("pe"))])
@@ -229,10 +243,12 @@ def fig08() -> Diagram:
           20, 356, 540, 44, kind="govern", size=14)
     d.box("gates", "Nine validation gates", 20, 426, 260, 50, kind="govern", size=14)
     d.box("sbx", "Sandbox runner and containers", 300, 426, 260, 50, kind="compute", size=14)
-    d.box("llm", "LLM provider (optional;\nnot configured in this evaluation)", 600, 426, 260, 50,
-          kind="white", dashed=True, size=13)
-    d.edge("reg", "gates")
-    d.edge("gates", "sbx")
+    d.box("llm", "LLM provider (optional, not configured\nhere): cleaning plans, slot code, narratives",
+          600, 426, 260, 50, kind="white", dashed=True, size=12)
+    # Gates first, then the registry's submit, then the sandbox - the order the code runs them
+    # (Fig. 6): the gates run before any registry call, and spark.submit_job reaches the sandbox.
+    d.edge("gates", "reg", exit="top", entry=(d.at("reg", d.cx("gates")), 1))
+    d.edge("reg", "sbx", exit=(d.at("reg", d.cx("sbx")), 1), entry="top")
     gap = (d.geom["g1"][0] + d.geom["g1"][2] + d.geom["g2"][0]) / 2
     d.edge("llm", "a11", "slot bodies", dashed=True, exit="top", entry="right",
            points=[(d.cx("llm"), 343), (gap, 343), (gap, d.cy("a11"))])
@@ -254,7 +270,9 @@ def fig09() -> Diagram:
                        "Reporting:\nclaim-checked"], 350, kind="govern", h=80, size=14, x0=200, x1=W - 20)
     d.edge(mid[4], low[0], "propose", exit="bottom", entry="top")
     chain(d, low)
-    d.box("esc", "Escalation\nwith evidence", 20, 360, 150, 60, kind="alert", size=14)
+    # Exactly under "Verification", so the refused edge is one straight line.
+    vx, _, vw, _ = d.geom[mid[0]]
+    d.box("esc", "Escalation\nwith evidence", vx, 360, vw, 60, kind="alert", size=14)
     d.edge(mid[0], "esc", "refused", dashed=True, exit="bottom")
     return d
 
@@ -265,7 +283,9 @@ def fig10() -> Diagram:
     # outcome sits next to the step that produces it, so every outcome edge is one straight line
     # - the earlier layout sent three of them across the whole middle row.
     d = Diagram("Fig 10 Autonomous Data Engineering Pipeline", W, 450)
-    ids = row(d, "a", ["Landing folder\nor upload", "Register version\ncontract check", "Write-once raw\nchecksum",
+    # In the order register_version runs: checksum (a duplicate stops here) and contract
+    # first, then the write-once copy and the version record.
+    ids = row(d, "a", ["Landing folder\nor upload", "Checksum and\ncontract check", "Write-once raw,\nregister version",
                        "Profile\nquality score Q", "Cleaning job\n(library rules)"],
               100, kind="data", h=70, size=14)
     chain(d, ids)
@@ -279,11 +299,13 @@ def fig10() -> Diagram:
           kind="alert", size=14)
     d.box("q", "Quarantine with reason codes\n(nothing is deleted)", W - 280, 10, 260, 56,
           kind="alert", size=14)
-    d.box("acc", "Row accounting:\nin = out + quarantined + duplicates", W - 320, 370, 300, 60,
+    d.box("acc", "Cleaning's row accounting:\nin = out + quarantined + duplicates", W - 320, 370, 300, 60,
           kind="govern", size=14)
     d.edge(ids[1], "ref", dashed=True, exit="top", entry=(d.at("ref", d.cx(ids[1])), 1))
     d.edge(ids[4], "q", dashed=True, exit="top", entry=(d.at("q", d.cx(ids[4])), 1))
-    d.edge(ids2[4], "acc", dashed=True, exit="bottom", entry=(d.at("acc", d.cx(ids2[4])), 0))
+    # The cleaning job balances its own accounting, which then feeds the policy check: the
+    # arrow points into the check (Section 7), not out of it.
+    d.edge("acc", ids2[4], dashed=True, exit=(d.at("acc", d.cx(ids2[4])), 0), entry="bottom")
     return d
 
 
@@ -371,8 +393,10 @@ def fig14() -> Diagram:
     d = Diagram("Fig 14 Explainability Framework", W, 400)
     d.box("m", "Selected\nmodel", 20, 170, 130, 60, kind="compute", bold=True)
     d.box("x0", "TreeSHAP\n(tree ensembles)", 190, 20, 190, 56, kind="agent", size=14)
-    d.box("x1", "Coefficient x input\n(logistic regression)", 190, 95, 190, 56, kind="agent", size=14)
-    d.box("x2", "Permutation importance\n(global ranking)", 190, 255, 190, 56, kind="agent", size=14)
+    d.box("x1", "Coefficient × input\n(logistic regression)", 190, 95, 190, 56, kind="agent", size=14)
+    # A fallback, not a third method that always runs: drawn dashed, as Section 10.1 describes it.
+    d.box("x2", "Permutation importance\n(fallback, global only)", 190, 255, 190, 56, kind="agent",
+          size=14, dashed=True)
     d.box("o0", "Per-customer reasons,\nmethod named", 415, 57, 210, 56, kind="data", size=14)
     d.box("o1", "Evaluation record:\ncurves, intervals, segments", 415, 172, 210, 56, kind="data", size=14)
     d.box("o2", "Model card: data, metrics,\ndrivers, limitations", 415, 255, 210, 56, kind="data", size=14)
@@ -380,13 +404,13 @@ def fig14() -> Diagram:
     d.box("ppl", "Reviewer or\napprover", 670, 160, 190, 80, kind="person", size=14)
     d.box("dr", "Decision records: rule,\nevidence, rejected\nalternatives", 670, 290, 190, 90, kind="govern", size=14)
     for x in ("x0", "x1", "x2"):          # fan out through the gutter at x = 170
-        d.edge("m", x, exit="right", entry="left",
+        d.edge("m", x, exit="right", entry="left", dashed=x == "x2",
                points=[(170, d.cy("m")), (170, d.cy(x))])
     for x in ("x0", "x1"):                # both per-customer methods produce the reasons
         d.edge(x, "o0", exit="right", entry="left",
                points=[(398, d.cy(x)), (398, d.cy("o0"))])
     d.edge("m", "o1", exit="right", entry="left")                # through the gap at y = 200
-    d.edge("x2", "o2", exit="right", entry="left")
+    d.edge("x2", "o2", exit="right", entry="left", dashed=True)
     d.edge("o1", "o2", exit="bottom", entry="top")
     d.edge("o2", "o3", exit="bottom", entry="top")
     # What the reviewer reads, each in its own lane of the right-hand gutter.
@@ -409,8 +433,10 @@ def fig15() -> Diagram:
              ("Input versions and code hashes recorded", "lineage")]   # as trust_score.py reads it
     for i, (label, key) in enumerate(comps):
         y = 20 + i * 64
-        d.box(f"c{i}", f"{label}\ns_{key}", 20, y, 300, 54, kind="govern", size=14)
-    d.box("ts", "Trust score (6)\nTS = mean of the components\nthat apply to the run",
+        # The symbols set as equation (6) sets them: italic s, roman subscript.
+        d.box(f"c{i}", f"{label}\n<i>s</i><sub>{key}</sub>", 20, y, 300, 54, kind="govern",
+              size=14, raw=True)
+    d.box("ts", "Trust score, equation (6)\nTS = mean of the components\nthat apply to the run",
           420, 150, 240, 110, kind="agent", bold=True, size=15)
     for i in range(len(comps)):
         d.edge(f"c{i}", "ts")
@@ -426,14 +452,15 @@ def fig16() -> Diagram:
     happy = row(d, "s", ["RECEIVED", "PROFILED", "PLANNED", "FEATURES_READY", "TRAINING", "EVALUATED"],
                 40, kind="agent", h=56, size=12, gap=20)   # FEATURES_READY on one line
     chain(d, happy)
+    # A 60-unit gap: at 32 the "approved" label covered its edge and arrowhead entirely.
     end = row(d, "e", ["APPROVAL_REQUIRED\n(waits for a person)", "PUBLISHED", "SELECTED\n(champion kept)"],
-              170, kind="govern", h=64, size=13, x0=300, x1=W - 20)
+              170, kind="govern", h=64, size=13, x0=180, x1=W - 20, gap=60)
     ev = happy[5]
     # Two exits from EVALUATED, each on its own line: "keep" drops straight into SELECTED, and
     # "propose" turns left in the gap above the outcome row.
     d.edge(ev, end[2], "keep", exit=(d.at(ev, d.cx(end[2])), 1), entry="top")
-    d.edge(ev, end[0], "propose", exit=(0.1, 1), entry="top",
-           points=[(d.geom[ev][0] + 0.1 * d.geom[ev][2], 132), (d.cx(end[0]), 132)])
+    d.edge(ev, end[0], "propose", exit=(0.05, 1), entry="top",
+           points=[(d.geom[ev][0] + 0.05 * d.geom[ev][2], 132), (d.cx(end[0]), 132)])
     d.edge(end[0], end[1], "approved")
     fail = row(d, "f", ["REJECTED_INPUT", "ESCALATED\n(resumable)", "FAILED", "CANCELLED"],
                330, kind="alert", h=60, size=13)
@@ -441,7 +468,7 @@ def fig16() -> Diagram:
            exit=(d.at(happy[0], d.cx(happy[0])), 1), entry=(d.at(fail[0], d.cx(happy[0])), 0))
     # Escalation, failure, and cancellation can happen from any state, not from one; edges
     # from a single state said otherwise.
-    d.text("any", "From any state: ESCALATED (resumable from where it stopped), FAILED, or CANCELLED.",
+    d.text("any", "From any state: ESCALATED (resumable by a person), FAILED, or CANCELLED.",
            240, 280, W - 260, 30, size=13)
     d.text("t", "Every transition is committed with its audit entry; a dead worker's lease expires and the task is re-queued.",
            20, 420, W - 40, 40, italic=True, size=14)
@@ -449,7 +476,7 @@ def fig16() -> Diagram:
 
 
 def fig17() -> Diagram:
-    d = Diagram("Fig 17 Autonomous Decision Lifecycle", W, 380)
+    d = Diagram("Fig 17 Autonomous Decision Lifecycle", W, 410)
     pos = [("o", "Observe\na measured signal", 60, 40), ("c", "Classify\nfixed taxonomy", 330, 40),
            ("d", "Decide\nfirst matching rule", 600, 40), ("r", "Record\nrule, evidence,\nalternatives", 600, 200),
            ("a", "Act\nwithin bounds", 330, 200), ("v", "Verify\nagainst a contract", 60, 200)]
@@ -457,7 +484,8 @@ def fig17() -> Diagram:
         d.box(cid, label, x, y, 210, 76, kind="agent", size=14)
     chain(d, ["o", "c", "d", "r", "a", "v"])
     d.edge("v", "o", "next signal")
-    d.box("e", "Escalate to a person\nwith the evidence", 330, 310, 210, 56, kind="alert", size=14)
+    # Far enough below "Act" for the dashed line to show on both sides of its label.
+    d.box("e", "Escalate to a person\nwith the evidence", 330, 340, 210, 56, kind="alert", size=14)
     d.edge("a", "e", "bounds or budget exhausted", dashed=True, exit="bottom")
     return d
 
@@ -495,7 +523,9 @@ def fig19() -> Diagram:
     d.box("h", "Experiment harness: timers, JVM start-up measured apart,\npeak memory per process, environment record",
           20, 210, W - 40, 60, kind="agent", size=14)
     d.edge(ids[2], "h", exit="bottom")
-    ids2 = row(d, "b", ["EXP-1 to EXP-10\nand policy noise floors", "Stored outputs:\nresult.json per run",
+    # The policy noise floors are simulations with no model and no harness (Section 15), so
+    # they are not drawn as coming through it.
+    ids2 = row(d, "b", ["EXP-1 to EXP-10", "Stored outputs:\nresult.json per run",
                         "Charts and tables\ngenerated from outputs"], 310, kind="compute", h=70, size=14)
     d.edge("h", ids2[0], exit="bottom")
     chain(d, ids2)
@@ -507,8 +537,9 @@ def fig20() -> Diagram:
     cats = [("Predictive quality", "PR-AUC, ROC-AUC, recall"), ("Calibration", "ECE (8), Brier skill (9)"),
             ("Comparison", "paired bootstrap (10)"), ("Fairness", "segment recall gap"),
             ("Performance", "wall clock, JVM start-up"), ("Resources", "peak memory per process"),
-            ("Automation", "lines, steps, faults handled"), ("Reliability", "gates, recovery, replay"),
-            ("Trust", "trust score (6) components")]
+            ("Automation and operations", "lines, steps, faults handled;\napprovals, escalations, decisions"),
+            ("Reliability", "gates, recovery, replay"),
+            ("Trust and explainability", "trust score, equation (6);\nreason coverage, claim check")]
     for i, (cat, inst) in enumerate(cats):
         x = 20 + (i % 3) * 287
         y = 20 + (i // 3) * 120

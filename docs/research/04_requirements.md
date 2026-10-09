@@ -3,10 +3,10 @@
 TRIAD's requirements were written before its code, as a product requirements document (PRD) of
 84 functional requirements and 48 non-functional requirements, each with a priority and a
 testable acceptance criterion. Fig. 5 shows how they were engineered and checked. Each
-requirement maps to one or more tests - unit, acceptance (AT), agentic acceptance (ATC), and
-security (ST) - and the mapping is kept in a traceability matrix that records, for every
-requirement, its status and the evidence for it: a test, a recorded run, or an experiment's
-stored output. The matrix was re-audited by reading the code rather than earlier status
+requirement is traced in a matrix to its status and its evidence - a test of one of five kinds,
+unit, acceptance (AT), agentic acceptance (ATC), security (ST), and Scala test cases (TC), or a
+recorded run, or an experiment's stored output - or recorded as not met or not run when no such
+evidence exists. The matrix was re-audited by reading the code rather than earlier status
 documents, and requirements were downgraded when the audit found the evidence missing; that
 process is what Section 17 calls governance effectiveness.
 

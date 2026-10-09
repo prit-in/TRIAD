@@ -19,6 +19,8 @@ at every size, by 4.0 to 8.4 times, because Spark's start-up and per-stage sched
 than the data does at these volumes. At 100 000 customers (76.3 MB) B2 completed in 130 s with a
 peak of 2 294 MB; B3 did not complete within 30 minutes.
 
+**Fig. 22. Scalability Analysis.** *(figures/png/Fig 22 Scalability Analysis.png)*
+
 The hypothesis was the opposite: that the single-node configuration would be the first to fail
 and Spark would keep going. On this node it is refuted, and the memory measurements show why
 (Fig. 22b). B2's memory grew with the data, from 229 MB at 400 customers to 2 294 MB at 100 000.

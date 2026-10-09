@@ -35,8 +35,8 @@ base churn rate of 0.35, and which can inject the faults the experiments need: m
 values, duplicates, invalid prices, renamed columns, prices written as text, a skewed customer,
 planted instructions in product text, and behavioural drift from a chosen month. The same seed
 (42) produces the same data, so every configuration in an experiment reads identical inputs.
-Datasets range from 400 customers, about 0.4 MB of Parquet, to 200 000 customers on the
-memory ladder of EXP-2.
+Datasets range from 400 customers, about 0.4 MB of Parquet, to 100 000 customers and 76 MB, the
+largest rung EXP-2's memory ladder reached before a configuration failed.
 
 ## 13.3 Configurations
 
@@ -70,7 +70,7 @@ and the experiment re-run, never reported as results.
 | Experiment | Question | Data | Independent variable | Dependent measures |
 | --- | --- | --- | --- | --- |
 | EXP-1 Small dataset | Does P run end to end without manual steps, and what does its overhead cost? | 400 customers, 24 months | configuration (B1, B2, B3, P) | wall clock, manual steps, LLM calls, test PR-AUC, like-for-like PR-AUC |
-| EXP-2 Single-node limit | Is single-node pandas the first to fail as data grows? | 400 to 200 000 customers | dataset size, configuration (B2, B3) | completion, wall clock, peak memory |
+| EXP-2 Single-node limit | Is single-node pandas the first to fail as data grows? | 400 to 200 000 customers, stopping at the first failure | dataset size, configuration (B2, B3) | completion, wall clock, peak memory |
 | EXP-3 Parallelism | Does doubling the cores give at least 1.6 times speed-up? | 6 000 customers | Spark parallelism (1, 2, 4 cores) | wall clock, work time, shuffle bytes, spill, task skew, core utilization |
 | EXP-4 Schema errors | Are schema faults stopped before they corrupt anything? | 400 customers | fault (renamed key, price as text, missing table) | where detected, rows affected, outcome |
 | EXP-5 Missing values | Are key nulls quarantined without losing rows, and does quality decline gradually? | 2 000 customers | non-key null rate 0-50%, key nulls 1% | quarantine, row accounting, test PR-AUC, calibration error |

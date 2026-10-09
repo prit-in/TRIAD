@@ -16,7 +16,7 @@ for stage in (clean, features, labels):              # P3-P7
     route <- first routing rule matching (stage, sizes)        # recorded with its evidence
     job   <- Algorithm 2(template of stage)                    # nine gates
     out   <- run job in the sandbox; check contract; publish atomically
-split by time with 90-day gaps; apply hygiene H2, H3, H7 (names), H4 (training rows)
+apply hygiene H2, H3, H7 (names); split by time with 90-day gaps; H4 (training rows)
 candidates <- train five families
 (outcome, model, evidence) <- Algorithm 3(candidates)
 record the acceptance decision (rules, evidence, rejected alternatives)
