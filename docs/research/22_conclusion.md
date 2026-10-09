@@ -30,13 +30,15 @@ customers the policy refused a model that beat the champion with confidence, bec
 16.4% of churners among its newest customers against 45.8% to 49.5% elsewhere. A segment-aware
 threshold would have closed most of that gap at the price of contacting 2.4 more customers per
 hundred; whether to accept the disparity became a decision two named people made on recorded
-evidence, rather than a default.
+evidence, rather than a default. The cost was measured too: on 400 customers TRIAD took 989 s
+against 71 s and 5.5 s for the conventional pipelines, about 600 s of it in the validation gates,
+and what the time bought was evidence rather than accuracy - with the features held constant, the
+conventional model shortlist scored 0.776 against TRIAD's 0.741.
 
 **Scaling claims need the hardware to test them.** On one four-core laptop, two Spark cores were
 1.63 times faster than one and four were slower than two, because parallel tasks competed for
 shared cores; and as the data grew on a 3 GB node, it was Spark, not pandas, that gave out
 first, because its JVM held most of the node's memory before the data arrived.
-<!-- RESULTS-PENDING: EXP-1's overhead comparison. -->
 
 **Governance must be exercised to be trusted.** Walking the override end to end, and reviewing
 the code that implements it, found an evidence bundle that omitted what approvers needed, a model

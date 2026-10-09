@@ -5,8 +5,37 @@ answers. Every number is read from an experiment's stored output; Table 10 is ge
 same files, and so are Fig. 21 to Fig. 23. A hypothesis that did not hold is reported as not
 holding, with what the measurement shows instead.
 
-<!-- RESULTS-PENDING: 15.1 performance (EXP-1) and 15.4 data robustness (EXP-4, EXP-5, EXP-6)
-are written once those experiments complete. -->
+<!-- RESULTS-PENDING: 15.4 data robustness (EXP-4, EXP-5, EXP-6) is written once those
+experiments complete. -->
+
+## 15.1 End to end: what governance costs at a small size
+
+EXP-1 ran TRIAD (P) and the two conventional pipelines on the same 400 customers, with the same
+cutoffs (Fig. 21). P completed every stage - ingestion, profiling, three generated Spark jobs
+behind the nine gates, features and labels, five candidate families, tuning, calibration, and
+the acceptance policy - with no manual step, which is the first half of the hypothesis. Its
+selected model, gradient-boosted trees, was escalated rather than proposed: its calibration
+error stayed above the 0.05 limit after both remedies, on a validation split of 243 rows -
+smaller than the 324 rows at which Section 15.7 shows a perfectly calibrated model already fails
+the same test about four times in ten. The escalation hands that decision to a person, which is
+the policy working as written.
+
+**Fig. 21. Performance Benchmark Results.** *(figures/png/Fig 21 Performance Benchmark Results.png)*
+
+P took 989 s; the Spark pipeline without agents took 71 s and the single pandas process 5.5 s.
+The gates account for about 600 s of P's time - 415 s of compilation, most of it the run's first
+compile (326 s, against 48 s and 41 s for the next two), and 185 s of dry runs on samples - and
+the fixture tests none, because their result for exactly these sources was reused. The first run after a template change shows the
+other end: every fixture run was fresh, the build was compiled from scratch, and P took 3 397 s.
+In return P produced 8 decision records and 17 audit entries, ran each job in a sandbox, and
+calibrated, tested, and judged its model against a written policy; the baselines produced none of
+that evidence. Measured test PR-AUC was 0.741 for P and 0.790 and 0.787 for the baselines, but
+these are not comparable: the baselines use twelve features and P uses 44. Refitted on P's own
+feature table and split, the baselines' shortlist reached 0.776 with a random forest on the same
+280 test rows. No interval was computed for that pair, so no ranking is claimed; what the
+experiment shows is that P's extra time buys evidence, not accuracy. The hypothesis's second
+half, that agent overhead dominates P's time, needs a configured language model and is not
+measured.
 
 ## 15.2 Scalability: where a single node gives out
 
@@ -128,6 +157,12 @@ the sizes of a pilot, which is the case for stating such rules as intervals (Sec
 
 ## Evidence (not part of the manuscript)
 
+- EXP-1: run `experiments/EXP-1/20261009T172131Z/` (09-10-2026 17:21 UTC): P 988.97 s, B3
+  71.25 s, B2 5.5 s; P xgboost test PR-AUC 0.7405, escalated on AP-5 at 243 validation rows;
+  like-for-like random_forest 0.7757 on 44 features, 390 training and 280 test rows; gate
+  durations from `code_artifacts.gate_results` of run-2026-10-09-009 (compile 326/48/41 s, dry
+  runs 70/74/41 s, gate 5 reused). Cold case: run `20261009T161555Z` (P 3 396.87 s; gate 5
+  1 867 s, all fresh; CleanJob compile 718 s; run-2026-10-09-008).
 - EXP-2: `experiments/EXP-2/20261008T171242Z/result.json` (08-10-2026, 17:12 to 18:15 UTC). The
   earlier run of 16:17 stopped because the data generator itself was OOM-killed at 100 000
   customers (DEC-37, committed as `20261008T161715Z`). PR-AUC pairs B2/B3: 0.7929/0.7923,

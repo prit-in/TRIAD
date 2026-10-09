@@ -51,7 +51,10 @@ unreliable at pilot sizes, where fixed thresholds refuse sound models by chance.
 that governance must be exercised to be trusted: walking a promotion despite a failed check end to
 end exposed three defects that rule-by-rule tests had missed.
 
-<!-- RESULTS-PENDING: one sentence on EXP-1's overhead and EXP-2's ladder once final. -->
+The price of governance was measured as well: on 400 customers a governed run took 989 s against
+71 s for a
+hand-written Spark pipeline, about 600 s of it in the validation gates, and as the data grew on
+a 3 GB node it was Spark, not the single Python process, that gave out first.
 
 **Table 1. Executive Summary of Contributions and Outcomes**
 

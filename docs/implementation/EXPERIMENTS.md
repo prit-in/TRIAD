@@ -13,7 +13,7 @@ carrying an estimate.
 
 | ID | Title | Status | Hypothesis | Where |
 | --- | --- | --- | --- | --- |
-| EXP-1 | Small dataset against the non-agentic baselines | **partial** | **held** | `experiments/EXP-1/latest.json` |
+| EXP-1 | Small dataset against the non-agentic baselines | **partial** | **held** (P end to end, no manual step; escalated on AP-5 at 243 rows) | `experiments/EXP-1/latest.json` |
 | EXP-2 | Medium dataset: where a single node gives out | **partial** | **refuted on this node** (B3 stopped first, at 100 000 customers) | `experiments/EXP-2/latest.json` |
 | EXP-3 | Scaling with parallelism | **partial** | **did not hold** | `experiments/EXP-3/latest.json` |
 | EXP-4 | Schema errors | **partial** | **held** | `experiments/EXP-4/latest.json` |
@@ -201,32 +201,47 @@ failure it exists for.
 
 ### EXP-1, TRIAD against the non-agentic baselines — held, partial
 
-| Configuration | Wall clock | Test PR-AUC | Features | Hand-written lines | Approvals | Audit entries |
-| --- | --- | --- | --- | --- | --- | --- |
-| P (TRIAD) | 749.3s | 0.7801 | full catalogue (23) | 0 | 0 | 15 |
-| B2 (pandas only) | 4.1s | 0.7900 | 12 | 188 | 0 | 0 |
-| B3 (Spark, no agents) | 25.7s | 0.7871 | 12 | 201 | 0 | 0 |
-| B1 (manual runbook) | **not measured** | — | — | — | — | — |
+Run `experiments/EXP-1/20261009T172131Z/` (09-10-2026, 17:21 UTC, 400 customers).
 
-The hypothesis is that P finishes end to end with no manual step except approval. It does: 0
-approvals were required on this run, 0 other human actions, 4 Spark jobs, 6 decision records and
-15 audit entries. P is 183 times slower than B2 at this size, which is the expected observation
-and the argument for LR-07 rather than a defect.
+| Configuration | Wall clock | Test PR-AUC | Model | Features | Hand-written lines | Manual steps | Audit entries |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| P (TRIAD) | 989 s | 0.741 (escalated) | xgboost | full catalogue (44) | 0 | 0 | 17 |
+| B2 (pandas only) | 5.5 s | 0.790 | logreg | 12 | 188 | 0 | 0 |
+| B3 (Spark, no agents) | 71 s | 0.787 | logreg | 12 | 228 | 0 | 0 |
+| B1 (manual runbook) | **not measured** | - | - | - | - | - | - |
 
-**The PR-AUC column is not a quality comparison and is labelled as one nowhere.** P uses the full
-feature catalogue and the baselines twelve hand-picked features, so the three numbers measure
-different feature sets. The experiment therefore runs a fifth trial that holds the features
-constant: on P's own 23-feature table and P's split, the baselines' shortlist reaches **0.7894**
-with logreg. That is the only line in this experiment where the numbers are comparable, and it
-says the modelling itself is not where the agentic loop earns its time — the governance is:
-the baselines produce no decision record, no audit entry, no calibration, no acceptance policy
-and no approval gate, and P's extra 745 seconds is what those cost.
+The hypothesis is that P finishes end to end with no manual step except approval. **It holds:**
+P ran four sandboxed Spark jobs, wrote 8 decision records and 17 audit entries, and needed no
+manual step; its candidate (xgboost) was escalated by AP-5 - calibration error above 0.05 after
+both remedies - on a validation split of 243 rows, which Section 15 shows is inside the
+calibration estimator's noise floor at that size. An escalation is the policy handing a person the
+decision, which is what it is for.
 
-The second half of the hypothesis — "agent overhead dominates P's time" — **cannot be tested
-here**, and the result says so rather than claiming it. P made 0 LLM calls because no provider
-is configured (ADR-0003), so the overhead that is present is validation gates including an sbt
-compile, per-job sandbox start-up, governance and audit writes. Attributing those to "agent
-overhead" would be reading a different experiment's conclusion into this one.
+**Where P's time goes.** Of P's 989 s, the gates took about 600 s: compilation 415 s (the first
+compile of a run starts sbt cold - CleanJob 326 s, FeatureJob 48 s, LabelJob 41 s), the dry runs
+on a sample 185 s, and the fixture suite nothing, because its result for these exact sources was
+reused (FR-083). The rest is the four full Spark runs, training with tuning and calibration, and
+the governance writes. The first run after the template fix, `20261009T161555Z`, is kept as the
+cold case: every fixture run was fresh (1 867 s of gate 5), the first compile after the build
+change rebuilt everything (718 s), and P took 3 397 s.
+
+**The PR-AUC column is not a quality comparison.** P uses its 44-feature catalogue, the baselines
+twelve hand-picked features, and the baselines train on P's training and calibration cutoffs
+together (597 rows), where P holds the calibration cutoff back (390). The experiment therefore
+refits the baselines' shortlist on P's own feature table and split: it reaches **0.776** with a
+random forest (validation PR-AUC: random forest 0.703, histogram GB 0.699, logreg 0.603), against
+0.741 for P's tuned and calibrated xgboost on the same 280 test rows. No interval was computed for
+either, so no ranking is claimed; the comparison says that the modelling is not where P earns its
+time - the evidence is.
+
+**History.** The run of 07-10-2026 failed when P escalated and the harness had nothing to read
+(DEC-34). The run of 08-10-2026 23:53 failed because the DEC-36 CleanJob template compiled but its
+generated copies did not (a varargs deprecation made fatal in generated code); every repair
+attempt failed gate 4 identically and P escalated at cleaning. The 16:15 run on 09-10-2026 then
+reached the end but its like-for-like refit crashed: the shortlist's preprocessing chose
+categorical columns from the baselines' three names and sent P's payment-method column to a
+median imputer. Both are fixed, with tests; the second-half claim, "agent overhead dominates P's
+time", stays untestable while no LLM provider is configured (ADR-0003).
 
 ### EXP-2, where a single node gives out — refuted on this node, partial
 

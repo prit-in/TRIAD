@@ -35,7 +35,13 @@ people, on stated evidence, rather than by a default.
 
 ## 19.3 Operational efficiency, productivity, and infrastructure
 
-<!-- RESULTS-PENDING: EXP-1's wall-clock, manual-step and line-count comparison goes here. -->
+On the small dataset of EXP-1 the comparison with the conventional pipelines is direct. TRIAD took
+989 s where a hand-written Spark pipeline took 71 s and a single pandas process 5.5 s, and none of
+the three needed a manual step; the conventional pipelines are 188 and 228 lines of code a person
+writes for this one task, and they leave no decision record, audit entry, calibration check, or
+policy verdict behind. About 600 s of TRIAD's time is its validation gates, so the price of
+running generated code safely is roughly ten minutes per run on this workstation, and more on the
+first run after a template changes, when the fixture tests run again in full (3 397 s in all).
 
 What the governance costs in time is measured, not estimated. A full governed run on 10 000
 customers took 49 minutes on the evaluation laptop, from ingestion to a published report, and
