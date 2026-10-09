@@ -45,7 +45,7 @@ object CleanJob extends TriadJob {
     val (dedupedWithRaw, removedDuplicates) = CleaningRules.deduplicate(kept, dedupKeys, dedupOrder)
     // The original text of a conformed column is evidence for the quarantine record, not data:
     // it stays with the quarantined rows and leaves the clean output.
-    val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith("__raw")): _*)
+    val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith("__raw")).toIndexedSeq: _*)
     val outputRows = deduped.count()
 
     val result = CleaningResult(

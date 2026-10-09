@@ -61,8 +61,11 @@ lazy val jobs = (project in file("jobs"))
   .settings(commonSettings)
   .settings(
     name := "triad-jobs",
-    // Warnings are errors in the generated module only (PRD 21.1 gate 4).
-    Compile / scalacOptions ++= Seq("-Wconf:src=.*generated.*:error")
+    // Warnings are errors in the generated module (PRD 21.1 gate 4) - and in the templates it is
+    // generated from, which are the only other sources here. A template that merely warned
+    // compiled in this build and then failed gate 4 on every run once copied into `generated`
+    // (the 08-10-2026 CleanJob varargs deprecation); now the build refuses the template itself.
+    Compile / scalacOptions ++= Seq("-Wconf:any:error")
   )
 
 lazy val root = (project in file("."))
