@@ -251,6 +251,11 @@ class DockerRunner:
                     raise
                 timed_out, code = True, 124
                 container.kill()
+            # Exit 137 is a SIGKILL, and only the engine knows whose: the kernel's, because the
+            # container outgrew its memory limit, or someone else's. The two need different
+            # remedies, and the job's own log - cut off mid-line - says neither.
+            container.reload()
+            oom_killed = bool(container.attrs.get("State", {}).get("OOMKilled"))
             out = container.logs(stdout=True, stderr=False).decode("utf-8", "replace")
             err = container.logs(stdout=False, stderr=True).decode("utf-8", "replace")
         finally:
@@ -269,7 +274,13 @@ class DockerRunner:
                     "timeout_s": profile["timeout_s"], "network": request.network,
                     "read_only_root": True, "user": f"{SANDBOX_USER[0]}:{SANDBOX_USER[1]}"},
             timed_out=timed_out,
-            detail="hard timeout reached" if timed_out else "",
+            detail=(
+                "hard timeout reached" if timed_out
+                else "Container killed by the kernel: it exceeded its memory limit (OOMKilled)"
+                if oom_killed
+                else "Lost executor: the sandbox container was killed from outside (exit 137)"
+                if code == 137 else ""
+            ),
         )
 
 

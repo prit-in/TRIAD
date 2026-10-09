@@ -697,8 +697,13 @@ class ChurnPipeline:
                 "exit_code": result["exit_code"],
                 "duration_ms": result["duration_ms"],
                 "image_digest": result["image_digest"],
+                # The runner's own account comes first when it has one - a timeout, or who
+                # killed the container - because the log of a killed job ends mid-line.
                 "error": (
-                    _structured_error(result["stdout"] + result["stderr"])
+                    "\n".join(part for part in (
+                        result.get("detail"),
+                        _structured_error(result["stdout"] + result["stderr"]),
+                    ) if part)
                     if not result["ok"]
                     else ""
                 ),

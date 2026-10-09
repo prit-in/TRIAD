@@ -353,3 +353,14 @@ def test_memory_is_raised_from_megabytes_and_never_past_the_sandbox() -> None:
     ceiling = f"{_max_heap_mb()}m"
     assert _bump_memory("2048m") == ceiling
     assert _bump_memory(ceiling) == ceiling
+
+
+def test_who_killed_the_container_decides_the_remedy() -> None:
+    """The runner's detail for exit 137 is what the classifier reads first."""
+    from triad_core.errors import classify
+
+    oom = classify("Container killed by the kernel: it exceeded its memory limit (OOMKilled)")
+    lost = classify("Lost executor: the sandbox container was killed from outside (exit 137)")
+    assert oom.error_class is ErrorClass.EXECUTOR_OOM
+    assert lost.error_class is ErrorClass.EXECUTOR_LOST
+    assert lost.remedy.value == "resubmit"

@@ -412,6 +412,8 @@ class StageRunner:
 
         applied = remedy in self.APPLIED_REMEDIES
         note = "" if applied else (
+            "no remedy is prescribed for this error, so the next attempt is the same work"
+            if remedy is Remedy.NONE else
             f"{remedy.value} needs the generated code rewritten, which requires an LLM "
             "provider; no input the stage reads was changed, so the next attempt is identical"
         )

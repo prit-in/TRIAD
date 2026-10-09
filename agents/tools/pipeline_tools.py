@@ -67,6 +67,7 @@ _STR = {"type": "string"}
             "image_digest": {"type": ["string", "null"]},
             "stdout": _STR,
             "stderr": _STR,
+            "detail": _STR,
         },
         "required": ["ok", "exit_code"],
     },
@@ -88,6 +89,7 @@ def _submit_job(*, sandbox: Any, **arguments: Any) -> dict[str, Any]:
         "image_digest": result.image_digest,
         "stdout": result.stdout,
         "stderr": result.stderr,
+        "detail": result.detail,
     }
 
 
