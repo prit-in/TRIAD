@@ -31,9 +31,15 @@ OWN_MOUNTS = [
 
 
 class _Container:
-    def __init__(self, *, exit_code: int = 0, hang: bool = False) -> None:
+    def __init__(self, *, exit_code: int = 0, hang: bool = False,
+                 oom_killed: bool = False) -> None:
         self.exit_code, self.hang = exit_code, hang
         self.killed = self.removed = False
+        # docker-py fills `attrs` from the engine's inspect; `reload` refreshes it.
+        self.attrs = {"State": {"OOMKilled": oom_killed}}
+
+    def reload(self) -> None:
+        pass
 
     def wait(self, timeout: int) -> dict:
         if self.hang:
@@ -247,3 +253,12 @@ def test_an_engine_error_is_reported_as_the_jobs_failure_not_as_an_outage() -> N
             RemoteRunner(url, "tok").run(_request())
     finally:
         server.shutdown()
+
+
+def test_a_killed_container_says_who_killed_it() -> None:
+    """Exit 137 is the kernel's OOM killer or someone else; the engine knows which."""
+    for oom, expected in ((True, "exceeded its memory limit"), (False, "killed from outside")):
+        container = _Container(exit_code=137, oom_killed=oom)
+        result = DockerRunner(client=_Client(container), own_mounts=OWN_MOUNTS).run(_request())
+        assert not result.ok
+        assert expected in result.detail

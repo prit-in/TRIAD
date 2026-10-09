@@ -48,6 +48,7 @@ class _FakeResult:
     image_digest: str | None = "sha256:abc"
     stdout: str = ""
     stderr: str = ""
+    detail: str = ""
 
 
 class _RecordingSandbox:
