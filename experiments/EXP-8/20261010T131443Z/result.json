@@ -1,0 +1,2330 @@
+{
+  "exp_id": "EXP-8",
+  "title": "Scala compile failures",
+  "hypothesis": "At least 70% of seeded code faults are repaired within 3 attempts; repeated fingerprints escalate; forbidden APIs never run.",
+  "independent_variable": "fault class",
+  "dependent_measures": [
+    "detected",
+    "first_failed_gate",
+    "error_class",
+    "detected_before_data",
+    "reached_execution",
+    "toolchain_failure",
+    "escalation",
+    "attempts_to_escalation",
+    "repair_rate"
+  ],
+  "started_at": "2026-10-10T13:14:43.654203+00:00",
+  "duration_s": 4502.31,
+  "status": "partial",
+  "hypothesis_held": null,
+  "conclusion": "15 of 20 seeded faults were stopped by the static gates (1 to 4), and 19 of 20 before the job read any data once the fixture tests (gate 5) are counted. Forbidden APIs: 5 of 5 refused by gate 2, the static scan, before any compile. Per class: type_mismatch 5/5 stopped (gates [4]); missing_import 5/5 stopped (gates [4]); wrong_column 4/5 stopped (gates [5, None]); forbidden_api 5/5 stopped (gates [2]). Of the 5 faults the static gates let through, the fixture tests stopped 4, in 257 to 318 s each; reached execution: ['WC-2_wrong_column']. Escalation, from two real attempts through the stage runner's classifier and circuit breaker: 19 of 19 recoverable detections tripped the breaker on the second identical failure, and 0 were escalated at once as non-recoverable. Repair rate is not measured - see the limitations. Clauses: repaired_within_3=None, repeated_fingerprints_escalate=True, forbidden_apis_never_run=True.",
+  "limitations": [
+    "Repair rate is not measured. Rewriting a generated slot requires an LLM provider and none is configured (ADR-0003); `StageRunner._apply_fix` adjusts infrastructure inputs only, so `generate` returns identical code on every attempt. A measured 0% would describe the missing provider, not the repair loop, so it is recorded as not measured rather than reported as a number.",
+    "`reached_execution` means gates 1 to 5 passed and a real run would have submitted the job to the dry run on a sample (gate 6) and then to the full input. Gate 6 is not performed here, so for a fault the fixtures did not stop, what the dry run would report is not measured."
+  ],
+  "trials": [
+    {
+      "condition": "control_unmutated",
+      "ok": true,
+      "detail": "",
+      "measurements": [
+        {
+          "name": "passed_all_gates",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fixture_gate_passed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 616.2,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fixture_detail": "1 fixture test(s) passed for triad.jobs.generated.CleanJob_exp08ctl (key 6c6ce3c610af)"
+      }
+    },
+    {
+      "condition": "TM-1_type_mismatch",
+      "ok": true,
+      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 51.6,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "SCALA_COMPILE_ERROR",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 98.2,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "TM-1",
+          "class": "type_mismatch",
+          "description": "assign a Seq[String] to an Int",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "d   : Seq[String]\n[error]  required: Int\n[error]       .filter(normalised.columns.contains)\n[error]              ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:45:79: type mismatch;\n[error]  found   : Int\n[error]  required: Seq[String]\n[error]     val (dedupedWithRaw, removedDuplicates) = CleaningRules.deduplicate(kept, dedupKeys, dedupOrder)\n[error]                                                                               ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:48:34: value drop is not a member of Any\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")).toIndexedSeq: _*)\n[error]                                  ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:48:54: value columns is not a member of Any\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")).toIndexedSeq: _*)\n[error]                                                      ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:57:27: type mismatch;\n[error]  found   : Any\n[error]  required: Long\n[error]       removedDuplicates = removedDuplicates,\n[error]                           ^\n[error] 5 errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 19 s, completed Oct 10, 2026, 1:25:53 PM\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "SCALA_COMPILE_ERROR",
+          "fingerprints": [
+            "621f89828f94817e68ada85377964fe3",
+            "621f89828f94817e68ada85377964fe3"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "TM-2_type_mismatch",
+      "ok": true,
+      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 37.8,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "SCALA_COMPILE_ERROR",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 78.5,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "TM-2",
+          "class": "type_mismatch",
+          "description": "add an Int to the rule list",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:27:04 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm2.scala:35:83: type mismatch;\n[error]  found   : Int(1)\n[error]  required: String\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised) + 1\n[error]                                                                                   ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:27:18 PM\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "SCALA_COMPILE_ERROR",
+          "fingerprints": [
+            "5307c2ebfb5fa20335cceb55fad5c196",
+            "5307c2ebfb5fa20335cceb55fad5c196"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "TM-3_type_mismatch",
+      "ok": true,
+      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 39.6,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "SCALA_COMPILE_ERROR",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 79.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "TM-3",
+          "class": "type_mismatch",
+          "description": "pass a String where a Seq[String] is required",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 7 s, completed Oct 10, 2026, 1:28:24 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm3.scala:33:7: type mismatch;\n[error]  found   : String(\"country\")\n[error]  required: Seq[String]\n[error]       \"country\"\n[error]       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:28:38 PM\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "SCALA_COMPILE_ERROR",
+          "fingerprints": [
+            "b1aab6128277db4c5f76421e9964de96",
+            "b1aab6128277db4c5f76421e9964de96"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "TM-4_type_mismatch",
+      "ok": true,
+      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 38.7,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "SCALA_COMPILE_ERROR",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 76.0,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "TM-4",
+          "class": "type_mismatch",
+          "description": "turn the rule list into a String",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "                         ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:53:20: type mismatch;\n[error]  found   : Any\n[error]  required: org.apache.spark.sql.DataFrame\n[error]     (which expands to)  org.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\n[error]       quarantine = quarantined,\n[error]                    ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:57:27: type mismatch;\n[error]  found   : Any\n[error]  required: Long\n[error]       removedDuplicates = removedDuplicates,\n[error]                           ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:58:17: type mismatch;\n[error]  found   : Any\n[error]  required: Map[String,Long]\n[error]       perRule = perRule\n[error]                 ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:35:27: a type was inferred to be `Any`; this may indicate a programming error.\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=lint-infer-any, site=triad.jobs.generated.CleanJob_exp08tm4.transform.rules\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised).mkString(\",\")\n[error]                           ^\n[error] 9 errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:29:56 PM\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "SCALA_COMPILE_ERROR",
+          "fingerprints": [
+            "d4ad6642c7987609d34cee7c44ea1ec7",
+            "d4ad6642c7987609d34cee7c44ea1ec7"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "TM-5_type_mismatch",
+      "ok": true,
+      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 37.4,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "SCALA_COMPILE_ERROR",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 76.5,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "TM-5",
+          "class": "type_mismatch",
+          "description": "return Unit where a DataFrame is expected",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:30:57 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm5.scala:32:7: type mismatch;\n[error]  found   : Any\n[error]  required: org.apache.spark.sql.DataFrame\n[error]     (which expands to)  org.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\n[error]       domainHandled,\n[error]       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:31:11 PM\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "SCALA_COMPILE_ERROR",
+          "fingerprints": [
+            "f62edc7a80398259e7ef2c33b1663e2a",
+            "f62edc7a80398259e7ef2c33b1663e2a"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "MI-1_missing_import",
+      "ok": true,
+      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 43.3,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "SCALA_COMPILE_ERROR",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 82.8,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "MI-1",
+          "class": "missing_import",
+          "description": "use `col` without importing functions",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:32:15 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi1.scala:35:87: not found: value col\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised.filter(col(\"x\") > 0))\n[error]                                                                                       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 18 s, completed Oct 10, 2026, 1:32:33 PM\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "SCALA_COMPILE_ERROR",
+          "fingerprints": [
+            "3e5fd773c40edd8da0888f8c907dc3cc",
+            "3e5fd773c40edd8da0888f8c907dc3cc"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "MI-2_missing_import",
+      "ok": true,
+      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 38.2,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "SCALA_COMPILE_ERROR",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 76.6,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "MI-2",
+          "class": "missing_import",
+          "description": "use `lit` without importing functions",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:33:38 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi2.scala:35:96: not found: value lit\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised.withColumn(\"z\", lit(1)))\n[error]                                                                                                ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:33:51 PM\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "SCALA_COMPILE_ERROR",
+          "fingerprints": [
+            "5e3784cd234d519ed2e83aa0bb926695",
+            "5e3784cd234d519ed2e83aa0bb926695"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "MI-3_missing_import",
+      "ok": true,
+      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 38.4,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "SCALA_COMPILE_ERROR",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 77.1,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "MI-3",
+          "class": "missing_import",
+          "description": "reference an unimported type",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:34:53 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi3.scala:36:17: not found: type StructType\n[error]     val schema: StructType = null; val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]                 ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi3.scala:36:9: local val schema in method transform is never used\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=unused-locals, site=triad.jobs.generated.CleanJob_exp08mi3.transform.schema\n[error]     val schema: StructType = null; val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]         ^\n[error] two errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 15 s, completed Oct 10, 2026, 1:35:08 PM\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "SCALA_COMPILE_ERROR",
+          "fingerprints": [
+            "467503c4c452dccce23b16f6d3a230e7",
+            "467503c4c452dccce23b16f6d3a230e7"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "MI-4_missing_import",
+      "ok": true,
+      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 38.8,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "SCALA_COMPILE_ERROR",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 76.4,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "MI-4",
+          "class": "missing_import",
+          "description": "use a Java class that is not imported",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:36:11 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi4.scala:36:16: not found: value Instant\n[error]     val when = Instant.now(); val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]                ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi4.scala:36:9: local val when in method transform is never used\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=unused-locals, site=triad.jobs.generated.CleanJob_exp08mi4.transform.when\n[error]     val when = Instant.now(); val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]         ^\n[error] two errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:36:25 PM\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "SCALA_COMPILE_ERROR",
+          "fingerprints": [
+            "1c4b72740818325631c65e0bef9092c2",
+            "1c4b72740818325631c65e0bef9092c2"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "MI-5_missing_import",
+      "ok": true,
+      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 95.5,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "SCALA_COMPILE_ERROR",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 158.1,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "MI-5",
+          "class": "missing_import",
+          "description": "call an unimported helper object",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 30 s, completed Oct 10, 2026, 1:38:05 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi5.scala:35:30: not found: value QuarantineHelper\n[error]     val rules = castRules ++ QuarantineHelper.rulesFor(normalised)\n[error]                              ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 33 s, completed Oct 10, 2026, 1:38:38 PM\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "SCALA_COMPILE_ERROR",
+          "fingerprints": [
+            "91d661e05efdba741368edb86bca85a9",
+            "91d661e05efdba741368edb86bca85a9"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "WC-1_wrong_column",
+      "ok": true,
+      "detail": "stopped at gate 5 (CONTRACT_VIOLATION), expected 5; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 368.7,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 5,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "CONTRACT_VIOLATION",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": false,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fixture_gate_passed",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fixture_gate_s",
+          "value": 318.5,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 699.8,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "WC-1",
+          "class": "wrong_column",
+          "description": "de-duplicate on a misspelled key, which the filter drops",
+          "expected_gate": 5,
+          "note": "compiles; de-duplicates on line_id alone, merging different orders"
+        },
+        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 13:42:48 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 13:42:48 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 13:42:48 INFO Executor: Java version 17.0.20.1+1\n26/10/10 13:42:49 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 13:42:49 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@55c09857 for default.\n26/10/10 13:42:49 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 42235.\n26/10/10 13:42:49 INFO NettyBlockTransferService: Server created on localhost:42235\n26/10/10 13:42:49 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 13:42:50 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManagerMasterEndpoint: Registering block manager localhost:42235 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 42235, None)\n",
+        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 13:42:48 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 13:42:48 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 13:42:48 INFO Executor: Java version 17.0.20.1+1\n26/10/10 13:42:49 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 13:42:49 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@55c09857 for default.\n26/10/10 13:42:49 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 42235.\n26/10/10 13:42:49 INFO NettyBlockTransferService: Server created on localhost:42235\n26/10/10 13:42:49 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 13:42:50 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManagerMasterEndpoint: Registering block manager localhost:42235 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 42235, None)\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "CONTRACT_VIOLATION",
+          "fingerprints": [
+            "7176483c6dac491350bf4a53e16b93a0",
+            "7176483c6dac491350bf4a53e16b93a0"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "WC-2_wrong_column",
+      "ok": true,
+      "detail": "passed gates 1 to 5; expected gate 9",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 353.1,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": false,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fixture_gate_passed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fixture_gate_s",
+          "value": 312.5,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 353.1,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "WC-2",
+          "class": "wrong_column",
+          "description": "misspell both de-duplication keys",
+          "expected_gate": 9,
+          "note": "compiles; with no key left the job falls back to whole-row de-duplication, so a re-sent line that differs in any other column survives as a duplicate"
+        },
+        "fixture_detail": "1 fixture test(s) passed for triad.jobs.generated.CleanJob_exp08wc2 (key 153898b54913)",
+        "gate_detail": "",
+        "violations": []
+      }
+    },
+    {
+      "condition": "WC-3_wrong_column",
+      "ok": true,
+      "detail": "stopped at gate 5 (CONTRACT_VIOLATION), expected 5; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 354.3,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 5,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "CONTRACT_VIOLATION",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": false,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fixture_gate_passed",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fixture_gate_s",
+          "value": 311.1,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 689.0,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "WC-3",
+          "class": "wrong_column",
+          "description": "test the wrong column for the cancellation rule",
+          "expected_gate": 5,
+          "note": "compiles; cancellations are no longer turned into returns"
+        },
+        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:00:13 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:00:13 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:00:13 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:00:13 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:00:13 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@55c09857 for default.\n26/10/10 14:00:13 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 33573.\n26/10/10 14:00:13 INFO NettyBlockTransferService: Server created on localhost:33573\n26/10/10 14:00:13 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:00:14 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManagerMasterEndpoint: Registering block manager localhost:33573 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 33573, None)\n",
+        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:00:13 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:00:13 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:00:13 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:00:13 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:00:13 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@55c09857 for default.\n26/10/10 14:00:13 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 33573.\n26/10/10 14:00:13 INFO NettyBlockTransferService: Server created on localhost:33573\n26/10/10 14:00:13 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:00:14 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManagerMasterEndpoint: Registering block manager localhost:33573 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 33573, None)\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "CONTRACT_VIOLATION",
+          "fingerprints": [
+            "7176483c6dac491350bf4a53e16b93a0",
+            "7176483c6dac491350bf4a53e16b93a0"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "WC-4_wrong_column",
+      "ok": true,
+      "detail": "stopped at gate 5 (CONTRACT_VIOLATION), expected 5; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 348.7,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 5,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "CONTRACT_VIOLATION",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": false,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fixture_gate_passed",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fixture_gate_s",
+          "value": 306.8,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 685.5,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "WC-4",
+          "class": "wrong_column",
+          "description": "declare the order key numeric instead of the quantity",
+          "expected_gate": 5,
+          "note": "compiles; every order id fails the cast and every row is quarantined"
+        },
+        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:11:38 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:11:38 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:11:38 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:11:38 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:11:38 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@1a4a06e0 for default.\n26/10/10 14:11:39 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 43411.\n26/10/10 14:11:39 INFO NettyBlockTransferService: Server created on localhost:43411\n26/10/10 14:11:39 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:11:40 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManagerMasterEndpoint: Registering block manager localhost:43411 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 43411, None)\n",
+        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:11:38 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:11:38 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:11:38 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:11:38 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:11:38 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@1a4a06e0 for default.\n26/10/10 14:11:39 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 43411.\n26/10/10 14:11:39 INFO NettyBlockTransferService: Server created on localhost:43411\n26/10/10 14:11:39 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:11:40 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManagerMasterEndpoint: Registering block manager localhost:43411 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 43411, None)\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "CONTRACT_VIOLATION",
+          "fingerprints": [
+            "7176483c6dac491350bf4a53e16b93a0",
+            "7176483c6dac491350bf4a53e16b93a0"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "WC-5_wrong_column",
+      "ok": true,
+      "detail": "stopped at gate 5 (CONTRACT_VIOLATION), expected 5; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 299.4,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 5,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "CONTRACT_VIOLATION",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": false,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fixture_gate_passed",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fixture_gate_s",
+          "value": 257.0,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 577.5,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "WC-5",
+          "class": "wrong_column",
+          "description": "filter on a misspelled column",
+          "expected_gate": 5,
+          "note": "compiles; fails when Spark resolves the name"
+        },
+        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:23:08 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:23:08 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:23:08 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:23:09 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:23:09 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@46e9cc4c for default.\n26/10/10 14:23:09 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 38193.\n26/10/10 14:23:09 INFO NettyBlockTransferService: Server created on localhost:38193\n26/10/10 14:23:09 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:23:10 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:10 INFO BlockManagerMasterEndpoint: Registering block manager localhost:38193 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:10 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:11 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 38193, None)\n",
+        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:23:08 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:23:08 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:23:08 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:23:09 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:23:09 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@46e9cc4c for default.\n26/10/10 14:23:09 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 38193.\n26/10/10 14:23:09 INFO NettyBlockTransferService: Server created on localhost:38193\n26/10/10 14:23:09 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:23:10 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:10 INFO BlockManagerMasterEndpoint: Registering block manager localhost:38193 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:10 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:11 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 38193, None)\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "CONTRACT_VIOLATION",
+          "fingerprints": [
+            "7176483c6dac491350bf4a53e16b93a0",
+            "7176483c6dac491350bf4a53e16b93a0"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "FA-1_forbidden_api",
+      "ok": true,
+      "detail": "stopped at gate 2 (POLICY_VIOLATION), expected 2; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 0.3,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "POLICY_VIOLATION",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 0.4,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "FA-1",
+          "class": "forbidden_api",
+          "description": "collect() the event data onto the driver",
+          "expected_gate": 2,
+          "note": ""
+        },
+        "gate_detail": "1 violation(s)",
+        "violations": [
+          "forbidden API: collect() on event data: driver memory (LR-09)"
+        ],
+        "escalation": {
+          "error_class": "POLICY_VIOLATION",
+          "fingerprints": [
+            "3a775a6d0d075fb123ee22f618ad4d6b",
+            "3a775a6d0d075fb123ee22f618ad4d6b"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "FA-2_forbidden_api",
+      "ok": true,
+      "detail": "stopped at gate 2 (POLICY_VIOLATION), expected 2; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 0.2,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "POLICY_VIOLATION",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 0.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "FA-2",
+          "class": "forbidden_api",
+          "description": "write output from inside the slot",
+          "expected_gate": 2,
+          "note": ""
+        },
+        "gate_detail": "1 violation(s)",
+        "violations": [
+          "forbidden API: output writing belongs to the template, never to a slot"
+        ],
+        "escalation": {
+          "error_class": "POLICY_VIOLATION",
+          "fingerprints": [
+            "3a775a6d0d075fb123ee22f618ad4d6b",
+            "3a775a6d0d075fb123ee22f618ad4d6b"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "FA-3_forbidden_api",
+      "ok": true,
+      "detail": "stopped at gate 2 (POLICY_VIOLATION), expected 2; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 0.2,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "POLICY_VIOLATION",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 0.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "FA-3",
+          "class": "forbidden_api",
+          "description": "build a second SparkSession",
+          "expected_gate": 2,
+          "note": ""
+        },
+        "gate_detail": "1 violation(s)",
+        "violations": [
+          "forbidden API: the job template owns the SparkSession"
+        ],
+        "escalation": {
+          "error_class": "POLICY_VIOLATION",
+          "fingerprints": [
+            "3a775a6d0d075fb123ee22f618ad4d6b",
+            "3a775a6d0d075fb123ee22f618ad4d6b"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "FA-4_forbidden_api",
+      "ok": true,
+      "detail": "stopped at gate 2 (POLICY_VIOLATION), expected 2; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 0.2,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "POLICY_VIOLATION",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 0.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "FA-4",
+          "class": "forbidden_api",
+          "description": "kill the driver with System.exit",
+          "expected_gate": 2,
+          "note": ""
+        },
+        "gate_detail": "1 violation(s)",
+        "violations": [
+          "forbidden API: System.exit: kills the driver"
+        ],
+        "escalation": {
+          "error_class": "POLICY_VIOLATION",
+          "fingerprints": [
+            "3a775a6d0d075fb123ee22f618ad4d6b",
+            "3a775a6d0d075fb123ee22f618ad4d6b"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "FA-5_forbidden_api",
+      "ok": true,
+      "detail": "stopped at gate 2 (POLICY_VIOLATION), expected 2; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 0.2,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "POLICY_VIOLATION",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 0.3,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "FA-5",
+          "class": "forbidden_api",
+          "description": "reach the network from a sandbox job",
+          "expected_gate": 2,
+          "note": ""
+        },
+        "gate_detail": "1 violation(s)",
+        "violations": [
+          "forbidden API: java.net: network access"
+        ],
+        "escalation": {
+          "error_class": "POLICY_VIOLATION",
+          "fingerprints": [
+            "3a775a6d0d075fb123ee22f618ad4d6b",
+            "3a775a6d0d075fb123ee22f618ad4d6b"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    }
+  ]
+}

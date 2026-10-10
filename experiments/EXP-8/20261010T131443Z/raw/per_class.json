@@ -1,0 +1,55 @@
+{
+  "type_mismatch": {
+    "faults": 5,
+    "detected_static": 5,
+    "stopped_by_fixtures": 0,
+    "detected_before_data": 5,
+    "reached_execution": 0,
+    "gates": [
+      4
+    ],
+    "escalations": [
+      "circuit_breaker"
+    ]
+  },
+  "missing_import": {
+    "faults": 5,
+    "detected_static": 5,
+    "stopped_by_fixtures": 0,
+    "detected_before_data": 5,
+    "reached_execution": 0,
+    "gates": [
+      4
+    ],
+    "escalations": [
+      "circuit_breaker"
+    ]
+  },
+  "wrong_column": {
+    "faults": 5,
+    "detected_static": 0,
+    "stopped_by_fixtures": 4,
+    "detected_before_data": 4,
+    "reached_execution": 1,
+    "gates": [
+      5,
+      null
+    ],
+    "escalations": [
+      "circuit_breaker"
+    ]
+  },
+  "forbidden_api": {
+    "faults": 5,
+    "detected_static": 5,
+    "stopped_by_fixtures": 0,
+    "detected_before_data": 5,
+    "reached_execution": 0,
+    "gates": [
+      2
+    ],
+    "escalations": [
+      "circuit_breaker"
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "exp_id": "EXP-8",
+  "title": "Scala compile failures",
+  "hypothesis": "At least 70% of seeded code faults are repaired within 3 attempts; repeated fingerprints escalate; forbidden APIs never run.",
+  "independent_variable": "fault class",
+  "dependent_measures": [
+    "detected",
+    "first_failed_gate",
+    "error_class",
+    "detected_before_data",
+    "reached_execution",
+    "toolchain_failure",
+    "escalation",
+    "attempts_to_escalation",
+    "repair_rate"
+  ],
+  "started_at": "2026-10-10T13:14:43.654203+00:00",
+  "config": {
+    "template": "CleanJob",
+    "slot": "cleaning_plan",
+    "faults": 20,
+    "fault_classes": [
+      "type_mismatch",
+      "missing_import",
+      "wrong_column",
+      "forbidden_api"
+    ],
+    "stale_anchors": [],
+    "gates_run": [
+      "1 structured output",
+      "2 static checks",
+      "3 dependencies",
+      "4 compile (only if 1-3 pass)",
+      "5 fixture tests (only if 1-4 pass; not cached)"
+    ],
+    "attempts": "each detected fault's gates are run twice on the identical artifact; both results go through classify and RunBudget.record_fingerprint",
+    "repair_measurement": "not possible here: rewriting a generated slot needs an LLM provider and none is configured (ADR-0003), so `generate` re-renders identical code on every attempt. See the module docstring."
+  }
+}
