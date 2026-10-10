@@ -1,0 +1,34 @@
+{
+  "exp_id": "EXP-6",
+  "title": "Spark failures and recovery",
+  "hypothesis": "An executor loss is absorbed by retrying; the playbook fixes out-of-memory within 2 retries; adaptive execution handles skew; recovered outputs are identical to the clean run.",
+  "independent_variable": "fault type",
+  "dependent_measures": [
+    "recovered",
+    "first_error_class",
+    "attempts",
+    "retries",
+    "wall_clock_s",
+    "content_hash",
+    "remedies_applied",
+    "identical_to_clean_run",
+    "feature_max_task_skew"
+  ],
+  "started_at": "2026-10-10T11:31:28.027172+00:00",
+  "config": {
+    "customers": 400,
+    "months": 24,
+    "seed": 42,
+    "oom_driver_memory": "460m",
+    "memory_arm_customers": 20000,
+    "kill_into_job_seconds": 10.0,
+    "arms": {
+      "clean_baseline": "no fault; the reference output checksum, and the reference feature-job skew",
+      "memory_reference": "20000 customers at the configured memory; the memory arm's reference",
+      "low_executor_memory": "the same 20000 customers given 460m, the least heap Spark starts with",
+      "sandbox_container_killed": "the job's container is killed 10 s into its run",
+      "skewed_one_customer_20pct": "one account holds 20% of all order lines; cleaning and the feature job"
+    },
+    "shared_source_note": "the clean baseline and the killed arm read byte-identical source data, and so do the memory reference and the memory arm, which is what makes each checksum comparison meaningful; the skew arm necessarily differs"
+  }
+}

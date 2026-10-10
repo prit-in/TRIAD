@@ -1,31 +1,35 @@
 {
   "exp_id": "EXP-6",
   "title": "Spark failures and recovery",
-  "hypothesis": "Spark's task retries absorb an executor loss; the playbook fixes out-of-memory within 2 retries; adaptive execution handles skew.",
+  "hypothesis": "An executor loss is absorbed by retrying; the playbook fixes out-of-memory within 2 retries; adaptive execution handles skew; recovered outputs are identical to the clean run.",
   "independent_variable": "fault type",
   "dependent_measures": [
     "recovered",
+    "first_error_class",
     "attempts",
     "retries",
     "wall_clock_s",
     "content_hash",
     "remedies_applied",
-    "identical_to_clean_run"
+    "identical_to_clean_run",
+    "feature_max_task_skew"
   ],
-  "started_at": "2026-09-19T06:36:29.980726+00:00",
-  "duration_s": 1449.76,
+  "started_at": "2026-10-10T11:31:28.027172+00:00",
+  "duration_s": 2295.73,
   "status": "partial",
-  "hypothesis_held": false,
-  "conclusion": "Reference clean run: 8078 rows, content hash 1d1ca664a2174556. low_driver_memory: recovered=False in 2 attempt(s) (1 retries, 276.2s), remedies [], output identical to the clean run: False. sandbox_container_killed: recovered=True in 1 attempt(s) (0 retries, 170.4s), remedies [], output identical to the clean run: False. skewed_one_customer_20pct: recovered=True in 1 attempt(s) (0 retries, 87.4s), remedies [], output identical to the clean run: None. 2 of 3 injected faults recovered. The executor kill landed on a real container: False. The out-of-memory arm is the one that matters most here: it is the test that RAISE_EXECUTOR_MEMORY reaches the submitted job at all, which it did not until this experiment was written - the retry used to be given exactly the memory that had just failed.",
+  "hypothesis_held": null,
+  "conclusion": "Reference clean run: 8078 rows, content hash 5399c7fd5344af2a, job 68.1 s. low_executor_memory: recovered=True in 1 attempt(s), first failure None, remedies [], output identical to the clean run: True. sandbox_container_killed: recovered=True in 2 attempt(s), first failure EXECUTOR_LOST, remedies ['resubmit'], output identical to the clean run: True. skewed_one_customer_20pct: recovered=True in 1 attempt(s), first failure None, remedies [], output identical to the clean run: None. Memory at 460m on 20000 customers: out-of-memory landed False (first failures (None, None)); feature-job spill 178765620 bytes against 0 at the configured memory; feature job 151.5 s against 319.4 s; outputs identical to the reference: clean True, features False; fixed within 2 retries: None. The kill landed 10.3 s into the job as a lost executor: True; recovered identically: True. Feature job task skew (slowest over median task): baseline 1.0, skewed 1.0; the skewed feature job completed: True in 1 attempt(s); skew handling not assessable at this size. Clauses: baseline_ran=True, oom_fixed=None, kill_absorbed=True, skew_handled=None.",
   "limitations": [
-    "Spark runs in local mode inside the sandbox, so the driver is the executor. Killing the sandbox container is therefore losing the executor, which is the closest this environment reaches to the PRD's distributed executor loss - not a measurement of a multi-executor cluster shedding one worker (ADR-0002).",
-    "The container kill did not land: no sandbox container was seen while the job ran, so that arm measures an ordinary run and not a recovery. FileNotFoundError: [Errno 2] No such file or directory: 'docker'"
+    "Spark runs in local mode inside the sandbox, so the driver is the executor and no task is retried by Spark itself. Killing the sandbox container is therefore losing the executor, and what absorbs it is the platform resubmitting the job - not Spark's task retries on a multi-executor cluster, which this environment cannot show (ADR-0002).",
+    "At 400 customers one account's 20% of the lines is a small partition, so the skew arm shows whether the feature job completes and how uneven its tasks were, not how skew handling behaves at the sizes where it decides the run time.",
+    "The memory fault did not land as an out-of-memory: at 460m on 20000 customers the first failures were (None, None) (None means no failure). The feature job spilled 178765620 bytes to disk against 0 at the configured memory: Spark degraded rather than failed, so the playbook's out-of-memory remedy was not exercised and that claim is untested here. The pilots behind the setting are in experiments/EXP-6/pilot_20261010.md.",
+    "The memory remedy is held against the spark.config_change allowlist like any Spark setting (DEC-20, DEC-41): in local mode the heap is spark.driver.memory, which the allowlist leaves to a person, so the permitted part of the out-of-memory remedy here is the shuffle-partition raise."
   ],
   "trials": [
     {
       "condition": "clean_baseline",
       "ok": true,
-      "detail": "recovered=True after 2 attempt(s); remedies []",
+      "detail": "recovered=True after 1 attempt(s); first failure None; remedies []",
       "measurements": [
         {
           "name": "input_rows",
@@ -34,8 +38,14 @@
           "note": ""
         },
         {
+          "name": "stage_wall_clock_s",
+          "value": 288.2,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
           "name": "wall_clock_s",
-          "value": 893.4,
+          "value": 577.0,
           "unit": "s",
           "note": ""
         },
@@ -47,13 +57,13 @@
         },
         {
           "name": "attempts",
-          "value": 2,
+          "value": 1,
           "unit": "",
           "note": ""
         },
         {
           "name": "retries",
-          "value": 1,
+          "value": 0,
           "unit": "",
           "note": ""
         },
@@ -64,6 +74,12 @@
           "note": ""
         },
         {
+          "name": "first_error_class",
+          "value": null,
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
+        },
+        {
           "name": "remedies_applied",
           "value": [],
           "unit": "",
@@ -71,11 +87,15 @@
         },
         {
           "name": "remedies_unapplied",
-          "value": [
-            "regenerate_code"
-          ],
+          "value": [],
           "unit": "",
           "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 68.1,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
         },
         {
           "name": "clean_rows",
@@ -91,7 +111,7 @@
         },
         {
           "name": "content_hash",
-          "value": "1d1ca664a2174556e436a1c409e0e448e08363b42a70ff73f982b894c0ebc633",
+          "value": "5399c7fd5344af2a61143ba47ca3a3b69087aaa923b41422729403fc6b93f547",
           "unit": "",
           "note": ""
         },
@@ -100,72 +120,121 @@
           "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
           "unit": "",
           "note": ""
-        }
-      ],
-      "observations": {
-        "diagnoses": [
-          {
-            "error_class": "SCALA_COMPILE_ERROR",
-            "fingerprint": "ea01f5c79a14215a1d1d768bd90c1818",
-            "message": "ache.CacheUrl$.redirect(CacheUrl.scala:193)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.CacheUrl$.urlConnectionMaybePartial(CacheUrl.scala:349)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.ConnectionBuilder.connectionMaybePartial(ConnectionBuilder.scala:50)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$Blocking$.doDownload(Downloader.scala:232)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$Blocking$.$anonfun$remote$2(Downloader.scala:423)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.CacheLocks$.loop$1(CacheLocks.scala:94)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.CacheLocks$.withLockOr(CacheLocks.scala:117)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$Blocking$.$anonfun$remote$1(Downloader.scala:426)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$.$anonfun$downloading$2(Downloader.scala:776)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.CacheLocks$.withUrlLock(CacheLocks.scala:136)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$.$anonfun$downloading$1(Downloader.scala:776)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Retry.loop$1(Retry.scala:23)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Retry.retryOpt(Retry.scala:39)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$.coursier$cache$internal$Downloader$$downloading(Downloader.scala:812)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader$Blocking$.remote(Downloader.scala:428)\n[error] \tat lmcoursier.internal.shaded.coursier.cache.internal.Downloader.$anonfun$remote$6(Downloader.scala:546)\n[error] \tat scala.concurrent.Future$.$anonfun$apply$1(Future.scala:659)\n[error] \tat scala.util.Success.$anonfun$map$1(Try.scala:255)\n[error] \tat scala.util.Success.map(Try.scala:213)\n[error] \tat scala.concurrent.Future.$anonfun$map$1(Future.scala:292)\n[error] \tat sca",
-            "remedy": "regenerate_code",
-            "recoverable": true,
-            "retry_limit": 3,
-            "needs_approval": false,
-            "matched_by": "taxonomy",
-            "details": {}
-          }
-        ],
-        "applied_fixes": [
-          {
-            "remedy": "regenerate_code",
-            "error_class": "SCALA_COMPILE_ERROR",
-            "applied": false,
-            "note": "regenerate_code needs the generated code rewritten, which requires an LLM provider; no input the stage reads was changed, so the next attempt is identical"
-          }
-        ]
-      }
-    },
-    {
-      "condition": "low_driver_memory",
-      "ok": false,
-      "detail": "recovered=False after 2 attempt(s); remedies []",
-      "measurements": [
+        },
         {
-          "name": "input_rows",
-          "value": 8078,
+          "name": "features_succeeded",
+          "value": true,
           "unit": "",
           "note": ""
         },
         {
-          "name": "wall_clock_s",
-          "value": 276.2,
-          "unit": "s",
-          "note": ""
-        },
-        {
-          "name": "recovered",
-          "value": false,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "attempts",
-          "value": 2,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "retries",
+          "name": "feature_attempts",
           "value": 1,
           "unit": "",
           "note": ""
         },
         {
-          "name": "escalated",
+          "name": "feature_job_duration_s",
+          "value": 67.0,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "feature_max_task_skew",
+          "value": 1.0,
+          "unit": "",
+          "note": "the worst stage's slowest task over its median task"
+        },
+        {
+          "name": "feature_disk_spill_bytes",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_rows",
+          "value": 2097,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_first_error_class",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_content_hash",
+          "value": "ee47d4f64e43204e4192e985dd49f06cb479551e1752f89b0c5dd51f09763436",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "diagnoses": [],
+        "applied_fixes": [],
+        "feature_diagnoses": [],
+        "feature_applied_fixes": []
+      }
+    },
+    {
+      "condition": "memory_reference",
+      "ok": true,
+      "detail": "recovered=True after 1 attempt(s); first failure None; remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 394306,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "stage_wall_clock_s",
+          "value": 156.6,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 631.6,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
           "value": true,
           "unit": "",
           "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_error_class",
+          "value": null,
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
         },
         {
           "name": "remedies_applied",
@@ -175,95 +244,278 @@
         },
         {
           "name": "remedies_unapplied",
-          "value": [
-            "none"
-          ],
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 66.2,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
+        },
+        {
+          "name": "clean_rows",
+          "value": 394306,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
           "unit": "",
           "note": ""
         },
         {
           "name": "content_hash",
+          "value": "230a9395246f7cbde41723cc2f7491f711e5ed9c3c632a4e25b872f554aec9e4",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "features_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_job_duration_s",
+          "value": 319.4,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "feature_max_task_skew",
+          "value": 1.06,
+          "unit": "",
+          "note": "the worst stage's slowest task over its median task"
+        },
+        {
+          "name": "feature_disk_spill_bytes",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_rows",
+          "value": 110900,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_first_error_class",
           "value": null,
           "unit": "",
-          "note": "the stage did not produce an output"
+          "note": ""
+        },
+        {
+          "name": "feature_retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_content_hash",
+          "value": "56d21bec2e828fc6483efbb86ec8f5e00fb6c03fb0d001b096b0027c309a65dd",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "diagnoses": [],
+        "applied_fixes": [],
+        "feature_diagnoses": [],
+        "feature_applied_fixes": []
+      }
+    },
+    {
+      "condition": "low_executor_memory",
+      "ok": true,
+      "detail": "recovered=True after 1 attempt(s); first failure None; remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 394306,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "stage_wall_clock_s",
+          "value": 161.6,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 461.6,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_error_class",
+          "value": null,
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
+        },
+        {
+          "name": "remedies_applied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 66.1,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
+        },
+        {
+          "name": "clean_rows",
+          "value": 394306,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": "230a9395246f7cbde41723cc2f7491f711e5ed9c3c632a4e25b872f554aec9e4",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "features_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_job_duration_s",
+          "value": 151.5,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "feature_max_task_skew",
+          "value": 2.163,
+          "unit": "",
+          "note": "the worst stage's slowest task over its median task"
+        },
+        {
+          "name": "feature_disk_spill_bytes",
+          "value": 178765620,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_rows",
+          "value": 110900,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_first_error_class",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_content_hash",
+          "value": "3c5a800e61b34c6c466f8397696a943a1845ba3bbb59f24179f7f0226416dbd2",
+          "unit": "",
+          "note": ""
         },
         {
           "name": "identical_to_clean_run",
+          "value": true,
+          "unit": "",
+          "note": "against the same data at the configured memory"
+        },
+        {
+          "name": "features_identical_to_clean_run",
           "value": false,
           "unit": "",
-          "note": "the committed output's content hash against the clean run's"
+          "note": "against the same data at the configured memory"
         }
       ],
       "observations": {
         "config_overrides": {
-          "spark.driver_memory": "256m"
+          "spark.driver_memory": "460m"
         },
-        "diagnoses": [
-          {
-            "error_class": "UNKNOWN",
-            "fingerprint": "1691edcce4e5cfdd50e8a431b3665bb3",
-            "message": "3)\n\tat triad.jobs.generated.CleanJob_c610a2c0.main(CleanJob_c610a2c0.scala)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)\n\tat java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:569)\n\tat org.apache.spark.deploy.JavaMainApplication.start(SparkApplication.scala:52)\n\tat org.apache.spark.deploy.SparkSubmit.org$apache$spark$deploy$SparkSubmit$$runMain(SparkSubmit.scala:1030)\n\tat org.apache.spark.deploy.SparkSubmit.doRunMain$1(SparkSubmit.scala:203)\n\tat org.apache.spark.deploy.SparkSubmit.submit(SparkSubmit.scala:226)\n\tat org.apache.spark.deploy.SparkSubmit.doSubmit(SparkSubmit.scala:95)\n\tat org.apache.spark.deploy.SparkSubmit$$anon$2.doSubmit(SparkSubmit.scala:1168)\n\tat org.apache.spark.deploy.SparkSubmit$.main(SparkSubmit.scala:1177)\n\tat org.apache.spark.deploy.SparkSubmit.main(SparkSubmit.scala)\n26/09/19 06:54:01 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!\n26/09/19 06:54:01 INFO BlockManager: BlockManager stopped\n26/09/19 06:54:01 INFO BlockManagerMaster: BlockManagerMaster stopped\n26/09/19 06:54:01 WARN MetricsSystem: Stopping a MetricsSystem that is not running\n26/09/19 06:54:01 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!\n26/09/19 06:54:01 INFO SparkContext: Successfully stopped SparkContext (Uptime: 9408 ms)\nException in thread \"main\" org.apache.spark.SparkIllegalArgumentException: [INVALID_DRIVER_MEMORY] System memory 268435456 must be at least 471859200.\nPlease increase heap size using the --driver-memory option or \"spark.driver.memory\" in Spark configuration. SQLSTATE: F0000\n\tat org.apache.spark.memory.UnifiedMemoryManager$.getMaxMemory(UnifiedMemoryManager.scala:473)\n\tat org.apache.spark.memory.UnifiedMemoryManager$.apply(UnifiedMemory",
-            "remedy": "none",
-            "recoverable": true,
-            "retry_limit": 1,
-            "needs_approval": false,
-            "matched_by": "unmatched",
-            "details": {}
-          },
-          {
-            "error_class": "UNKNOWN",
-            "fingerprint": "1691edcce4e5cfdd50e8a431b3665bb3",
-            "message": "3)\n\tat triad.jobs.generated.CleanJob_c610a2c0.main(CleanJob_c610a2c0.scala)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)\n\tat java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:569)\n\tat org.apache.spark.deploy.JavaMainApplication.start(SparkApplication.scala:52)\n\tat org.apache.spark.deploy.SparkSubmit.org$apache$spark$deploy$SparkSubmit$$runMain(SparkSubmit.scala:1030)\n\tat org.apache.spark.deploy.SparkSubmit.doRunMain$1(SparkSubmit.scala:203)\n\tat org.apache.spark.deploy.SparkSubmit.submit(SparkSubmit.scala:226)\n\tat org.apache.spark.deploy.SparkSubmit.doSubmit(SparkSubmit.scala:95)\n\tat org.apache.spark.deploy.SparkSubmit$$anon$2.doSubmit(SparkSubmit.scala:1168)\n\tat org.apache.spark.deploy.SparkSubmit$.main(SparkSubmit.scala:1177)\n\tat org.apache.spark.deploy.SparkSubmit.main(SparkSubmit.scala)\n26/09/19 06:56:20 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!\n26/09/19 06:56:20 INFO BlockManager: BlockManager stopped\n26/09/19 06:56:20 INFO BlockManagerMaster: BlockManagerMaster stopped\n26/09/19 06:56:20 WARN MetricsSystem: Stopping a MetricsSystem that is not running\n26/09/19 06:56:20 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!\n26/09/19 06:56:21 INFO SparkContext: Successfully stopped SparkContext (Uptime: 7154 ms)\nException in thread \"main\" org.apache.spark.SparkIllegalArgumentException: [INVALID_DRIVER_MEMORY] System memory 268435456 must be at least 471859200.\nPlease increase heap size using the --driver-memory option or \"spark.driver.memory\" in Spark configuration. SQLSTATE: F0000\n\tat org.apache.spark.memory.UnifiedMemoryManager$.getMaxMemory(UnifiedMemoryManager.scala:473)\n\tat org.apache.spark.memory.UnifiedMemoryManager$.apply(UnifiedMemory",
-            "remedy": "none",
-            "recoverable": true,
-            "retry_limit": 1,
-            "needs_approval": false,
-            "matched_by": "unmatched",
-            "details": {}
-          }
-        ],
-        "applied_fixes": [
-          {
-            "remedy": "none",
-            "error_class": "UNKNOWN",
-            "applied": false,
-            "note": "none needs the generated code rewritten, which requires an LLM provider; no input the stage reads was changed, so the next attempt is identical"
-          }
-        ],
-        "escalation": {
-          "stage": "clean",
-          "reason": "circuit breaker: error fingerprint 1691edcce4e5 repeated",
-          "diagnoses": [
-            {
-              "error_class": "UNKNOWN",
-              "fingerprint": "1691edcce4e5cfdd50e8a431b3665bb3",
-              "message": "3)\n\tat triad.jobs.generated.CleanJob_c610a2c0.main(CleanJob_c610a2c0.scala)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)\n\tat java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:569)\n\tat org.apache.spark.deploy.JavaMainApplication.start(SparkApplication.scala:52)\n\tat org.apache.spark.deploy.SparkSubmit.org$apache$spark$deploy$SparkSubmit$$runMain(SparkSubmit.scala:1030)\n\tat org.apache.spark.deploy.SparkSubmit.doRunMain$1(SparkSubmit.scala:203)\n\tat org.apache.spark.deploy.SparkSubmit.submit(SparkSubmit.scala:226)\n\tat org.apache.spark.deploy.SparkSubmit.doSubmit(SparkSubmit.scala:95)\n\tat org.apache.spark.deploy.SparkSubmit$$anon$2.doSubmit(SparkSubmit.scala:1168)\n\tat org.apache.spark.deploy.SparkSubmit$.main(SparkSubmit.scala:1177)\n\tat org.apache.spark.deploy.SparkSubmit.main(SparkSubmit.scala)\n26/09/19 06:54:01 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!\n26/09/19 06:54:01 INFO BlockManager: BlockManager stopped\n26/09/19 06:54:01 INFO BlockManagerMaster: BlockManagerMaster stopped\n26/09/19 06:54:01 WARN MetricsSystem: Stopping a MetricsSystem that is not running\n26/09/19 06:54:01 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!\n26/09/19 06:54:01 INFO SparkContext: Successfully stopped SparkContext (Uptime: 9408 ms)\nException in thread \"main\" org.apache.spark.SparkIllegalArgumentException: [INVALID_DRIVER_MEMORY] System memory 268435456 must be at least 471859200.\nPlease increase heap size using the --driver-memory option or \"spark.driver.memory\" in Spark configuration. SQLSTATE: F0000\n\tat org.apache.spark.memory.UnifiedMemoryManager$.getMaxMemory(UnifiedMemoryManager.scala:473)\n\tat org.apache.spark.memory.UnifiedMemoryManager$.apply(UnifiedMemory",
-              "remedy": "none",
-              "recoverable": true,
-              "retry_limit": 1,
-              "needs_approval": false,
-              "matched_by": "unmatched",
-              "details": {}
-            },
-            {
-              "error_class": "UNKNOWN",
-              "fingerprint": "1691edcce4e5cfdd50e8a431b3665bb3",
-              "message": "3)\n\tat triad.jobs.generated.CleanJob_c610a2c0.main(CleanJob_c610a2c0.scala)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)\n\tat java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\n\tat java.base/java.lang.reflect.Method.invoke(Method.java:569)\n\tat org.apache.spark.deploy.JavaMainApplication.start(SparkApplication.scala:52)\n\tat org.apache.spark.deploy.SparkSubmit.org$apache$spark$deploy$SparkSubmit$$runMain(SparkSubmit.scala:1030)\n\tat org.apache.spark.deploy.SparkSubmit.doRunMain$1(SparkSubmit.scala:203)\n\tat org.apache.spark.deploy.SparkSubmit.submit(SparkSubmit.scala:226)\n\tat org.apache.spark.deploy.SparkSubmit.doSubmit(SparkSubmit.scala:95)\n\tat org.apache.spark.deploy.SparkSubmit$$anon$2.doSubmit(SparkSubmit.scala:1168)\n\tat org.apache.spark.deploy.SparkSubmit$.main(SparkSubmit.scala:1177)\n\tat org.apache.spark.deploy.SparkSubmit.main(SparkSubmit.scala)\n26/09/19 06:56:20 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!\n26/09/19 06:56:20 INFO BlockManager: BlockManager stopped\n26/09/19 06:56:20 INFO BlockManagerMaster: BlockManagerMaster stopped\n26/09/19 06:56:20 WARN MetricsSystem: Stopping a MetricsSystem that is not running\n26/09/19 06:56:20 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!\n26/09/19 06:56:21 INFO SparkContext: Successfully stopped SparkContext (Uptime: 7154 ms)\nException in thread \"main\" org.apache.spark.SparkIllegalArgumentException: [INVALID_DRIVER_MEMORY] System memory 268435456 must be at least 471859200.\nPlease increase heap size using the --driver-memory option or \"spark.driver.memory\" in Spark configuration. SQLSTATE: F0000\n\tat org.apache.spark.memory.UnifiedMemoryManager$.getMaxMemory(UnifiedMemoryManager.scala:473)\n\tat org.apache.spark.memory.UnifiedMemoryManager$.apply(UnifiedMemory",
-              "remedy": "none",
-              "recoverable": true,
-              "retry_limit": 1,
-              "needs_approval": false,
-              "matched_by": "unmatched",
-              "details": {}
-            }
-          ]
-        }
+        "diagnoses": [],
+        "applied_fixes": [],
+        "feature_diagnoses": [],
+        "feature_applied_fixes": []
       }
     },
     {
       "condition": "sandbox_container_killed",
       "ok": true,
-      "detail": "recovered=True after 1 attempt(s); remedies []",
+      "detail": "recovered=True after 2 attempt(s); first failure EXECUTOR_LOST; remedies ['resubmit']",
       "measurements": [
         {
           "name": "input_rows",
@@ -272,8 +524,14 @@
           "note": ""
         },
         {
+          "name": "stage_wall_clock_s",
+          "value": 209.4,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
           "name": "wall_clock_s",
-          "value": 170.4,
+          "value": 228.9,
           "unit": "s",
           "note": ""
         },
@@ -285,31 +543,31 @@
         },
         {
           "name": "container_killed",
-          "value": false,
+          "value": true,
           "unit": "",
           "note": ""
         },
         {
           "name": "killed_container",
-          "value": "",
+          "value": "triad-sbx-run-2026-10-10-020-clean-4d9001",
           "unit": "",
           "note": ""
         },
         {
-          "name": "killer_error",
-          "value": "FileNotFoundError: [Errno 2] No such file or directory: 'docker'",
-          "unit": "",
+          "name": "killed_seconds_into_job",
+          "value": 10.3,
+          "unit": "s",
           "note": ""
         },
         {
           "name": "attempts",
-          "value": 1,
+          "value": 2,
           "unit": "",
           "note": ""
         },
         {
           "name": "retries",
-          "value": 0,
+          "value": 1,
           "unit": "",
           "note": ""
         },
@@ -320,8 +578,16 @@
           "note": ""
         },
         {
+          "name": "first_error_class",
+          "value": "EXECUTOR_LOST",
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
+        },
+        {
           "name": "remedies_applied",
-          "value": [],
+          "value": [
+            "resubmit"
+          ],
           "unit": "",
           "note": ""
         },
@@ -330,6 +596,12 @@
           "value": [],
           "unit": "",
           "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 45.1,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
         },
         {
           "name": "clean_rows",
@@ -345,7 +617,7 @@
         },
         {
           "name": "content_hash",
-          "value": "7e6779e7a35fe3b6eafdeede0185c031a53d5b8e54108fbe309534f7594b3b0b",
+          "value": "5399c7fd5344af2a61143ba47ca3a3b69087aaa923b41422729403fc6b93f547",
           "unit": "",
           "note": ""
         },
@@ -357,20 +629,39 @@
         },
         {
           "name": "identical_to_clean_run",
-          "value": false,
+          "value": true,
           "unit": "",
           "note": "the committed output's content hash against the clean run's"
         }
       ],
       "observations": {
-        "diagnoses": [],
-        "applied_fixes": []
+        "diagnoses": [
+          {
+            "error_class": "EXECUTOR_LOST",
+            "fingerprint": "4ebe32258e36d24e8d576b53cd278305",
+            "message": "Lost executor: the sandbox container was killed from outside (exit 137)\nWARNING: Using incubator modules: jdk.incubator.vector\n26/10/10 12:02:25 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable\nUsing Spark's default log4j profile: org/apache/spark/log4j2-defaults.properties\n26/10/10 12:02:29 INFO SparkContext: Running Spark version 4.1.3\n26/10/10 12:02:29 INFO SparkContext: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 12:02:29 INFO SparkContext: Java version 17.0.20.1+1\n26/10/10 12:02:29 INFO ResourceUtils: ==============================================================\n26/10/10 12:02:29 INFO ResourceUtils: No custom resources configured for spark.driver.\n26/10/10 12:02:29 INFO ResourceUtils: ==============================================================\n26/10/10 12:02:29 INFO SparkContext: Submitted application: run-2026-10-10-020-clean-and-conform\n26/10/10 12:02:29 INFO SecurityManager: Changing view acls to: triad\n26/10/10 12:02:29 INFO SecurityManager: Changing modify acls to: triad\n26/10/10 12:02:29 INFO SecurityManager: Changing view acls groups to: triad\n26/10/10 12:02:29 INFO SecurityManager: Changing modify acls groups to: triad\n26/10/10 12:02:29 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: triad groups with view permissions: EMPTY; users with modify permissions: triad; groups with modify permissions: EMPTY; RPC SSL disabled\n",
+            "remedy": "resubmit",
+            "recoverable": true,
+            "retry_limit": 2,
+            "needs_approval": false,
+            "matched_by": "taxonomy",
+            "details": {}
+          }
+        ],
+        "applied_fixes": [
+          {
+            "remedy": "resubmit",
+            "error_class": "EXECUTOR_LOST",
+            "applied": true,
+            "note": ""
+          }
+        ]
       }
     },
     {
       "condition": "skewed_one_customer_20pct",
       "ok": true,
-      "detail": "recovered=True after 1 attempt(s); remedies []",
+      "detail": "recovered=True after 1 attempt(s); first failure None; remedies []",
       "measurements": [
         {
           "name": "input_rows",
@@ -379,8 +670,14 @@
           "note": ""
         },
         {
+          "name": "stage_wall_clock_s",
+          "value": 119.7,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
           "name": "wall_clock_s",
-          "value": 87.4,
+          "value": 308.9,
           "unit": "s",
           "note": ""
         },
@@ -409,6 +706,12 @@
           "note": ""
         },
         {
+          "name": "first_error_class",
+          "value": null,
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
+        },
+        {
           "name": "remedies_applied",
           "value": [],
           "unit": "",
@@ -419,6 +722,12 @@
           "value": [],
           "unit": "",
           "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 44.6,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
         },
         {
           "name": "clean_rows",
@@ -434,7 +743,7 @@
         },
         {
           "name": "content_hash",
-          "value": "ddbeb069498f3da41ead61c017ae1b09bd9f5b6e935036955bc9c28b3fbec15f",
+          "value": "d0e993a5ca75abc5c1794f78593d262aac9e4b78a625e88a366467b98e42d0b6",
           "unit": "",
           "note": ""
         },
@@ -445,17 +754,73 @@
           "note": ""
         },
         {
+          "name": "features_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_job_duration_s",
+          "value": 63.5,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "feature_max_task_skew",
+          "value": 1.0,
+          "unit": "",
+          "note": "the worst stage's slowest task over its median task"
+        },
+        {
+          "name": "feature_disk_spill_bytes",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_rows",
+          "value": 2118,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_first_error_class",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_content_hash",
+          "value": "41da7a64cda1069e4fde120a422cadeab8444f11434f2ce39e687a31741dbe22",
+          "unit": "",
+          "note": ""
+        },
+        {
           "name": "identical_to_clean_run",
           "value": null,
           "unit": "",
-          "note": "not compared: the skewed arm reads different source data by construction"
+          "note": "not compared: the skewed arm reads different source data by design"
         }
       ],
       "observations": {
         "diagnoses": [],
-        "applied_fixes": []
+        "applied_fixes": [],
+        "feature_diagnoses": [],
+        "feature_applied_fixes": []
       }
     }
   ],
-  "run_dir": "20260919T063629Z"
+  "run_dir": "20261010T113128Z"
 }
