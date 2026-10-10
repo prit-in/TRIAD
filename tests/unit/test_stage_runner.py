@@ -364,3 +364,28 @@ def test_who_killed_the_container_decides_the_remedy() -> None:
     assert oom.error_class is ErrorClass.EXECUTOR_OOM
     assert lost.error_class is ErrorClass.EXECUTOR_LOST
     assert lost.remedy.value == "resubmit"
+
+
+def test_a_memory_raise_the_policy_refuses_is_not_made() -> None:
+    """DEC-20: in local mode the heap is spark.driver.memory, which the allowlist leaves to a
+    person. The out-of-memory remedy still raises the shuffle partitions, which it permits."""
+    from agents.graph.stages import StageRunner
+    from triad_core.errors import classify
+
+    runner = StageRunner.__new__(StageRunner)
+    runner.memory_check = lambda value: (False, "spark.driver.memory is not on the allowlist")
+    diagnosis = classify("java.lang.OutOfMemoryError: Java heap space")
+    out = runner._apply_fix({"shuffle_partitions": 8, "executor_memory": "512m"}, diagnosis)
+    assert out["executor_memory"] == "512m", "the refused raise was made"
+    assert out["shuffle_partitions"] == 16
+    fix = out["_applied_fixes"][0]
+    assert fix["applied"] is True and "not on the allowlist" in fix["note"]
+
+
+def test_the_pipeline_holds_the_memory_raise_against_the_allowlist(db_session, storage) -> None:
+    from agents.graph.pipeline import ChurnPipeline
+
+    run = q.create_run(db_session, pipeline_name=f"mem_{uuid.uuid4().hex[:8]}",
+                       trigger_type="manual", triggered_by="tester")
+    permitted, why = ChurnPipeline(db_session, run, store=storage)._memory_raise_allowed("1024m")
+    assert permitted is False and "spark.driver.memory" in why

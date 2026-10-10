@@ -261,12 +261,22 @@ class Experiment:
 
     def _write_result(self) -> None:
         result = self.to_dict()
-        (self.dir / "result.json").write_text(
-            json.dumps(result, indent=2, default=str), encoding="utf-8"
-        )
+        _write_atomically(self.dir / "result.json", json.dumps(result, indent=2, default=str))
         # A stable path to the newest run, so docs and the API cite one location.
         payload = json.dumps({**result, "run_dir": self.dir.name}, indent=2, default=str)
-        (self.dir.parent / "latest.json").write_text(payload, encoding="utf-8")
+        _write_atomically(self.dir.parent / "latest.json", payload)
+
+
+def _write_atomically(path: Path, text: str) -> None:
+    """Write beside the target, then rename over it: the file is whole or untouched.
+
+    Writing in place truncated `result.json` first, so when EXP-5's container ran out of memory
+    mid-write on 09-10-2026 the run was left with an empty result - and a good `latest.json`
+    could be left empty the same way.
+    """
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(text, encoding="utf-8")
+    os.replace(temporary, path)
 
 
 def load_results(root: Path | None = None) -> list[dict[str, Any]]:

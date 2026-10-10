@@ -106,7 +106,8 @@ class ChurnPipeline:
         self.routing = RoutingEngine()
         self.governance = GovernanceService(session, self.policy)
         self.budget = RunBudget.from_dict(run.budget_json or self.config.get("budgets"))
-        self.runner = StageRunner(session, run, self.budget)
+        self.runner = StageRunner(session, run, self.budget,
+                                  memory_check=self._memory_raise_allowed)
         self.sandbox = get_runner()
         self.templates = load_templates(TEMPLATE_ROOT)
         # Replay mode (ATC-18, NFR-REP-03): reuse the stored artifacts of a completed run
@@ -362,6 +363,18 @@ class ChurnPipeline:
             row.gate_results = report.to_dict()
             self.session.flush()
         return report
+
+    def _memory_raise_allowed(self, value: str) -> tuple[bool, str]:
+        """A memory remedy is a Spark setting change like any other (LR-10, DEC-20).
+
+        In local mode the one JVM's heap is `spark.driver.memory`, which the allowlist leaves to
+        a person; on a cluster the remedy would set `spark.executor.memory`, which it permits.
+        """
+        local = str(self.config.get("spark_master", "local[2]")).startswith("local")
+        setting = "spark.driver.memory" if local else "spark.executor.memory"
+        decision = self.policy.check("spark.config_change",
+                                     context={"settings": {setting: value}})
+        return decision.allowed, decision.reason
 
     # -- stages ----------------------------------------------------------------
     def stage_profile(self, spark, dataset: str, uri: str, fmt: str = "parquet") -> dict[str, Any]:
@@ -638,10 +651,15 @@ class ChurnPipeline:
                 if dry_report.exists():
                     status = json.loads(dry_report.read_text(encoding="utf-8")).get("status")
                 ok = bool(result["ok"]) and status == "succeeded"
+                # The runner's own account first, as for the full run: a killed dry run's log
+                # ends mid-line and names neither the kill nor the memory limit.
                 detail = (
                     f"completed on a {rows}-row sample in {result['duration_ms']} ms"
                     if ok
-                    else _structured_error(result["stdout"] + result["stderr"])
+                    else "\n".join(part for part in (
+                        result.get("detail"),
+                        _structured_error(result["stdout"] + result["stderr"]),
+                    ) if part)
                     or f"dry run ended with status {status!r}"
                 )
                 return {"ok": ok, "detail": detail, "duration_ms": result["duration_ms"]}

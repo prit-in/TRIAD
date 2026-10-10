@@ -13,8 +13,9 @@ three different gates catch says nothing about any of them.
 
 One property to keep in mind when reading EXP-8: a `wrong_column` fault compiles perfectly.
 Column names are strings until the job runs, so no static gate can see anything wrong. That
-is not a hole in the gates, it is what a static gate is; it is the reason gates 6, 7 and 9
-exist, and the reason the PRD expects semantic faults to escalate more often.
+is not a hole in the gates, it is what a static gate is; it is the reason gate 5 runs the job
+on fixtures before anything reads real data, and the reason the PRD expects semantic faults to
+escalate more often.
 """
 
 from __future__ import annotations
@@ -50,13 +51,24 @@ class Mutation:
         return slot_body.replace(self.find, self.replace, 1)
 
 
-# The anchors below are all inside CleanJob's `cleaning_plan` slot. Keeping every fault in one
-# slot of one template means the twenty conditions differ only in the fault, which is what
-# the experiment controls for.
+# The anchors below are all inside CleanJob's `cleaning_plan` slot, and each must occur there
+# exactly once (`check_anchors`, run by tests/unit/test_mutations.py): a fault anchored on text
+# the slot no longer has raises, and one anchored on text that occurs twice mutates whichever
+# comes first - which is how WC-3 came to rename a type declaration instead of the column its
+# cancellation rule tests. Keeping every fault in one slot of one template means the twenty
+# conditions differ only in the fault, which is what the experiment controls for.
 _ANCHOR_DEDUP = 'val dedupKeys = cfg.paramStr("dedup_keys", "order_id,line_id")'
-_ANCHOR_RULES = "val rules = CleaningRules.standardTransactionRules(normalised)"
-_ANCHOR_NORMALISE = "val normalised = CleaningRules.normaliseText("
-_ANCHOR_DOMAIN = 'if (raw.columns.contains("quantity"))'
+_ANCHOR_RULES = "val rules = castRules ++ CleaningRules.standardTransactionRules(normalised)"
+_ANCHOR_DOMAIN = (
+    'if (typed.columns.contains("quantity")) CleaningRules.cancellationsToReturns(typed) '
+    "else typed"
+)
+
+
+def _before_rules(line: str) -> str:
+    """A forbidden call placed just before the rules, leaving the plan otherwise intact."""
+    return f"{line}\n    {_ANCHOR_RULES}"
+
 
 MUTATIONS: tuple[Mutation, ...] = (
     # --- type mismatch: the compiler is the gate ------------------------------------------
@@ -66,8 +78,8 @@ MUTATIONS: tuple[Mutation, ...] = (
         expected_gate=4,
     ),
     Mutation(
-        "TM-2", "type_mismatch", "add a String to a DataFrame",
-        _ANCHOR_RULES, 'val rules = CleaningRules.standardTransactionRules(normalised) + 1',
+        "TM-2", "type_mismatch", "add an Int to the rule list",
+        _ANCHOR_RULES, _ANCHOR_RULES + " + 1",
         expected_gate=4,
     ),
     Mutation(
@@ -77,15 +89,14 @@ MUTATIONS: tuple[Mutation, ...] = (
         expected_gate=4,
     ),
     Mutation(
-        "TM-4", "type_mismatch", "call a Seq method on a DataFrame",
-        _ANCHOR_RULES,
-        "val rules = CleaningRules.standardTransactionRules(normalised).mkString(\",\")",
+        "TM-4", "type_mismatch", "turn the rule list into a String",
+        _ANCHOR_RULES, _ANCHOR_RULES + '.mkString(",")',
         expected_gate=4,
     ),
     Mutation(
         "TM-5", "type_mismatch", "return Unit where a DataFrame is expected",
-        _ANCHOR_DOMAIN + " CleaningRules.cancellationsToReturns(raw) else raw",
-        _ANCHOR_DOMAIN + " println(raw) else raw",
+        _ANCHOR_DOMAIN,
+        'if (typed.columns.contains("quantity")) println(typed) else typed',
         expected_gate=4,
     ),
 
@@ -93,13 +104,14 @@ MUTATIONS: tuple[Mutation, ...] = (
     Mutation(
         "MI-1", "missing_import", "use `col` without importing functions",
         _ANCHOR_RULES,
-        'val rules = CleaningRules.standardTransactionRules(normalised.filter(col("x") > 0))',
+        "val rules = castRules ++ CleaningRules.standardTransactionRules("
+        'normalised.filter(col("x") > 0))',
         expected_gate=4,
     ),
     Mutation(
         "MI-2", "missing_import", "use `lit` without importing functions",
         _ANCHOR_RULES,
-        "val rules = CleaningRules.standardTransactionRules("
+        "val rules = castRules ++ CleaningRules.standardTransactionRules("
         'normalised.withColumn("z", lit(1)))',
         expected_gate=4,
     ),
@@ -120,77 +132,73 @@ MUTATIONS: tuple[Mutation, ...] = (
     Mutation(
         "MI-5", "missing_import", "call an unimported helper object",
         _ANCHOR_RULES,
-        "val rules = QuarantineHelper.rulesFor(normalised)",
+        "val rules = castRules ++ QuarantineHelper.rulesFor(normalised)",
         expected_gate=4,
     ),
 
     # --- wrong column: no static gate can see this ----------------------------------------
-    # Column names are strings until the job runs. These compile, pass the static scan and the
-    # dependency check, and are caught at execution or by the output contract. The experiment
-    # records that rather than treating it as a miss.
+    # Column names are strings until the job runs, so these compile and pass gates 1 to 4.
+    # Each one changes what the job does - a fault that changes nothing is not a fault, and
+    # three of the first five did nothing at all (WC-1 changed a default the call never read;
+    # WC-2 and WC-4 named columns the slot's own `columns.contains` filters dropped). The gate
+    # each is expected to meet was read from the fixture (GeneratedJobsFixtureSpec) before the
+    # run: WC-2 is included because the fixture cannot see it, its duplicate being an exact one.
     Mutation(
-        "WC-1", "wrong_column", "de-duplicate on a column that does not exist",
-        '"dedup_keys", "order_id,line_id"', '"dedup_keys", "ordr_id,line_id"',
-        expected_gate=9, note="compiles; caught at execution or by the contract",
+        "WC-1", "wrong_column", "de-duplicate on a misspelled key, which the filter drops",
+        'cfg.paramStr("dedup_keys", "order_id,line_id")', '"ordr_id,line_id"',
+        expected_gate=5,
+        note="compiles; de-duplicates on line_id alone, merging different orders",
     ),
     Mutation(
-        "WC-2", "wrong_column", "normalise a column that does not exist",
-        '"country", "payment_method", "channel", "order_status"',
-        '"countryy", "payment_method", "channel", "order_status"',
-        expected_gate=9, note="compiles; the filter on `columns.contains` may absorb it",
+        "WC-2", "wrong_column", "misspell both de-duplication keys",
+        'cfg.paramStr("dedup_keys", "order_id,line_id")', '"ordr_id,lin_id"',
+        expected_gate=9,
+        note="compiles; with no key left the job falls back to whole-row de-duplication, so "
+             "a re-sent line that differs in any other column survives as a duplicate",
     ),
     Mutation(
         "WC-3", "wrong_column", "test the wrong column for the cancellation rule",
-        '"quantity"', '"qty"',
-        expected_gate=9, note="compiles; changes behaviour silently",
+        'typed.columns.contains("quantity")', 'typed.columns.contains("qty")',
+        expected_gate=5, note="compiles; cancellations are no longer turned into returns",
     ),
     Mutation(
-        "WC-4", "wrong_column", "order de-duplication by a column that does not exist",
-        '"dedup_order_by", ""', '"dedup_order_by", "not_a_column"',
-        expected_gate=9, note="compiles; the contains filter drops it",
+        "WC-4", "wrong_column", "declare the order key numeric instead of the quantity",
+        '"quantity" -> "int"', '"order_id" -> "int"',
+        expected_gate=5,
+        note="compiles; every order id fails the cast and every row is quarantined",
     ),
     Mutation(
         "WC-5", "wrong_column", "filter on a misspelled column",
         _ANCHOR_RULES,
-        'val rules = CleaningRules.standardTransactionRules(normalised.filter('
-        'normalised("custmer_id").isNotNull))',
-        expected_gate=9, note="compiles; fails when Spark resolves the name",
+        "val rules = castRules ++ CleaningRules.standardTransactionRules("
+        'normalised.filter(normalised("custmer_id").isNotNull))',
+        expected_gate=5, note="compiles; fails when Spark resolves the name",
     ),
 
     # --- forbidden API: the static scan, before anything is compiled or run ---------------
     Mutation(
         "FA-1", "forbidden_api", "collect() the event data onto the driver",
-        _ANCHOR_RULES,
-        "val all = normalised.collect()\n    val rules = "
-        "CleaningRules.standardTransactionRules(normalised)",
+        _ANCHOR_RULES, _before_rules("val all = normalised.collect()"),
         expected_gate=2,
     ),
     Mutation(
         "FA-2", "forbidden_api", "write output from inside the slot",
-        _ANCHOR_RULES,
-        'normalised.write.parquet("/tmp/out")\n    val rules = '
-        "CleaningRules.standardTransactionRules(normalised)",
+        _ANCHOR_RULES, _before_rules('normalised.write.parquet("/tmp/out")'),
         expected_gate=2,
     ),
     Mutation(
         "FA-3", "forbidden_api", "build a second SparkSession",
-        _ANCHOR_RULES,
-        "val other = SparkSession.builder.getOrCreate()\n    val rules = "
-        "CleaningRules.standardTransactionRules(normalised)",
+        _ANCHOR_RULES, _before_rules("val other = SparkSession.builder.getOrCreate()"),
         expected_gate=2,
     ),
     Mutation(
         "FA-4", "forbidden_api", "kill the driver with System.exit",
-        _ANCHOR_RULES,
-        "if (inputRows == 0L) System.exit(1)\n    val rules = "
-        "CleaningRules.standardTransactionRules(normalised)",
+        _ANCHOR_RULES, _before_rules("if (inputRows == 0L) System.exit(1)"),
         expected_gate=2,
     ),
     Mutation(
         "FA-5", "forbidden_api", "reach the network from a sandbox job",
-        _ANCHOR_RULES,
-        'val u = new java.net.URL("http://example.invalid")\n    val rules = '
-        "CleaningRules.standardTransactionRules(normalised)",
+        _ANCHOR_RULES, _before_rules('val u = new java.net.URL("http://example.invalid")'),
         expected_gate=2,
     ),
 )
@@ -216,10 +224,11 @@ def slot_body_of(template_source: str, slot_id: str) -> str:
 
 
 def check_anchors(template_source: str, slot_id: str = "cleaning_plan") -> list[str]:
-    """Which mutations no longer match the template. Run by a test, so drift is loud.
+    """Which mutations no longer match the template exactly once. Run by a test, so drift is
+    loud.
 
     A fault whose anchor has gone stale applies nothing and is then recorded as undetected -
     it would read as a gap in the gates when the gates never saw a fault at all.
     """
     body = slot_body_of(template_source, slot_id)
-    return [m.fault_id for m in MUTATIONS if m.find not in body]
+    return [m.fault_id for m in MUTATIONS if body.count(m.find) != 1]

@@ -119,8 +119,11 @@ class _ContainerKiller:
     would be worthless, so the measurement says which.
     """
 
-    def __init__(self, into_job: float) -> None:
+    def __init__(self, into_job: float, prefix: str) -> None:
         self.into_job = into_job
+        # The arm's own job only: `triad-sbx-<run_key>-<stage>-`. A bare `triad-sbx-` matched
+        # any run's sandbox job, so a kill elsewhere could be recorded as this arm's.
+        self.prefix = prefix
         self.killed: str | None = None
         self.seconds_into_job: float | None = None
         self.error = ""
@@ -132,7 +135,9 @@ class _ContainerKiller:
 
     def stop(self) -> None:
         self._stop.set()
-        self._thread.join(timeout=5)
+        # Never started when profiling failed first; joining it then raised RuntimeError.
+        if self._thread.is_alive():
+            self._thread.join(timeout=5)
 
     def _run(self) -> None:
         # Through the SDK: the image has no docker CLI. The socket is given to the experiment's
@@ -146,27 +151,38 @@ class _ContainerKiller:
         except Exception as exc:  # no engine reachable is a recorded limitation, not a crash
             self.error = f"{type(exc).__name__}: {exc}"
             return
+        from docker.errors import APIError
+
         # Long enough for the gates before the job: compiling, the fixture tests when their
         # cache is cold, and gate 6's dry run.
         deadline = time.perf_counter() + 900
         while time.perf_counter() < deadline and not self._stop.is_set():
-            # The job itself, not gate 6's dry run on a sample, which runs first and is named
-            # `<stage>-dryrun`: the arm is about losing the executor mid-stage.
-            running = [c for c in client.containers.list(filters={"name": "triad-sbx-"})
-                       if "dryrun" not in c.name]
-            if running:
-                target, seen = running[0], time.perf_counter()
-                if self._stop.wait(self.into_job):
+            try:
+                # The job itself, not gate 6's dry run on a sample, which runs first and is
+                # named `<stage>-dryrun`: the arm is about losing the executor mid-stage.
+                running = [c for c in client.containers.list(filters={"name": self.prefix},
+                                                             ignore_removed=True)
+                           if c.name.startswith(self.prefix) and "dryrun" not in c.name]
+                if running:
+                    target, seen = running[0], time.perf_counter()
+                    if self._stop.wait(self.into_job):
+                        self.error = "the stage ended before the kill was due"
+                        return
+                    target.reload()
+                    if target.status != "running":
+                        self.error = f"the job's container was {target.status} before the kill"
+                        return
+                    target.kill()
+                    self.killed = target.name
+                    self.seconds_into_job = round(time.perf_counter() - seen, 1)
                     return
-                target.reload()
-                if target.status != "running":
-                    self.error = f"the job's container was {target.status} before the kill"
-                    return
-                target.kill()
-                self.killed = target.name
-                self.seconds_into_job = round(time.perf_counter() - seen, 1)
+            except APIError as exc:  # the container went between listing and killing it
+                self.error = f"{type(exc).__name__}: {exc}"[:300]
                 return
             self._stop.wait(0.5)
+        if not self.killed and not self.error:
+            self.error = ("the stage ended before its job's container appeared"
+                          if self._stop.is_set() else "no job container appeared in 900 s")
 
 
 def _execution_metric(session: Any, run_id: Any, stage: str) -> dict[str, Any]:
@@ -249,7 +265,8 @@ def _arm(
 
         pipeline = ChurnPipeline(session, run, store=store, config_path=config_path)
         output_dir = store.clean_dir("transactions", 1)
-        killer = _ContainerKiller(KILL_INTO_JOB_SECONDS) if kill_container else None
+        killer = (_ContainerKiller(KILL_INTO_JOB_SECONDS, f"triad-sbx-{run.run_key}-clean-")
+                  if kill_container else None)
         spark = _spark(f"triad-exp06-{name}")
         feature_out: dict[str, Any] = {}
         try:
@@ -359,6 +376,20 @@ def _arm(
                          note="the worst stage's slowest task over its median task")
             trial.record("feature_disk_spill_bytes", measured.get("disk_spill_bytes"))
             trial.record("feature_rows", feature_out.get("row_count") if feature_out else None)
+            feature_diagnoses = feature_record.get("diagnoses") or []
+            trial.record("feature_first_error_class",
+                         feature_diagnoses[0].get("error_class") if feature_diagnoses else None)
+            trial.record("feature_retries", max(0, int(feature_record.get("attempts") or 1) - 1))
+            trial.observations["feature_diagnoses"] = feature_diagnoses
+            trial.observations["feature_applied_fixes"] = feature_record.get("applied_fixes")
+            if feature_out:
+                try:
+                    manifest = store.read_manifest(store.features_dir("churn_features", 1))
+                    trial.record("feature_content_hash", manifest.content_hash)
+                    out["feature_content_hash"] = manifest.content_hash
+                except Exception as exc:
+                    trial.record("feature_content_hash", None,
+                                 note=f"manifest unreadable: {type(exc).__name__}: {exc}")
 
         q.set_state(session, run, "CANCELLED", actor="exp06")
 
@@ -428,7 +459,7 @@ def run() -> Experiment:
         reference_hash = baseline.get("content_hash")
 
         # --- arm 2: out of memory ------------------------------------------------
-        _arm(exp, "low_executor_memory", shared,
+        _arm(exp, "low_executor_memory", shared, features=True,
              config_overrides={"spark.driver_memory": OOM_DRIVER_MEMORY})
 
         # --- arm 3: the executor is killed ---------------------------------------
@@ -452,16 +483,36 @@ def run() -> Experiment:
                 bool(reference_hash) and _value(trial, "content_hash") == reference_hash,
                 note="the committed output's content hash against the clean run's",
             )
+        reference_features = baseline.get("feature_content_hash")
+        oom.record(
+            "features_identical_to_clean_run",
+            bool(reference_features)
+            and _value(oom, "feature_content_hash") == reference_features,
+            note="the feature table's content hash against the clean run's",
+        )
         skew.record("identical_to_clean_run", None,
                     note="not compared: the skewed arm reads different source data by design")
 
-        # Each arm counts only if its fault landed (module docstring).
-        oom_landed = _value(oom, "first_error_class") == "EXECUTOR_OOM"
-        kill_landed = bool(_value(kill, "container_killed"))
-        oom_ok = (oom_landed and oom.ok and (_value(oom, "retries") or 0) <= 2
-                  and _value(oom, "identical_to_clean_run") is True)
-        kill_ok = kill_landed and kill.ok and _value(kill, "identical_to_clean_run") is True
-        skew_ok = skew.ok and not _value(skew, "escalated")
+        # Each arm counts only if its fault landed (module docstring); a claim whose fault did
+        # not land is untested (None), never refuted.
+        oom_classes = (_value(oom, "first_error_class"), _value(oom, "feature_first_error_class"))
+        oom_landed = "EXECUTOR_OOM" in oom_classes
+        kill_landed = (bool(_value(kill, "container_killed"))
+                       and _value(kill, "first_error_class") == "EXECUTOR_LOST")
+        oom_ok = (
+            oom.ok and max(_value(oom, "retries") or 0, _value(oom, "feature_retries") or 0) <= 2
+            and _value(oom, "identical_to_clean_run") is True
+            and _value(oom, "features_identical_to_clean_run") is True
+        ) if oom_landed else None
+        kill_ok = (kill.ok and _value(kill, "identical_to_clean_run") is True
+                   if kill_landed else None)
+        # At this size no partition approaches AQE's skew thresholds (256 MB), so completing
+        # says nothing about skew handling; the measured task skew is reported instead.
+        skew_ok = None
+        parts = {"baseline_ran": bool(reference_hash) and base.ok, "oom_fixed": oom_ok,
+                 "kill_absorbed": kill_ok, "skew_handled": skew_ok}
+        verdict = (False if any(v is False for v in parts.values())
+                   else None if any(v is None for v in parts.values()) else True)
 
         exp.limitation(
             "Spark runs in local mode inside the sandbox, so the driver is the executor and no "
@@ -477,19 +528,27 @@ def run() -> Experiment:
         )
         if not oom_landed:
             exp.limitation(
-                f"The memory fault did not land: at {OOM_DRIVER_MEMORY} the first attempt "
-                f"failed as {_value(oom, 'first_error_class')} (None means it did not fail), so "
-                "that arm measures no out-of-memory recovery."
+                f"The memory fault did not land: at {OOM_DRIVER_MEMORY} the cleaning and feature "
+                f"jobs' first failures were {oom_classes} (None means no failure), so that arm "
+                "measures no out-of-memory recovery and the claim is untested."
             )
         if not kill_landed:
             exp.limitation(
-                "The container kill did not land, so that arm measures an ordinary run and not "
-                "a recovery. " + (_value(kill, "killer_error") or "")
+                "The container kill did not land as a lost executor (killed: "
+                f"{_value(kill, 'container_killed')}, first failure "
+                f"{_value(kill, 'first_error_class')}), so that arm measures no recovery. "
+                + (_value(kill, "killer_error") or "")
             )
+        exp.limitation(
+            "The memory remedy is held against the spark.config_change allowlist like any Spark "
+            "setting (DEC-20, DEC-41): in local mode the heap is spark.driver.memory, which the "
+            "allowlist leaves to a person, so the permitted part of the out-of-memory remedy "
+            "here is the shuffle-partition raise."
+        )
 
         exp.conclude(
             status="partial",
-            hypothesis_held=bool(reference_hash) and base.ok and oom_ok and kill_ok and skew_ok,
+            hypothesis_held=verdict,
             conclusion=(
                 f"Reference clean run: {baseline.get('row_count')} rows, content hash "
                 f"{str(reference_hash)[:16]}, job {_value(base, 'job_duration_s')} s. "
@@ -501,14 +560,16 @@ def run() -> Experiment:
                     f"{_value(t, 'identical_to_clean_run')}."
                     for t in (oom, kill, skew)
                 )
-                + f" Out-of-memory landed: {oom_landed}; fixed within 2 retries with identical "
-                f"output: {oom_ok}. The kill landed {_value(kill, 'killed_seconds_into_job')} s "
-                f"into the job: {kill_landed}; recovered identically: {kill_ok}. Feature job "
+                + f" Out-of-memory landed: {oom_landed} (first failures {oom_classes}); fixed "
+                f"within 2 retries with identical output: {oom_ok}. The kill landed "
+                f"{_value(kill, 'killed_seconds_into_job')} s into the job as a lost executor: "
+                f"{kill_landed}; recovered identically: {kill_ok}. Feature job "
                 f"task skew (slowest over median task): baseline "
                 f"{_value(base, 'feature_max_task_skew')}, skewed "
                 f"{_value(skew, 'feature_max_task_skew')}; the skewed feature job completed: "
                 f"{_value(skew, 'features_succeeded')} in {_value(skew, 'feature_attempts')} "
-                "attempt(s)."
+                "attempt(s); skew handling not assessable at this size. Clauses: "
+                + ", ".join(f"{k}={v}" for k, v in parts.items()) + "."
             ),
         )
         return exp

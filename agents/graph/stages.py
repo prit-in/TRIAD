@@ -85,12 +85,16 @@ class StageRunner:
         *,
         memo: dict[str, dict[str, Any]] | None = None,
         use_fix_memory: bool = True,
+        memory_check: Callable[[str], tuple[bool, str]] | None = None,
     ) -> None:
         self.session = session
         self.run = run
         self.budget = budget
         self.memo = memo if memo is not None else {}
         self.use_fix_memory = use_fix_memory
+        # Whether a memory remedy may set this value: a Spark setting change like any other,
+        # held against the governance allowlist by the pipeline (LR-10, DEC-20). None permits.
+        self.memory_check = memory_check
 
     # -- memoisation (FR-083) --------------------------------------------------
     def _memo_key(self, request: StageRequest) -> str:
@@ -410,6 +414,13 @@ class StageRunner:
         elif remedy is Remedy.OPTIMISED_RETRY:
             out["shuffle_partitions"] = int(out.get("shuffle_partitions", 200)) * 2
 
+        refused = ""
+        if out.get("executor_memory", memory_before) != memory_before and self.memory_check:
+            permitted, why = self.memory_check(out["executor_memory"])
+            if not permitted:
+                refused = f"memory not raised to {out['executor_memory']}: {why}"
+                out["executor_memory"] = memory_before
+
         applied = remedy in self.APPLIED_REMEDIES
         note = "" if applied else (
             "no remedy is prescribed for this error, so the next attempt is the same work"
@@ -418,12 +429,16 @@ class StageRunner:
             "provider; no input the stage reads was changed, so the next attempt is identical"
         )
         if remedy is Remedy.RAISE_EXECUTOR_MEMORY and out["executor_memory"] == memory_before:
-            # PRD 20.2's stop condition: "quota would be exceeded".
+            # PRD 20.2's stop condition: "quota would be exceeded" - or a raise the policy
+            # leaves to a person.
             applied = False
-            note = (f"executor memory is already {memory_before}, the most the sandbox can "
-                    "hold; raising it further needs a person")
-        if "executor_memory" in out and out["executor_memory"] != memory_before:
+            note = refused or (f"executor memory is already {memory_before}, the most the "
+                               "sandbox can hold; raising it further needs a person")
+        elif "executor_memory" in out and out["executor_memory"] != memory_before:
             note = f"executor memory {memory_before} -> {out['executor_memory']}"
+        elif refused:
+            note = (f"shuffle partitions {inputs.get('shuffle_partitions', 200)} -> "
+                    f"{out.get('shuffle_partitions')}; {refused}")
         fixes.append({
             "remedy": remedy.value,
             "error_class": diagnosis.error_class.value,

@@ -1,0 +1,30 @@
+Traceback (most recent call last):
+  File "/workspace/experiments/exp05_missing_values.py", line 344, in run
+    _run_one(exp, name, overrides)
+  File "/workspace/experiments/exp05_missing_values.py", line 167, in _run_one
+    prepared = churn.prepare(
+               ^^^^^^^^^^^^^^
+  File "/workspace/agents/graph/churn.py", line 336, in prepare
+    clean_out = pipeline.stage_scala_job(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agents/graph/pipeline.py", line 748, in stage_scala_job
+    outcome = self.runner.run_stage(
+              ^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agents/graph/stages.py", line 215, in run_stage
+    execution = self._execute(request, artifact)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agents/graph/stages.py", line 291, in _execute
+    result = request.execute(artifact)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agents/graph/pipeline.py", line 659, in execute
+    jar = _newest_jar(SCALA_ROOT / "jobs" / "target" / "scala-2.13")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/agents/graph/pipeline.py", line 1044, in _newest_jar
+    jars = sorted(folder.glob("*.jar"), key=lambda p: p.stat().st_mtime)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/pathlib.py", line 953, in glob
+    for p in selector.select_from(self):
+  File "/usr/local/lib/python3.11/pathlib.py", line 356, in _select_from
+    entries = list(scandir_it)
+              ^^^^^^^^^^^^^^^^
+OSError: [Errno 12] Cannot allocate memory: '/workspace/scala_spark/jobs/target/scala-2.13'
