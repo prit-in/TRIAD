@@ -367,12 +367,12 @@ def fig25() -> None:
     # fault did not land, or that injected none, is not drawn as a recovery.
     landed = spark_faults_landed(e6)
     if landed:
-        rows.append(("Spark failures recovered (EXP-6)",
+        rows.append(("Spark faults that landed, recovered (EXP-6)",
                      sum(1 for v in landed.values() if v.get("recovered")), len(landed)))
     e8 = load("EXP-8", "Fig 25")["trials"]
     seeded = {k: v for k, v in e8.items()
               if not k.startswith("control") and not v.get("toolchain_failure")}
-    rows.append(("generated-code faults stopped before execution (EXP-8)",
+    rows.append(("generated-code faults stopped before reading data (EXP-8)",
                  sum(1 for v in seeded.values()
                      if v.get("detected_before_data", v.get("detected"))), len(seeded)))
     e9 = load("EXP-9", "Fig 25")["trials"]

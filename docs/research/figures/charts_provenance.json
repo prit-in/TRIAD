@@ -3,7 +3,7 @@
     {
       "file": "experiments/EXP-1/latest.json",
       "experiment": "EXP-1",
-      "started_at": "2026-09-21T20:48:25.175539+00:00",
+      "started_at": "2026-10-10T14:30:00.183404+00:00",
       "status": "partial",
       "hypothesis_held": true
     }
@@ -12,7 +12,7 @@
     {
       "file": "experiments/EXP-2/latest.json",
       "experiment": "EXP-2",
-      "started_at": "2026-09-21T20:40:46.148722+00:00",
+      "started_at": "2026-10-08T17:12:42.854878+00:00",
       "status": "partial",
       "hypothesis_held": false
     },
@@ -28,7 +28,7 @@
     {
       "file": "experiments/EXP-8/latest.json",
       "experiment": "EXP-8",
-      "started_at": "2026-09-21T20:21:08.922077+00:00",
+      "started_at": "2026-10-10T13:14:43.654203+00:00",
       "status": "partial",
       "hypothesis_held": null
     }
@@ -37,7 +37,7 @@
     {
       "file": "experiments/EXP-1/latest.json",
       "experiment": "EXP-1",
-      "started_at": "2026-09-21T20:48:25.175539+00:00",
+      "started_at": "2026-10-10T14:30:00.183404+00:00",
       "status": "partial",
       "hypothesis_held": true
     }
@@ -46,35 +46,35 @@
     {
       "file": "experiments/EXP-4/latest.json",
       "experiment": "EXP-4",
-      "started_at": "2026-09-19T04:49:57.266698+00:00",
-      "status": "partial",
+      "started_at": "2026-10-10T12:13:37.844823+00:00",
+      "status": "completed",
       "hypothesis_held": true
     },
     {
       "file": "experiments/EXP-6/latest.json",
       "experiment": "EXP-6",
-      "started_at": "2026-09-19T06:36:29.980726+00:00",
+      "started_at": "2026-10-10T11:31:28.027172+00:00",
       "status": "partial",
-      "hypothesis_held": false
+      "hypothesis_held": null
     },
     {
       "file": "experiments/EXP-8/latest.json",
       "experiment": "EXP-8",
-      "started_at": "2026-09-21T20:21:08.922077+00:00",
+      "started_at": "2026-10-10T13:14:43.654203+00:00",
       "status": "partial",
       "hypothesis_held": null
     },
     {
       "file": "experiments/EXP-9/latest.json",
       "experiment": "EXP-9",
-      "started_at": "2026-10-07T21:56:17.713949+00:00",
+      "started_at": "2026-10-10T09:44:18.804626+00:00",
       "status": "completed",
       "hypothesis_held": true
     },
     {
       "file": "experiments/EXP-10/latest.json",
       "experiment": "EXP-10",
-      "started_at": "2026-10-07T21:56:39.502992+00:00",
+      "started_at": "2026-10-10T09:44:39.965788+00:00",
       "status": "completed",
       "hypothesis_held": true
     },
