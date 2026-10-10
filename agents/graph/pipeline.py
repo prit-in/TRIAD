@@ -980,7 +980,7 @@ class ChurnPipeline:
         approval = self.governance.request_approval(
             self.run, action=action, target_ref=target,
             requested_by="agent:data_engineering", evidence=evidence,
-            evidence_uri=self.storage.uri(uri),
+            evidence_uri=self.storage.uri(uri), context=context,
         )
         return str(approval.id)
 

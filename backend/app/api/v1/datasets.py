@@ -41,6 +41,12 @@ def _refused(session: DbSession, result) -> problems.Problem:
     if result.approval_id is None:
         return problems.unprocessable(f"Not registered: {reasons}. The file is kept in quarantine.")
     mapping = ", ".join(f"{src} -> {dst}" for src, dst in result.proposed_mapping.items())
+    if result.approval_status != "pending":
+        return problems.unprocessable(
+            f"Not registered: {reasons}. The mapping {mapping} was {result.approval_status} "
+            "for these bytes; register a corrected file, or list the name as an alias in the "
+            "dataset's contract."
+        )
     return problems.Problem(
         status=422, title="Mapping proposed",
         detail=f"Not registered: {reasons}. The mapping {mapping} awaits approval; nothing "
@@ -190,7 +196,7 @@ def register_dataset(
         raise problems.unprocessable(str(exc)) from exc
     if result.quarantined:
         raise _refused(session, result)
-    if result.version_id is None:
+    if not result.created:
         # An identical checksum: the existing version already holds these bytes.
         response.status_code = 200
     return _summary(session, _find(session, payload.name))
@@ -253,6 +259,6 @@ async def upload_version(
         raise problems.unprocessable(str(exc)) from exc
     if result.quarantined:
         raise _refused(session, result)
-    if result.version_id is None:
+    if not result.created:
         response.status_code = 200
     return _summary(session, dataset)

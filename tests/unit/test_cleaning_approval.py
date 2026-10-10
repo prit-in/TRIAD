@@ -100,3 +100,19 @@ class TestCleaningOverItsLimit:
         q.set_state(self.session, self.run, "CANCELLED")
         approval = self.session.get(Approval, uuid.UUID(approval_id))
         assert approval.status == "expired", "a cancelled run leaves nothing to approve"
+
+    def test_only_the_roles_the_policy_names_may_approve_the_plan(self) -> None:
+        """`cleaning.execute` names data_engineer and admin. Checked without the rows it
+        affected, the policy answered ALLOW with no approvers, and any role could decide."""
+        from triad_core.governance import NotAuthorised
+
+        approval_id = uuid.UUID(self._check()["approval_id"])
+        service = GovernanceService(self.session, PolicyEngine(settings().governance_policy_path))
+        for role in ("viewer", "business_analyst", "ml_engineer"):
+            person = User(email=f"{role}-{uuid.uuid4().hex[:8]}@triad.test", display_name=role,
+                          role=role, is_active=True)
+            self.session.add(person)
+            self.session.flush()
+            with pytest.raises(NotAuthorised):
+                service.decide(approval_id, approver=person, approved=True, comment="fine")
+        assert self.session.get(Approval, approval_id).status == "pending"

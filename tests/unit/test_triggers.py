@@ -186,3 +186,10 @@ def test_the_data_trigger_starts_a_run(db_session, config, tmp_path) -> None:
     assert [r.trigger_type for r in runs] == ["data"]
     assert runs[0].input_versions.get("transactions", "").startswith("file://")
     assert tables, "the generator wrote its tables"
+
+    # The same file at the next tick is not an arrival, even with no run active.
+    from agents.graph import queue as q
+
+    q.set_state(db_session, runs[0], "CANCELLED")
+    again = Scheduler(cfg, store=store).tick(db_session)
+    assert again.files_registered == 0 and not again.data_runs_queued, again

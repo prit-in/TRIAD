@@ -192,6 +192,16 @@ class TestApprovalWorkflow:
                 requested_by="agent:x", evidence=_evidence(), evidence_uri="file:///x",
             )
 
+    def test_an_unusable_policy_decides_nothing(self, tmp_path) -> None:
+        """SYS-05: with no usable policy, nobody - an admin included - decides a request."""
+        approval = self._request("agent:evaluation_agent")
+        broken = tmp_path / "governance.yaml"
+        broken.write_text("actions: [not, a, mapping", encoding="utf-8")
+        with pytest.raises(PolicyDenied):
+            GovernanceService(self.session, PolicyEngine(broken)).decide(
+                approval.id, approver=self._user("admin"), approved=True, comment="ship it"
+            )
+
     def test_approval_by_an_eligible_engineer_succeeds(self) -> None:
         approval = self._request("agent:evaluation_agent")
         engineer = self._user("ml_engineer")

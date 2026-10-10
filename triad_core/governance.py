@@ -174,14 +174,17 @@ class GovernanceService:
             )
             raise PolicyDenied(f"{action} is denied by policy: {decision.reason}")
 
-        missing = evidence.missing(decision.required_evidence)
+        # Who decides, and on what, are the action's terms - not this check's verdict, which for
+        # a bounded action measured without its breach names nobody.
+        terms = self.policy.approval_terms(action)
+        missing = evidence.missing(terms.required_evidence)
         if missing:
             raise GovernanceError(
                 f"evidence bundle is incomplete for {action}: missing {missing}"
             )
 
         hours = float(self.policy.defaults().get("approval_expiry_hours", 72))
-        shares: list[str | None] = list(decision.approvers_all_of) or [None]
+        shares: list[str | None] = list(terms.approvers_all_of) or [None]
         group_id = uuid.uuid4() if len(shares) > 1 else None
         approvals: list[Approval] = []
         for role in shares:
@@ -210,7 +213,7 @@ class GovernanceService:
                 resource_id=str(approval.id),
                 run_id=run.id,
                 details={"action": action, "target": target_ref,
-                         "approvers": [role] if role else decision.approvers,
+                         "approvers": [role] if role else terms.approvers,
                          "group_id": str(group_id) if group_id else None,
                          "expires_at": approval.expires_at.isoformat()},
             )
@@ -250,13 +253,20 @@ class GovernanceService:
             raise NothingPending("the approval request has expired and counts as rejected")
 
         policy_action = approval.policy_action or action or _policy_action(approval.action_type)
-        decision = self.policy.check(policy_action)
+        # The action's terms, not a fresh check: `cleaning.execute` checked without the rows it
+        # affected answers ALLOW and names no approvers, and an empty role set used to let any
+        # role - a viewer included - approve a paused cleaning plan. A policy that names nobody
+        # leaves the decision to an admin: autonomy never widens by omission.
+        decision = self.policy.approval_terms(policy_action)
         # One share of an all-of approval may be decided only by its own role - an admin does
         # not stand in for the ML Engineer, or "two approvers" would be one person twice.
         allowed_roles = (
             {approval.required_role} if approval.required_role
             else set(decision.approvers) | set(decision.approvers_all_of)
-        )
+        ) or {"admin"}
+        if decision.verdict is Verdict.DENY:
+            # SYS-05: an unusable policy file, or an action it does not know, decides nothing.
+            raise PolicyDenied(f"{policy_action} has no approval terms: {decision.reason}")
         admin_may_stand_in = approval.required_role is None
         if allowed_roles and approver.role not in allowed_roles and not (
             admin_may_stand_in and approver.role == "admin"

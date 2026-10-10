@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from sqlalchemy import select
 
 from dataeng.ingest import (
     DatasetRegistry,
@@ -442,3 +443,81 @@ class TestARenamedColumnIsProposedNotApplied:
         assert result.created is True, result.reason
         assert result.approval_id is None
         assert result.proposed_mapping == {"client_ref": "customer_id"}
+
+
+@pytest.mark.postgres
+class TestAMappingIsAskedOnceAndAppliedFaithfully:
+    """Review of 10-10-2026: decided requests were asked again, and a BOM hid a CSV's header."""
+
+    @pytest.fixture(autouse=True)
+    def _db(self, postgres_available, db_session, storage):
+        if not postgres_available:
+            pytest.skip("postgres service is not reachable")
+        self.session = db_session
+        self.registry = DatasetRegistry(db_session, storage)
+        self.registry.register_source(
+            "transactions", entity_type="transactions", source_type="csv"
+        )
+
+    def _decide(self, approval_id, *, approved: bool):
+        import uuid
+
+        from triad_core.config import settings
+        from triad_core.governance import GovernanceService
+        from triad_core.models import User
+        from triad_core.policy import PolicyEngine
+
+        person = User(email=f"de-{uuid.uuid4().hex[:8]}@triad.test", display_name="de",
+                      role="data_engineer", is_active=True)
+        self.session.add(person)
+        self.session.flush()
+        return GovernanceService(self.session, PolicyEngine(settings().governance_policy_path)) \
+            .decide(approval_id, approver=person, approved=approved, comment="checked")
+
+    def _csv(self, tmp_path: Path, *, bom: bool = False) -> Path:
+        path = tmp_path / "day1.csv"
+        text = _sample_frame(12).rename(columns={"order_id": "order_no"}).to_csv(index=False)
+        path.write_bytes((b"\xef\xbb\xbf" if bom else b"") + text.encode("utf-8"))
+        return path
+
+    def test_a_rejection_sticks_and_an_approval_makes_the_bytes_a_duplicate(
+        self, tmp_path: Path
+    ) -> None:
+        path = self._csv(tmp_path)
+        first = self.registry.register_version("transactions", path, actor="test")
+        assert first.approval_status == "pending"
+        self._decide(first.approval_id, approved=False)
+        again = self.registry.register_version("transactions", path, actor="test")
+        assert again.approval_id == first.approval_id, "a rejection is an answer, not a prompt"
+        assert again.approval_status == "rejected" and again.version_id is None
+
+    def test_an_approved_mapping_is_not_asked_again(self, tmp_path: Path) -> None:
+        from triad_core.models import Approval
+
+        path = self._csv(tmp_path)
+        first = self.registry.register_version("transactions", path, actor="test")
+        approval = self._decide(first.approval_id, approved=True)
+        applied = self.registry.apply_approved_mapping(approval, actor="test")
+        again = self.registry.register_version("transactions", path, actor="test")
+        assert again.version_id == applied.version_id and again.created is False
+        requests = self.session.execute(
+            select(Approval).where(Approval.target_ref == approval.target_ref)
+        ).scalars().all()
+        assert len(requests) == 1
+
+    def test_a_byte_order_mark_does_not_hide_the_renamed_column(self, tmp_path: Path) -> None:
+        path = self._csv(tmp_path, bom=True)
+        first = self.registry.register_version("transactions", path, actor="test")
+        assert first.proposed_mapping == {"order_no": "order_id"}
+        approval = self._decide(first.approval_id, approved=True)
+        applied = self.registry.apply_approved_mapping(approval, actor="test")
+        assert applied.created is True, applied.reason
+
+    def test_a_format_that_cannot_be_rewritten_gets_no_proposal(self, tmp_path: Path) -> None:
+        path = tmp_path / "day1.jsonl"
+        _sample_frame(5).rename(columns={"order_id": "order_no"}).to_json(
+            path, orient="records", lines=True, date_format="iso"
+        )
+        result = self.registry.register_version("transactions", path, actor="test")
+        assert result.quarantined and result.approval_id is None
+        assert result.reason == "blocking contract violation"

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import csv
 import datetime as dt
+import io
 import json
 import shutil
 import tempfile
@@ -36,6 +37,16 @@ SUPPORTED_FORMATS = ("csv", "json", "jsonl", "parquet")
 
 class IngestError(Exception):
     pass
+
+
+# The formats `DatasetRegistry.apply_mapping` can rewrite with only the header changed.
+MAPPABLE_FORMATS = ("csv", "parquet")
+
+
+def _require_columns(mapping: dict[str, str], columns: list[str]) -> None:
+    absent = sorted(set(mapping) - set(columns))
+    if absent:
+        raise IngestError(f"the file has no column(s) {absent} to rename")
 
 
 @dataclass
@@ -74,6 +85,7 @@ class RegistrationResult:
     # A renamed required column: {observed name: contract name}, and the approval it awaits.
     proposed_mapping: dict[str, str] | None = None
     approval_id: uuid.UUID | None = None
+    approval_status: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -88,6 +100,7 @@ class RegistrationResult:
             "contract": self.contract_result.to_dict() if self.contract_result else None,
             "proposed_mapping": self.proposed_mapping,
             "approval_id": str(self.approval_id) if self.approval_id else None,
+            "approval_status": self.approval_status,
         }
 
 
@@ -232,11 +245,19 @@ class DatasetRegistry:
 
     # -- versions --------------------------------------------------------------
     def find_by_checksum(self, dataset: Dataset, checksum: str) -> DatasetVersion | None:
+        """The version holding these bytes - or made from them by an approved mapping.
+
+        A mapped version is stored under its renamed copy's checksum, so matching that alone
+        let the original file, still in a watched folder, be refused and asked about again on
+        every tick after its mapping was approved (AT-01: the same bytes create nothing).
+        """
         return self.session.execute(
             select(DatasetVersion).where(
                 DatasetVersion.dataset_id == dataset.id,
-                DatasetVersion.checksum_sha256 == checksum,
-            )
+                (DatasetVersion.checksum_sha256 == checksum)
+                | (DatasetVersion.schema_json["mapped_from"]["checksum_sha256"].astext
+                   == checksum),
+            ).order_by(DatasetVersion.version_no).limit(1)
         ).scalar_one_or_none()
 
     def latest_version(self, dataset: Dataset) -> DatasetVersion | None:
@@ -305,6 +326,7 @@ class DatasetRegistry:
         contract: Contract | None = None,
         settle_check: bool = False,
         run: PipelineRun | None = None,
+        propose: bool = True,
     ) -> RegistrationResult:
         """The UC-01 main flow. Returns without creating anything for a duplicate checksum.
 
@@ -319,7 +341,8 @@ class DatasetRegistry:
         source under another name, the mapping is applied at once if the contract lists those
         names as aliases, and otherwise proposed: a `schema.change` approval is requested on
         `run` (or on an ingestion run made for it) and nothing is registered before a decision
-        (PRD 20.2, ATC-06).
+        (PRD 20.2, ATC-06). A mapping is proposed only for a format `apply_mapping` can rewrite,
+        and a copy made by a mapping (`propose=False`) is never mapped again.
         """
         dataset = self.get(dataset_name)
         if dataset is None:
@@ -372,7 +395,11 @@ class DatasetRegistry:
                 missing = {v.check_id.removeprefix("schema.required.")
                            for v in contract_result.blocking}
                 renamed = bool(proposals) and {p["column"] for p in proposals} == missing
-                mapping = {p["source"]: p["column"] for p in proposals} if renamed else None
+                # Only a format apply_mapping can rewrite gets a proposal: an approval nobody
+                # can carry out would 422 on every attempt and stay pending until it expired.
+                mappable = propose and obs.fmt in MAPPABLE_FORMATS
+                mapping = ({p["source"]: p["column"] for p in proposals}
+                           if renamed and mappable else None)
                 audit.record(
                     self.session,
                     actor_type="system",
@@ -386,6 +413,7 @@ class DatasetRegistry:
                         "kept_as": self.storage.uri(kept),
                         "violations": [v.to_dict() for v in contract_result.blocking],
                         "proposed_mapping": mapping,
+                        "candidates": proposals if renamed and not mapping else None,
                     },
                 )
                 if mapping and all(p["pre_approved"] for p in proposals):
@@ -395,19 +423,26 @@ class DatasetRegistry:
                 approval = self._request_mapping_approval(
                     dataset, obs, kept, schema, proposals, actor=actor, run=run
                 ) if mapping else None
+                if approval is None:
+                    reason = "blocking contract violation"
+                elif approval.status == "pending":
+                    reason = "required column renamed: mapping proposed, awaiting approval"
+                else:
+                    # Decided already, and not approved: a rejection sticks for these bytes.
+                    reason = f"required column renamed: the proposed mapping was {approval.status}"
                 return RegistrationResult(
                     dataset_name,
                     None,
                     None,
                     False,
-                    "required column renamed: mapping proposed, awaiting approval"
-                    if approval else "blocking contract violation",
+                    reason,
                     None,
                     obs.checksum,
                     contract_result,
                     quarantined=True,
                     proposed_mapping=mapping,
                     approval_id=approval.id if approval else None,
+                    approval_status=approval.status if approval else None,
                 )
 
         version_no = self._next_version_no(dataset)
@@ -484,11 +519,16 @@ class DatasetRegistry:
         from triad_core.policy import PolicyEngine
 
         target = f"{dataset.name}@sha256:{obs.checksum[:16]}"
-        pending = self.session.execute(
-            select(Approval).where(Approval.target_ref == target, Approval.status == "pending")
+        # One question per file. A pending request is the same question; a rejected or expired
+        # one is its answer, which the next tick of a watched folder must not ask again. (An
+        # approved one has registered a version, which find_by_checksum has already returned.)
+        asked = self.session.execute(
+            select(Approval).where(Approval.target_ref == target,
+                                   Approval.status.in_(("pending", "rejected", "expired")))
+            .order_by(Approval.requested_at.desc())
         ).scalars().first()
-        if pending is not None:
-            return pending  # the same file again: one question, not two
+        if asked is not None:
+            return asked
         if run is None:
             run = q.create_run(
                 self.session, pipeline_name=f"ingest:{dataset.name}"[:64], trigger_type="data",
@@ -548,25 +588,31 @@ class DatasetRegistry:
                 import pyarrow.parquet as pq
 
                 table = pq.read_table(source)
+                _require_columns(mapping, table.column_names)
                 pq.write_table(
                     table.rename_columns([mapping.get(n, n) for n in table.column_names]), out
                 )
             elif fmt == "csv":
-                # Only the header changes, so every value keeps its exact bytes.
-                with open(source, encoding="utf-8", newline="") as src, \
-                        open(out, "w", encoding="utf-8", newline="") as dst:
-                    line = src.readline()
+                # Only the header changes: every byte after it is copied as it is, so a value
+                # in another encoding later in the file cannot break the copy. The header is
+                # read as pandas reads it, without a byte-order mark, or a renamed first column
+                # of an Excel export would never match its proposal.
+                with open(source, "rb") as src, open(out, "wb") as dst:
+                    line = src.readline().decode("utf-8-sig")
                     ending = "\r\n" if line.endswith("\r\n") else "\n"
                     header = next(csv.reader([line]))
-                    csv.writer(dst, lineterminator=ending).writerow(
+                    _require_columns(mapping, header)
+                    text = io.StringIO()
+                    csv.writer(text, lineterminator=ending).writerow(
                         [mapping.get(n, n) for n in header]
                     )
+                    dst.write(text.getvalue().encode("utf-8"))
                     shutil.copyfileobj(src, dst)
             else:
                 raise IngestError(f"a {fmt} file cannot be mapped here; re-export it with the "
                                   "contract's column names")
-            result = self.register_version(dataset_name, out, actor=actor)
-        if result.version_id is not None:
+            result = self.register_version(dataset_name, out, actor=actor, propose=False)
+        if result.created:
             version = self.session.get(DatasetVersion, result.version_id)
             lineage = {"checksum_sha256": original_checksum, "mapping": mapping, "basis": basis,
                        "approval_id": str(approval_id) if approval_id else None}
@@ -597,10 +643,16 @@ class DatasetRegistry:
         if approval.status != "approved":
             raise IngestError(f"approval {approval.id} is {approval.status}; a mapping is "
                               "applied only after it is approved")
-        return self.apply_mapping(
+        result = self.apply_mapping(
             doc["dataset"], self.storage.path(doc["kept_uri"]), doc["mapping"], actor=actor,
             basis="approved", original_checksum=doc["checksum_sha256"], approval_id=approval.id,
         )
+        if result.version_id is None:
+            # An approval that registers nothing must not read as done: the decision is rolled
+            # back with this error rather than answered 200 with nothing behind it.
+            raise IngestError(f"the approved mapping did not produce a registrable file: "
+                              f"{result.reason}")
+        return result
 
 
 @dataclass

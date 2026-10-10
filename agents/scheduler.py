@@ -122,7 +122,10 @@ class Scheduler:
             if not folder.is_dir() or registry.get(dataset) is None:
                 continue
             outcome = watch_folder(registry, dataset, folder, pattern=watch.get("pattern", "*"))
-            registered = [r for r in outcome.registered if getattr(r, "version_id", None)]
+            # Only a version this tick created is an arrival. A duplicate returns the version
+            # that already holds its bytes, and counting it started a new run on unchanged
+            # data at every tick that found no run active.
+            registered = [r for r in outcome.registered if getattr(r, "created", False)]
             result.files_registered += len(registered)
             arrived = arrived or bool(registered)
         if arrived:

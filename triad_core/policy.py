@@ -100,6 +100,29 @@ class PolicyEngine:
     def defaults(self) -> dict[str, Any]:
         return dict(self.policy.get("defaults", {}))
 
+    def approval_terms(self, action: str) -> PolicyDecision:
+        """Who decides an approval for `action`, and on what evidence - whatever `check` says now.
+
+        A bounded action needs approval only once a limit is breached, so `check` without the
+        measurement that breached it answers ALLOW and names nobody. Deciding a request must not
+        depend on re-measuring it: the approvers, the separation of duties and the evidence
+        belong to the action. An unknown action, or an unusable file, has no terms (DENY).
+        """
+        spec = self.policy.get("actions", {}).get(action) if self.valid else None
+        if spec is None:
+            return PolicyDecision(Verdict.DENY, action, ["policy.no_terms"],
+                                  "no approval terms for this action")
+        approvers = (spec.get("performer_roles") if spec.get("autonomy") == "advisory"
+                     else spec.get("approvers"))
+        return PolicyDecision(
+            Verdict.REQUIRE_APPROVAL, action, [f"{action}.{spec.get('autonomy')}"],
+            "approval terms of the action",
+            approvers=list(approvers or []),
+            approvers_all_of=list(spec.get("approvers_all_of", [])),
+            separation_of_duties=bool(spec.get("separation_of_duties", False)),
+            required_evidence=list(spec.get("required_evidence", [])),
+        )
+
     # -- evaluation ------------------------------------------------------------
     def check(
         self,
