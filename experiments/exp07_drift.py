@@ -30,11 +30,20 @@ expected observation warns about:
 * **Detection delay in *label* months** - how many pass before the performance drop is
   visible. Labels for a month are only known 90 days later, so this is necessarily larger,
   and the gap between the two numbers is the finding.
+
+**The fourth arm runs the whole chain on the platform** (`_end_to_end`): a champion trained by
+`churn.prepare` and promoted through the approval the policy requires, a drift report from its
+own publish, the scheduler's evaluation queueing the retrain, the production worker running it,
+AP-8 comparing it with the champion, and its promotion waiting for a person while the registry's
+alias is read. The first three arms measure the detectors; this one measures what they set off.
 """
 
 from __future__ import annotations
 
+import time
+import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -131,6 +140,287 @@ def _fit(train: pd.DataFrame) -> Any:
     model = RandomForestClassifier(n_estimators=150, random_state=SEED, min_samples_leaf=8)
     model.fit(train[FEATURES], train["churned_90d"])
     return model
+
+
+# --- arm 4: the chain on the platform itself ---------------------------------------------------
+# The three arms above use the detectors and the policy object directly. This one runs the chain
+# the hypothesis names through the platform's own code, end to end, and is what makes the
+# experiment complete (DEC-45).
+E2E_CUSTOMERS = 1500
+E2E_MONTHS = 24
+E2E_NEW_MONTHS = 3          # what has arrived by the time the retrain runs
+E2E_DRIFT_FROM_MONTH = 18   # 2025-07: in the champion's test window, after its training cutoffs
+E2E_DRIFT_STRENGTH = 1.0    # the generator's basket-size and channel-mix shift, at full strength
+DATA_START = "2024-01-01"
+OVERRIDE_NOTE = (
+    "EXP-7 harness, as the requesting ML Engineer: the candidate failed a calibration or segment "
+    "rule; it is promoted anyway so that the drift-to-retraining chain has a champion to test."
+)
+
+
+def _person(session: Any, tag: str, role: str) -> Any:
+    """A harness user who can decide but never log in, as EXP-4's Data Engineer."""
+    from triad_core.models import User
+
+    person = User(email=f"{tag}-{role}-{uuid.uuid4().hex[:6]}@triad.invalid",
+                  display_name=f"EXP-7 harness as {role}", role=role,
+                  password_hash="!experiment-only-no-login")
+    session.add(person)
+    session.flush()
+    return person
+
+
+def _end_to_end(exp: Experiment) -> Any:
+    """Drift fires, retraining starts, the challenger meets the champion, promotion waits.
+
+    Every step is the platform's: `churn.prepare` trains the champion; its promotion is decided
+    the way the policy routes it (one approver for a proposal, two for a candidate that failed a
+    calibration or segment rule, through the API's own override handler); `churn.publish`, run
+    by the production `Worker` from the queued publish task, promotes it, scores the latest
+    cutoff and stores the drift report; three more months of data arrive; the scheduler's own
+    `evaluate_champion` reads that report and queues the retrain; the `Worker` runs it, AP-8
+    compares it with the champion, and its promotion - if one is due - waits for a person
+    while the registry's alias is read.
+
+    Two things are the harness's. The retraining cooldown is set to 0 days for its evaluation,
+    because the champion is minutes old and the question is whether the triggers fire, not
+    whether a 7-day cooldown is honoured (publish's own evaluation, which keeps the cooldown,
+    is recorded beside it). And the runs train a model of their own name (`model_name` in the
+    run's config, inherited by the retrain), so no promotion here moves the champion the
+    platform serves; the model is retired at the end, so the scheduler stops watching it.
+    Tasks are claimed by run inside the transaction that queues them, so a running orchestrator
+    cannot take them first.
+    """
+    from sqlalchemy import select
+
+    from agents.graph import churn
+    from agents.graph import queue as q
+    from agents.graph.state import TERMINAL_STATES
+    from agents.monitoring import MonitoringService
+    from agents.scheduler import Scheduler
+    from agents.worker import Worker
+    from backend.app.api.v1.pipelines import request_override
+    from backend.app.schemas import OverrideRequest
+    from backend.app.services import enqueue_publish
+    from datasets.synthetic.generator import GeneratorConfig, SyntheticGenerator
+    from experiments.configuration_p import _spark, register_tables
+    from python_ml.triad_ml.registry import ModelRegistry
+    from triad_core.config import load_yaml, settings
+    from triad_core.db import session_scope
+    from triad_core.governance import GovernanceService
+    from triad_core.models import AuditLog, DriftReport, Model, PipelineRun
+    from triad_core.policy import PolicyEngine
+    from triad_core.storage import storage
+
+    trial = exp.trial("end_to_end_drift_to_approval")
+    tag = f"exp07_{uuid.uuid4().hex[:6]}"
+    model_name = f"churn_classifier_{tag}"
+    store = storage()
+    root = store.root / "experiments" / "exp07" / tag
+    registry = ModelRegistry(settings().mlflow_tracking_uri)
+    worker = Worker(name=f"{tag}-worker", lease_seconds=3600)
+    started = time.perf_counter()
+    trial.observations["setup"] = {
+        "customers": E2E_CUSTOMERS, "months": E2E_MONTHS, "new_months": E2E_NEW_MONTHS,
+        "drift_from_month": E2E_DRIFT_FROM_MONTH, "drift_strength": E2E_DRIFT_STRENGTH,
+        "model_name": model_name, "pipeline_name": tag,
+        "cooldown_days_for_the_scheduler_evaluation": 0,
+    }
+
+    def champion_now() -> str | None:
+        current = registry.get_alias(model_name, "champion")
+        return current.version if current else None
+
+    def generate(months: int, out: Path) -> None:
+        SyntheticGenerator(GeneratorConfig(
+            customers=E2E_CUSTOMERS, months=months, seed=SEED, start_date=DATA_START,
+            drift_from_month=E2E_DRIFT_FROM_MONTH, drift_strength=E2E_DRIFT_STRENGTH,
+        )).write(out)
+
+    def decide_promotion(session: Any, run: Any, who: str) -> Any:
+        """File and decide the run's promotion the way the policy routes it; return the publish
+        task, claimed. None when the candidate is neither proposed nor eligible."""
+        governance = GovernanceService(session, PolicyEngine(settings().governance_policy_path))
+        state = churn.read_state(store, run)
+        outcome = state.get("selection_outcome")
+        if outcome == "PROPOSE_PROMOTION":
+            path = "model.promote"
+            pending = [a for a in governance.pending_for(run.id)
+                       if a.action_type == "model_promotion"]
+        elif (state.get("override") or {}).get("eligible"):
+            path = "model.promote_with_failed_check"
+            request_override(run.run_key, OverrideRequest(note=OVERRIDE_NOTE), session,
+                             _person(session, tag, "ml_engineer"))
+            pending = [a for a in governance.pending_for(run.id)
+                       if a.policy_action == "model.promote_with_failed_check"]
+        else:
+            trial.record(f"{who}_promotion_path", None,
+                         note=f"{outcome}: neither proposed nor eligible for an override")
+            return None
+        session.refresh(run)
+        trial.record(f"{who}_promotion_path", path)
+        trial.record(f"{who}_approvals_pending", len(pending))
+        trial.record(f"{who}_run_state_while_pending", run.state)
+        trial.record(f"{who}_champion_while_pending", champion_now(),
+                     note="the registry's champion alias while the decision is open")
+        decided = None
+        for approval in pending:
+            approver = _person(session, tag, approval.required_role or "ml_engineer")
+            decided = governance.decide(
+                approval.id, approver=approver, approved=True,
+                comment=f"EXP-7 harness as {approver.role}: approved so the chain can continue")
+        enqueue_publish(session, decided, decision_status=governance.group_status(decided))
+        return q.claim(session, owner=worker.name, lease_seconds=3600, run_id=run.id)
+
+    try:
+        # --- 1. the champion -----------------------------------------------------------------
+        generate(E2E_MONTHS, root / "history")
+        with session_scope() as session:
+            run_a = q.create_run(session, pipeline_name=tag, trigger_type="manual",
+                                 triggered_by=tag,
+                                 config={"experiment": "EXP-7", "model_name": model_name})
+            inputs = register_tables(session, store, root / "history", tag, actor=tag)
+            run_a_id = run_a.id
+        t0 = time.perf_counter()
+        with session_scope() as session:
+            run_a = session.get(PipelineRun, run_a_id)
+            spark = _spark("triad-exp07-champion")
+            try:
+                prepared = churn.prepare(session, run_a, inputs=inputs, spark=spark,
+                                         store=store, seed=SEED, requested_by=tag)
+            finally:
+                spark.stop()
+            trial.record("champion_prepare_s", round(time.perf_counter() - t0, 1), "s")
+            trial.record("champion_selection", (prepared.details.get("selection") or {})
+                         .get("outcome") if prepared.details else None)
+            trial.record("champion_failed_rules", ((prepared.details or {}).get("selection")
+                                                   or {}).get("failed_rules") or [])
+            task = decide_promotion(session, run_a, "champion")
+        if task is None:
+            trial.ok = False
+            trial.detail = (f"the first model could not be promoted ({prepared.state}: "
+                            f"{prepared.reason[:200]}), so there was no champion to test against")
+            return trial
+        worker.handle(task)
+        champion_version = champion_now()
+        trial.record("champion_after_publish", champion_version)
+
+        with session_scope() as session:
+            model = session.execute(select(Model).where(Model.name == model_name)).scalar_one()
+            report = session.execute(
+                select(DriftReport).where(DriftReport.model_version_id == model.champion_version_id)
+                .order_by(DriftReport.computed_at.desc())).scalars().first()
+            psi = (report.psi_json or {}) if report is not None else {}
+            score = psi.get("score") or {}
+            trial.record("drift_flagged_features", list(report.flagged_features or [])
+                         if report is not None else None,
+                         note="the champion's publish: its latest cutoff against its training rows")
+            trial.record("drift_max_feature_psi",
+                         max((float(f.get("psi") or 0) for f in psi.get("features", [])),
+                             default=None))
+            trial.record("drift_score_psi", score.get("psi"))
+            trial.record("drift_score_flagged", score.get("flagged"))
+            publish_eval = session.execute(
+                select(AuditLog).where(AuditLog.run_id == run_a_id,
+                                       AuditLog.action == "retraining.evaluated")
+                .order_by(AuditLog.id.desc())).scalars().first()
+            trial.record("publish_retraining_outcome",
+                         publish_eval.outcome if publish_eval is not None else None,
+                         note="publish's own evaluation, with the configured 7-day cooldown")
+
+        # --- 2. new data arrives, and the scheduler evaluates the champion --------------------
+        generate(E2E_MONTHS + E2E_NEW_MONTHS, root / "latest")
+        config = load_yaml(settings().pipeline_config_path)
+        config["retraining"] = {**(config.get("retraining") or {}), "cooldown_days": 0}
+        with session_scope() as session:
+            arrived = register_tables(session, store, root / "latest", tag, actor=tag)
+            trial.record("new_versions_registered", len(arrived))
+            model = session.execute(select(Model).where(Model.name == model_name)).scalar_one()
+            evaluated = Scheduler(config).evaluate_champion(session, model)
+            decision, queued = evaluated if evaluated else (None, None)
+            trial.record("retraining_rules_fired", decision.rule_ids if decision else None)
+            trial.record("retraining_should_start", bool(decision and decision.should_retrain))
+            trial.record("retraining_blocked_by", (decision.blocked_by or "") if decision else None)
+            trial.record("retraining_run", queued.run_key if queued is not None else None)
+            retrain_task = (q.claim(session, owner=worker.name, lease_seconds=3600,
+                                    run_id=queued.id) if queued is not None else None)
+            retrain_id = queued.id if queued is not None else None
+            if queued is not None:
+                trial.record("retraining_trigger_type", queued.trigger_type)
+                trial.record("retraining_trains_the_same_model",
+                             (queued.config_json or {}).get("model_name") == model_name)
+        if retrain_task is None:
+            trial.ok = False
+            trial.detail = "the drift on the champion's latest cutoff did not start a retrain"
+            return trial
+
+        # --- 3. the retrain runs, meets the champion, and waits --------------------------------
+        t0 = time.perf_counter()
+        worker.handle(retrain_task)
+        trial.record("retraining_prepare_s", round(time.perf_counter() - t0, 1), "s")
+        with session_scope() as session:
+            run_c = session.get(PipelineRun, retrain_id)
+            state = churn.read_state(store, run_c)
+            selection = state.get("selection") or {}
+            delta = selection.get("champion_delta") or {}
+            trial.record("challenger_state", run_c.state)
+            trial.record("challenger_selection", state.get("selection_outcome"))
+            trial.record("challenger_failed_rules", selection.get("failed_rules") or [])
+            trial.record("challenger_compared_with_champion", bool(delta),
+                         note="AP-8's comparison on the challenger's test cutoff, with the "
+                              "champion's own scores")
+            trial.observations["challenger_vs_champion"] = delta
+            publish_task = decide_promotion(session, run_c, "challenger")
+        if publish_task is not None:
+            worker.handle(publish_task)
+            trial.record("champion_after_challenger_publish", champion_now())
+
+        flagged = bool(_maybe(trial, "drift_flagged_features")
+                       or _maybe(trial, "drift_score_flagged"))
+        champion_waited = _maybe(trial, "champion_champion_while_pending") is None and \
+            champion_version is not None
+        challenger_waited = (_maybe(trial, "challenger_promotion_path") is None
+                             or (_maybe(trial, "challenger_champion_while_pending")
+                                 == champion_version
+                                 and _maybe(trial, "champion_after_challenger_publish")
+                                 not in (None, champion_version)))
+        trial.ok = bool(flagged and _maybe(trial, "retraining_should_start")
+                        and _maybe(trial, "challenger_compared_with_champion")
+                        and champion_waited and challenger_waited)
+        trial.detail = (
+            f"drift flagged on the champion's latest cutoff: {flagged}; the scheduler's "
+            f"evaluation fired {trial.get('retraining_rules_fired')} and queued "
+            f"{trial.get('retraining_run')}; the challenger was compared with champion "
+            f"v{champion_version}: {trial.get('challenger_compared_with_champion')} "
+            f"({trial.get('challenger_selection')}); the champion's own promotion waited with "
+            f"no alias until approved: {champion_waited}; the challenger's: "
+            + ("nothing to decide" if _maybe(trial, "challenger_promotion_path") is None
+               else f"alias held at v{_maybe(trial, 'challenger_champion_while_pending')} "
+                    f"while pending, v{_maybe(trial, 'champion_after_challenger_publish')} "
+                    "after approval")
+        )
+        return trial
+    finally:
+        trial.record("elapsed_s", round(time.perf_counter() - started, 1), "s")
+        worker.close()
+        with session_scope() as session:
+            model = session.execute(
+                select(Model).where(Model.name == model_name)).scalar_one_or_none()
+            if model is not None:
+                MonitoringService(session).retire(
+                    model, actor=tag, reason="EXP-7 finished: an experiment's model is not "
+                                             "served, so nothing should monitor or retrain it")
+            for run in session.execute(
+                    select(PipelineRun).where(PipelineRun.pipeline_name == tag)).scalars():
+                # A published run is the record of a promotion; anything still open is closed,
+                # which withdraws an approval nobody will now decide.
+                if run.state not in TERMINAL_STATES | {"PUBLISHED", "MONITORING"}:
+                    q.set_state(session, run, "CANCELLED", actor=tag)
+
+
+def _maybe(trial: Any, name: str) -> Any:
+    """A measurement, or None when that branch never recorded it."""
+    return next((m.value for m in trial.measurements if m.name == name), None)
 
 
 def run() -> Experiment:
@@ -346,12 +636,16 @@ def run() -> Experiment:
             t.get("scoring_months_to_detection") is not None for t in covariate
         )
 
+        # --- arm 4: the same chain on the platform itself ----------------------------
+        chain = _end_to_end(exp)
+
         exp.limitation(
-            "The approval half of the hypothesis - that the challenger is compared with the "
-            "champion and promotion waits for approval - is not re-tested here. It is the "
-            "approval gate of the main pipeline, covered by AT-08/AT-13 and demonstrated by "
-            "scripts/run_demo.py; repeating it inside a drift experiment would measure the "
-            "gate twice and the drift detectors once."
+            "In the end-to-end arm the retraining cooldown is 0 days for the scheduler's "
+            "evaluation, because the champion is minutes old; the question is whether the "
+            "triggers fire, and publish's own evaluation with the configured 7-day cooldown "
+            "is recorded beside it. Its promotions are decided by the harness acting as the "
+            "approvers, so they measure that promotion waits for a decision, not how long a "
+            "person takes to make one."
         )
         exp.limitation(
             "Replay is over synthetic months, not Online Retail II. Only the generator can be "
@@ -360,8 +654,9 @@ def run() -> Experiment:
         )
 
         exp.conclude(
-            status="partial",
-            hypothesis_held=covariate_flagged and concept_dropped and all_retrain and stable.ok,
+            status="completed" if chain.ok else "partial",
+            hypothesis_held=(covariate_flagged and concept_dropped and all_retrain and stable.ok
+                             and chain.ok),
             conclusion=(
                 f"False alarms: {false_alarms} of {STABLE_MONTHS} undrifted months flagged, "
                 f"highest PSI {max(stable_psis):.5f} against a "
@@ -386,8 +681,7 @@ def run() -> Experiment:
                 "labels mature. That is the PRD's expected observation, and it is why RT-1 and "
                 "RT-4 (matured PR-AUC) exist alongside RT-2 and RT-3 (distributions): neither "
                 "family of trigger would catch both cases. "
-                "Status is partial: the approval half of the hypothesis is covered by the "
-                "pipeline's own approval gate, not re-tested here."
+                f"End to end on the platform: {chain.detail}."
             ),
         )
         return exp

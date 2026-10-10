@@ -183,6 +183,18 @@ class TestQueue:
         assert q.claim(self.session, owner="w3", stage=low) is None, "both are leased"
         assert q.claim(self.session, owner="w3", stage=high) is None
 
+    def test_claim_can_be_limited_to_one_run(self) -> None:
+        """A caller executing a run it queued itself claims that run's task, not another's."""
+        first, second = self._run("claim-a"), self._run("claim-b")
+        stage = self._stage()
+        q.enqueue(self.session, first, stage=stage, agent_name="a", task_type="t")
+        mine = q.enqueue(self.session, second, stage=stage, agent_name="a", task_type="t")
+
+        claimed = q.claim(self.session, owner="w1", stage=stage, run_id=second.id)
+
+        assert claimed is not None and claimed.id == mine.id
+        assert q.claim(self.session, owner="w1", stage=stage, run_id=second.id) is None
+
     def test_completion_and_failure_paths(self) -> None:
         run = self._run("paths")
         stage = self._stage()

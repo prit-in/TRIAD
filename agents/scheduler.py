@@ -79,30 +79,48 @@ class Scheduler:
     # -- 1. schedule and drift -------------------------------------------------------------------
     def _evaluate_champions(self, session: Session, result: TickResult) -> None:
         from agents.monitoring import MonitoringService
-        from triad_core.models import Model, ModelVersion, PipelineRun
+        from triad_core.models import Model
 
         monitor = MonitoringService(session, store=self.store, config=self.config)
         models = session.execute(
             select(Model).where(Model.champion_version_id.is_not(None))
         ).scalars().all()
         for model in models:
-            champion = session.get(ModelVersion, model.champion_version_id)
-            if champion is None or champion.run_id is None:
-                continue
-            source = session.get(PipelineRun, champion.run_id)
-            if source is None:
+            evaluated = self.evaluate_champion(session, model, monitor=monitor)
+            if evaluated is None:
                 continue
             result.evaluated_models += 1
-            decision = monitor.evaluate_retraining(monitor.monitoring_state(champion), run=source)
-            if not decision.should_retrain:
-                continue
-            queued = monitor.start_retraining(
-                decision, source=source, trigger_type=trigger_type_for(decision.rule_ids)
-            )
+            decision, queued = evaluated
             if queued is not None:
                 result.retraining_queued.append(queued.run_key)
                 log.info("queued %s for %s (%s)", queued.run_key, model.name,
                          ", ".join(decision.rule_ids))
+
+    def evaluate_champion(
+        self, session: Session, model: Any, *, monitor: Any = None
+    ) -> tuple[Any, Any] | None:
+        """One model's champion through RT-1..RT-9, queueing a retrain if they say so.
+
+        Returns `(decision, queued_run_or_None)`, or None when the model has no champion with a
+        source run to evaluate. The tick calls this for every model; EXP-7 calls it for its own.
+        """
+        from agents.monitoring import MonitoringService
+        from triad_core.models import ModelVersion, PipelineRun
+
+        monitor = monitor or MonitoringService(session, store=self.store, config=self.config)
+        champion = session.get(ModelVersion, model.champion_version_id) \
+            if model.champion_version_id else None
+        if champion is None or champion.run_id is None:
+            return None
+        source = session.get(PipelineRun, champion.run_id)
+        if source is None:
+            return None
+        decision = monitor.evaluate_retraining(monitor.monitoring_state(champion), run=source)
+        if not decision.should_retrain:
+            return decision, None
+        return decision, monitor.start_retraining(
+            decision, source=source, trigger_type=trigger_type_for(decision.rule_ids)
+        )
 
     # -- 2. data arrival ---------------------------------------------------------------------------
     def _watch_landing_folders(self, session: Session, result: TickResult, *, now: dt.datetime) -> None:

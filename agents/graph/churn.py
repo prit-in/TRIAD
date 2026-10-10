@@ -37,6 +37,14 @@ Logger = Callable[[str, str, bool | None], None]
 STATE_FILE = "run_state.json"
 MODEL_NAME = "churn_classifier"
 
+
+def model_name_for(run: PipelineRun) -> str:
+    """The registered model a run trains and is compared against: the platform's churn model,
+    unless the run names another. EXP-7 names its own, so its promotions never move the
+    champion the platform serves; a retraining run inherits its parent's (`start_retraining`).
+    """
+    return str((run.config_json or {}).get("model_name") or MODEL_NAME)
+
 # Customer attributes the segment checks group by (PRD 26.1: country, tenure, value tier).
 # Joined at the hand-off for evaluation only and excluded from the feature columns below, so
 # the model never trains on them. A segment check asks whether a model built from *behaviour*
@@ -210,7 +218,8 @@ def _lock_pipeline(session: Session, pipeline_name: str) -> None:
 
 
 def _champion_scores(
-    split: Any, feature_cols: list[str], *, expected_sha256: str | None = None
+    split: Any, feature_cols: list[str], *, expected_sha256: str | None = None,
+    model_name: str = MODEL_NAME,
 ) -> tuple[Any, str]:
     """The deployed champion's probabilities on this run's test cutoff.
 
@@ -227,7 +236,7 @@ def _champion_scores(
 
     try:
         registry = ModelRegistry(settings().mlflow_tracking_uri)
-        current = registry.get_alias(MODEL_NAME, "champion")
+        current = registry.get_alias(model_name, "champion")
     except Exception as exc:
         return None, f"could not reach the model registry to find the champion: {exc}"
 
@@ -235,7 +244,7 @@ def _champion_scores(
         return None, "no champion yet: this challenger is compared against the floor only"
 
     try:
-        champion = registry.load(MODEL_NAME, "champion", expected_sha256=expected_sha256)
+        champion = registry.load(model_name, "champion", expected_sha256=expected_sha256)
         return champion.predict_proba(split.test[feature_cols])[:, 1], (
             f"champion v{current.version} scored on the same test cutoff"
         )
@@ -246,7 +255,7 @@ def _champion_scores(
         )
 
 
-def _champion_hash(session: Session) -> str | None:
+def _champion_hash(session: Session, model_name: str = MODEL_NAME) -> str | None:
     """The catalogue's record of the champion's artifact hash, for a verified load (ST-08).
 
     It is read from PostgreSQL, not from MLflow, so the expectation and the artifact do not
@@ -257,7 +266,7 @@ def _champion_hash(session: Session) -> str | None:
 
     from triad_core.models import Model
 
-    model = session.execute(select(Model).where(Model.name == MODEL_NAME)).scalars().first()
+    model = session.execute(select(Model).where(Model.name == model_name)).scalars().first()
     if model is None or model.champion_version_id is None:
         return None
     version = session.get(ModelVersion, model.champion_version_id)
@@ -303,6 +312,7 @@ def prepare(
     say = log or _noop
     store = store or storage()
     pipeline = ChurnPipeline(session, run, store=store, replay_of=replay_of)
+    model_name = model_name_for(run)
 
     # Two runs of the same pipeline write the same clean/feature/label folders, and
     # `storage.commit` supersedes what is there. Run them at once and the second silently
@@ -536,7 +546,8 @@ def prepare(
     num_cols, cat_cols = split_feature_types(split.train, exclude=split.excluded_cols)
     feature_cols = num_cols + cat_cols
     champion_scores, champion_note = _champion_scores(
-        split, feature_cols, expected_sha256=_champion_hash(session)
+        split, feature_cols, expected_sha256=_champion_hash(session, model_name),
+        model_name=model_name,
     )
     if champion_note:
         say("compare", champion_note, champion_scores is not None)
@@ -680,17 +691,17 @@ def prepare(
             input_example=split.valid[num_cols + cat_cols].head(2),
             tags={"run_key": run.run_key, "feature_set_version": FEATURE_SET_VERSION,
                   "split": json.dumps(spec.to_dict())},
-            register_as=MODEL_NAME,
+            register_as=model_name,
         )
         mlflow_version = registered.version if registered else None
         artifact_sha256 = registered.artifact_sha256 if registered else None
         if mlflow_version and not overridable:
-            registry.set_challenger(MODEL_NAME, mlflow_version)
-            say("registry", f"registered {MODEL_NAME} v{mlflow_version} as challenger", True)
+            registry.set_challenger(model_name, mlflow_version)
+            say("registry", f"registered {model_name} v{mlflow_version} as challenger", True)
         elif mlflow_version:
             # Not the challenger alias: an escalated candidate is not the model awaiting
             # promotion until two people say so.
-            say("registry", f"registered {MODEL_NAME} v{mlflow_version} as a candidate "
+            say("registry", f"registered {model_name} v{mlflow_version} as a candidate "
                             "awaiting an override decision", True)
     except Exception as exc:
         registry_error = str(exc)
@@ -708,7 +719,7 @@ def prepare(
     # needed and an older model version simply has no document rather than a null pointer.
     evaluation = {
         "run_key": run.run_key,
-        "model_name": MODEL_NAME,
+        "model_name": model_name,
         "selected_family": selection.selected.family,
         "threshold": threshold,
         "generated_at": utcnow().isoformat(),
@@ -762,7 +773,7 @@ def prepare(
     # here rather than at the approval, where the split and the candidates would have to be
     # reconstructed.
     card = ModelCard(
-        model_name=MODEL_NAME,
+        model_name=model_name,
         version=str(mlflow_version or "unregistered"),
         algorithm=selection.selected.family,
         intended_use=(
@@ -836,7 +847,7 @@ def prepare(
     monitor = MonitoringService(session, store=store, config=pipeline.config,
                                 governance=pipeline.governance)
     catalogue_model = monitor.model(
-        MODEL_NAME, target_definition=pipeline.config["label"]["definition"].strip()
+        model_name, target_definition=pipeline.config["label"]["definition"].strip()
     )
     model_version = monitor.register_model_version(
         catalogue_model, run=run, algorithm=selection.selected.family,
@@ -863,7 +874,7 @@ def prepare(
 
     state = {
         "run_key": run.run_key,
-        "model_name": MODEL_NAME,
+        "model_name": model_name,
         "model_version_id": str(model_version.id),
         "mlflow_version": mlflow_version,
         "registry_error": registry_error,
@@ -912,7 +923,7 @@ def prepare(
     # -- request approval -------------------------------------------------------
     evidence = EvidenceBundle(
         action_type="model_promotion",
-        target_ref=f"{MODEL_NAME}:{mlflow_version or 'unregistered'}",
+        target_ref=f"{model_name}:{mlflow_version or 'unregistered'}",
         metrics_vs_champion=selection.champion_delta or
         {"note": "no champion yet: first model"},
         segment_checks=[{"rule": "AP-6", "result": "checked"}],
@@ -1087,7 +1098,8 @@ def publish(
 
     # -- score ------------------------------------------------------------------
     model = (
-        registry.load(state["model_name"], "champion", expected_sha256=_champion_hash(session))
+        registry.load(state["model_name"], "champion",
+                      expected_sha256=_champion_hash(session, state["model_name"]))
         if promoted else None
     )
     if model is None:

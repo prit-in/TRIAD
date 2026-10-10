@@ -196,6 +196,35 @@ class MonitoringService:
         )
         return version
 
+    def retire(self, model: Model, *, actor: str, reason: str) -> ModelVersion | None:
+        """Take a model out of service in the catalogue, so nothing monitors or retrains it.
+
+        The scheduler evaluates every model with a champion, so a model nobody serves - an
+        experiment's, once it has measured what it came for - would be retrained the day its
+        cooldown ended. The registry's aliases are left alone: moving them is the governance
+        service's (`registry.set_alias` is forbidden to agents), and with no champion in the
+        catalogue nothing reads them. Returns the version that stood down, if there was one.
+        """
+        version = (self.session.get(ModelVersion, model.champion_version_id)
+                   if model.champion_version_id else None)
+        model.champion_version_id = None
+        if version is not None:
+            version.governance_status = "archived"
+        self.session.flush()
+        audit.record(
+            self.session,
+            actor_type="system",
+            actor_id=actor,
+            action="model.retired",
+            resource_type="model",
+            resource_id=str(model.id),
+            run_id=version.run_id if version is not None else None,
+            outcome="retired",
+            details={"model": model.name, "reason": reason[:500],
+                     "champion_version": str(version.id) if version is not None else None},
+        )
+        return version
+
     def record_predictions(
         self,
         version: ModelVersion,
@@ -532,12 +561,18 @@ class MonitoringService:
                 {*(source.input_versions or {}), *(self.config.get("inputs") or {})}
             ),
         }
+        config: dict[str, Any] = {"retraining": decision.to_dict(),
+                                  "parent_run": source.run_key}
+        # A retrain replaces its parent's model, so it trains under the same registered name;
+        # without it a run that named its own model (EXP-7) would retrain the platform's.
+        if (source.config_json or {}).get("model_name"):
+            config["model_name"] = source.config_json["model_name"]
         run = q.create_run(
             self.session,
             pipeline_name=name,
             trigger_type=trigger_type,
             triggered_by="system",
-            config={"retraining": decision.to_dict(), "parent_run": source.run_key},
+            config=config,
             input_versions=inputs,
             # The limits only. `budget_json` also holds what the source run *used*, and
             # RunBudget.from_dict resumes from it, so a retrain inherited its parent's elapsed

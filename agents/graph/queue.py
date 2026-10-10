@@ -36,6 +36,7 @@ CLAIM_SQL = text(
       WHERE status = 'queued'
         -- the cast is required: PostgreSQL cannot infer the type of a bare NULL parameter
         AND (CAST(:stage AS text) IS NULL OR stage = CAST(:stage AS text))
+        AND (CAST(:run_id AS uuid) IS NULL OR run_id = CAST(:run_id AS uuid))
       ORDER BY priority DESC, created_at
       FOR UPDATE SKIP LOCKED
       LIMIT 1
@@ -217,11 +218,17 @@ def enqueue(
 
 
 def claim(
-    session: Session, *, owner: str, lease_seconds: int = 300, stage: str | None = None
+    session: Session, *, owner: str, lease_seconds: int = 300, stage: str | None = None,
+    run_id: uuid.UUID | None = None,
 ) -> ClaimedTask | None:
-    """Claim the highest-priority queued task. Concurrent workers never get the same row."""
+    """Claim the highest-priority queued task. Concurrent workers never get the same row.
+
+    `run_id` limits the claim to one run's tasks: a caller that executes a run it queued
+    itself (EXP-7 does) claims that run's task, not whatever else is waiting.
+    """
     row = session.execute(
-        CLAIM_SQL, {"owner": owner, "lease_seconds": lease_seconds, "stage": stage}
+        CLAIM_SQL, {"owner": owner, "lease_seconds": lease_seconds, "stage": stage,
+                    "run_id": str(run_id) if run_id else None}
     ).first()
     if row is None:
         return None

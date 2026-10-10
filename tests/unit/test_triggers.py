@@ -193,3 +193,53 @@ def test_the_data_trigger_starts_a_run(db_session, config, tmp_path) -> None:
     q.set_state(db_session, runs[0], "CANCELLED")
     again = Scheduler(cfg, store=store).tick(db_session)
     assert again.files_registered == 0 and not again.data_runs_queued, again
+
+
+def test_a_retrain_trains_the_model_its_parent_named(db_session, config) -> None:
+    """A run that names its own model (EXP-7) is retrained under that name, not the platform's:
+    without it the retrain would register as, and be compared with, the platform's champion."""
+    source, _ = _champion(db_session, trained_days_ago=40,
+                          pipeline=f"churn-named-{uuid.uuid4().hex[:6]}")
+    source.config_json = {"model_name": "churn_classifier_named"}
+    db_session.flush()
+
+    Scheduler(config).tick(db_session)
+
+    [started] = _runs_started_from(db_session, source)
+    assert started.config_json["model_name"] == "churn_classifier_named"
+
+
+def test_one_champion_is_evaluated_as_the_tick_evaluates_it(db_session, config) -> None:
+    from triad_core.models import Model
+
+    source, version = _champion(db_session, trained_days_ago=40,
+                                pipeline=f"churn-one-{uuid.uuid4().hex[:6]}")
+    model = db_session.get(Model, version.model_id)
+
+    decision, queued = Scheduler(config).evaluate_champion(db_session, model)
+
+    assert decision.should_retrain and queued is not None
+    assert queued.parent_run_id == source.id
+
+    model.champion_version_id = None
+    assert Scheduler(config).evaluate_champion(db_session, model) is None, "no champion"
+
+
+def test_a_retired_model_is_no_longer_watched(db_session, config) -> None:
+    """Retiring clears the champion, so the tick passes the model by - and it is audited."""
+    from agents.monitoring import MonitoringService
+    from triad_core.models import AuditLog, Model
+
+    source, version = _champion(db_session, trained_days_ago=40,
+                                pipeline=f"churn-retired-{uuid.uuid4().hex[:6]}")
+    model = db_session.get(Model, version.model_id)
+
+    stood_down = MonitoringService(db_session).retire(model, actor="tester",
+                                                      reason="experiment finished")
+    Scheduler(config).tick(db_session)
+
+    assert stood_down is version and version.governance_status == "archived"
+    assert model.champion_version_id is None
+    assert _runs_started_from(db_session, source) == []
+    assert db_session.execute(select(AuditLog).where(
+        AuditLog.action == "model.retired", AuditLog.resource_id == str(model.id))).first()
