@@ -5,35 +5,47 @@ everything after it where they disagree.
 
 ## Progress, 10-10-2026 (read first)
 
-- **EXP-4 completed and held** (`20261009T184842Z`): every schema fault detected and handled. It
-  needed DEC-39 - a renamed required column is now proposed as a mapping, a `schema.change`
-  approval filed, nothing registered before a decision, the approved copy registered with its
-  lineage - and the feature stage in its protocol. Section 15.4 has its paragraph.
-- **Built and tested:** DEC-40 (a cleaning plan over its 5% limit pauses in `APPROVAL_REQUIRED`
-  with a `destructive_cleaning` request; approval re-queues the run, rejection escalates;
-  cancelling a run withdraws its open requests); DEC-41 (a local-mode heap exhaustion is
-  `EXECUTOR_OOM`; the remedy raises partitions, and memory only where the allowlist permits -
-  not `spark.driver.memory`, DEC-20; the runner reports who killed a container); a dataset upload
-  form on the Datasets page that shows a proposed mapping and links to the approval queue
-  (frontend not yet type-checked - the frontend container died of the VM's ENOMEM at 09:11).
-- **A read-only review** of the paths EXP-4/5/6/8 measure (workflow `wf_a513c458`, four reviewers
-  and a skeptic; 20 of 23 findings confirmed) found, among others: any role could approve a paused
-  cleaning plan (approvers now come from the action's terms, `PolicyEngine.approval_terms`); a
-  decided mapping was asked again on every watched-folder tick, and duplicates started a new run
-  at every idle scheduler tick; EXP-5's baseline drew different random numbers from its trend
-  conditions; EXP-6 recorded unexercised claims as refuted; EXP-8 would have crashed at its second
-  fault (twelve stale mutation anchors) and three of its wrong-column faults changed nothing. All
-  fixed (DEC-42); full unit suite 657 passed before the last commits.
-- **EXP-5 died twice** with ENOMEM on a bind-mount listing (records kept); the cause was the whole
-  VM running short, worsened by experiments running sbt and the test JVM a gigabyte above
-  production's heaps. Each condition now runs in its own process and `dev` has the orchestrator's
-  heaps. EXP-6's memory arm was calibrated by two pilots (`experiments/EXP-6/pilot_20261010.md`):
-  no out-of-memory lands at the least heap Spark accepts, even at 20 000 customers (191 MB spilled).
-- **Running** from 09:44 UTC: `ORDER="EXP-9 EXP-10 EXP-5 EXP-6 EXP-8 EXP-4"` (about four hours).
-  Start no container while it runs (memory note). Afterwards: `docker compose -f
-  docker/compose.yaml restart api orchestrator` and start `frontend` (their code predates these
-  changes), `npx tsc -b --noEmit` for the upload form, then EXPERIMENTS.md, charts and tables,
-  Sections 15-17, 19, 22, 00, diagram export, assembly, audits.
+**Every experiment has been run on the current code and written up** (EXPERIMENTS.md, Sections 13,
+15-17, 19, 20, 22, 00; Tables 10-11 and Figs 21-25, 28 rebuilt). Five held, three did not, two
+have no verdict:
+
+| Exp | Run | Result |
+| --- | --- | --- |
+| EXP-1 | `20261010T143000Z` | partial, held - P 831 s (gates about 395 s), B3 76 s, B2 7.1 s; like-for-like 0.776 vs P 0.741 |
+| EXP-2 | `20261008T171242Z` | partial, refuted on this node (B3 fails first, at 100 000 customers) |
+| EXP-3 | `20261007T215740Z` | partial, did not hold (2 to 4 cores slower) |
+| EXP-4 | `20261010T121337Z` | completed, held - mapping proposed, approved, applied; 3 of 3 faults handled |
+| EXP-5 | `20261010T094502Z` | completed, did not hold - key nulls all quarantined, non-key nulls cost no row, over-limit plan paused; PR-AUC flat within noise |
+| EXP-6 | `20261010T113128Z` | partial, no verdict - kill absorbed identically; no out-of-memory lands on this node (spill instead); skew not assessable |
+| EXP-7 | `20261007T215709Z` | partial, held - drift caught 3 of 3, no false alarm in 6 stable months |
+| EXP-8 | `20261010T131443Z` | partial, no verdict - 19 of 20 faults stopped before reading data; breaker trips at attempt 2 |
+| EXP-9 | `20261010T094418Z` | completed, held |
+| EXP-10 | `20261010T094439Z` | completed, held |
+
+What the day fixed, each with a decision record:
+
+- **DEC-39** a renamed required column is proposed as a mapping and applied only once approved
+  (ATC-06 met); **DEC-40** a cleaning plan over its limit pauses for a Data Engineer; cancelling a
+  run withdraws its open approvals; **DEC-41** a local-mode out-of-memory is classified and
+  remedied within the allowlist, and a killed container says who killed it.
+- **The review of 10-10** (workflow `wf_a513c458`, 20 of 23 findings confirmed): approvers now come
+  from the action's terms (any role could approve a paused cleaning plan); a decided mapping is not
+  asked again and duplicates are not "arrivals" (the scheduler started a run per idle tick on
+  unchanged data); EXP-5/6/8 harness defects (DEC-42).
+- **DEC-43** sbt and coursier now use the mounted cache volumes: every fresh container had been
+  downloading 520 MB inside its first compile, which put about four minutes of download into
+  EXP-1's "price of governance" (989 s -> 831 s) and failed EXP-8 once on a DNS lookup.
+- EXP-6's feature-table difference under spill is last-bit floating-point summation
+  (`experiments/EXP-6/diag_feature_determinism_20261010.md`); summing money as decimal would remove
+  it - stated as a limit, not changed mid-campaign.
+- Frontend: a dataset upload form (shows a proposed mapping, links to approvals) and a cleaning
+  plan's evidence on the approval page; type-checked, not exercised in a browser.
+
+**Next, in order:** diagram export (`docs/research/figures/export_diagrams.py`, draw.io container,
+then a visual check of every figure, Figs 18, 26, 27, 29-32 never inspected), then
+`python docs/research/assemble_manuscript.py --final` and `finalize_manuscript.ps1`, read the PDF,
+then FINAL_COMPLIANCE_AUDIT.md (two audits), MANUSCRIPT_COMPLIANCE_CHECKLIST, CURRENT_PROJECT_AUDIT,
+and only then ask the user for the team details. Start no container while an experiment runs.
 
 ## Progress, 08-10-2026 evening (read first)
 
