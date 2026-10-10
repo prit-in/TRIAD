@@ -20,7 +20,7 @@ carrying an estimate.
 | EXP-5 | Missing values | **completed** | **did not hold** (PR-AUC flat within noise; key nulls quarantined, non-key nulls cost no row, the over-limit plan paused for approval) | `experiments/EXP-5/latest.json`, `experiments/EXP-5/calibration_noise_floor.json` |
 | EXP-6 | Spark failures and recovery | **partial** | **no verdict** (the executor loss absorbed with identical output; no out-of-memory lands on this node; skew not assessable at this size) | `experiments/EXP-6/latest.json` |
 | EXP-7 | Model degradation | **partial** | **held** | `experiments/EXP-7/latest.json` |
-| EXP-8 | Scala compile failures | **partial** | **no verdict** | `experiments/EXP-8/latest.json` |
+| EXP-8 | Scala compile failures | **partial** | **no verdict** (repair needs an LLM; 19 of 20 faults stopped before reading data, forbidden APIs never run, the breaker trips at attempt 2) | `experiments/EXP-8/latest.json` |
 | EXP-9 | Leakage sentinel | **completed** | **held** | `experiments/EXP-9/latest.json` |
 | EXP-10 | Governance bypass | **completed** | **held** | `experiments/EXP-10/latest.json` |
 
@@ -293,36 +293,44 @@ logs, which are disabled here; they are absent rather than approximated.
 
 ### EXP-8, seeded Scala faults — no verdict, partial
 
-| Fault class | Seeded | Detected before execution | Gate that caught it |
-| --- | --- | --- | --- |
-| forbidden API | 5 | **5** | 2 (static scan) |
-| type mismatch | 5 | **5** | 4 (compile) |
-| missing import | 5 | **5** | 4 (compile) |
-| wrong column name | 5 | **0** | none |
+Run `20261010T131443Z` (10-10-2026 13:14 to 14:29 UTC), gates 1 to 5, warm caches (DEC-43).
 
-**15 of 20, and the five that get through are the interesting ones.** A wrong column name passes
-every static gate because the name is a string until Spark resolves it: gate 2 has nothing to
-scan for, gate 4 compiles it happily, and the fault only exists at execution. The PRD expects
-semantic faults to escalate more often; what this measures is stronger than that — they are
-invisible to static analysis entirely.
+| Fault class | Seeded | Stopped before reading data | Gate that caught it | Time to the verdict |
+| --- | --- | --- | --- | --- |
+| forbidden API | 5 | **5** | 2 (static scan) | 0.2-0.3 s |
+| type mismatch | 5 | **5** | 4 (compile) | 37-52 s |
+| missing import | 5 | **5** | 4 (compile) | 38-96 s |
+| wrong column name | 5 | **4** | 5 (fixture tests) | 299-369 s |
 
-The forbidden-API result is the PRD's strongest claim about codegen and it holds exactly: 5 of 5
-refused at gate 2 in under a third of a second each, never compiled, never submitted. And
-fingerprints repeat identically across three attempts on every detected fault, so an unrepairable
-fault trips the circuit breaker rather than burning the attempt budget.
+- **19 of 20 stopped before the job read any data.** The static gates stopped 15; a wrong column
+  name passed all four of them, because a name is a string until Spark resolves it, and the
+  fixture tests caught four of five: a misspelled de-duplication key that merged different orders
+  (WC-1), a cancellation test on a missing column (WC-3), an order key declared numeric (WC-4),
+  and a filter on a name Spark could not resolve (WC-5).
+- **The fifth wrong column passed every gate, as predicted from the fixture.** Misspelling both
+  de-duplication keys (WC-2) makes the job fall back to whole-row de-duplication, and the fixture's
+  duplicate is an exact one, so the fixture cannot tell the two apart. What escapes is what the
+  fixtures do not exercise.
+- **Forbidden APIs never run**: 5 of 5 refused at gate 2, never compiled. **Repeated fingerprints
+  escalate**: each detected fault's gates were run a second time on the identical artifact, both
+  results classified and fingerprinted as the stage runner does, and the real circuit breaker
+  tripped at attempt 2 for all 19.
+- **No verdict** because the headline clause - 70% repaired within 3 attempts - needs a language
+  model to rewrite the slot (ADR-0003); a measured 0% would describe the missing provider.
 
-**The hypothesis has no verdict because its headline number cannot be measured here.** "At least
-70% repaired within 3 attempts" needs an LLM to rewrite the slot, and no provider is configured
-(ADR-0003); `StageRunner._apply_fix` adjusts infrastructure inputs only, so `generate` returns
-identical code on every attempt. A measured 0% would describe the missing provider, not the
-repair loop, so the harness records no verdict rather than a number that reads like one.
+How the measurement got here, each step a defect the experiment had in itself:
 
-This experiment first reported **20 of 20**, and that result was deleted. The generated object
-name carried the experiment's run suffix — `object CleanJob_exp08wc-1` — and a hyphen is not a
-legal Scala identifier, so every job failed to compile and the harness read the compile failure
-as the seeded fault being caught. Fifteen of the twenty detections were real; five were the
-experiment detecting its own bug. The suffix is now sanitised and the false result is gone from
-`experiments/`.
+- The first run reported 20 of 20: the generated object's name carried a hyphen (`wc-1`), every
+  mutant failed to compile for that reason, and fifteen detections were the experiment's own bug.
+- Until DEC-38 the experiment stopped at gate 4, so the five wrong columns were "reaching
+  execution" and the question that matters - does anything stop a semantic fault before it reads
+  data - was unmeasured.
+- The review of 10-10-2026 found twelve of the twenty anchors stale since the slot changed (the
+  run would have crashed at its second fault), WC-3's anchor matching a type declaration instead of
+  the cancellation test, three wrong-column faults that changed nothing yet counted as escapes, any
+  gate failure counted as a detection even when the toolchain failed, and a fingerprint check that
+  classified one string three times (DEC-42). The run of that morning then failed outright on a
+  dependency download inside the control's compile, which is how DEC-43 was found.
 
 ### EXP-5, missing values — did not hold, completed
 
