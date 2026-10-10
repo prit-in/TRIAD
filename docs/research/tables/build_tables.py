@@ -88,9 +88,16 @@ def key_result(exp: str, trials: dict[str, dict[str, Any]]) -> str:
         rates = [(n, v.get("test_pr_auc"), v.get("quarantined_rows")) for n, v in t.items()]
         return "; ".join(f"{n}: PR-AUC {num(pr)}, quarantined {num(q)}" for n, pr, q in rates)
     if exp == "EXP-6":
-        faults = lambda n: n != "clean_baseline"  # noqa: E731
-        return (f"recovered {share(t, faults, lambda v: v.get('recovered'))}, escalated "
-                f"{share(t, faults, lambda v: v.get('escalated') and not v.get('recovered'))}")
+        # Only an arm whose fault landed counts (DEC-42): a kill read as a lost executor, or an
+        # out-of-memory. The memory arm's spill is reported in Section 15.4, not here.
+        def landed(n):
+            v = t[n]
+            return bool((v.get("container_killed") and v.get("first_error_class") == "EXECUTOR_LOST")
+                        or "EXECUTOR_OOM" in (v.get("first_error_class"),
+                                              v.get("feature_first_error_class")))
+        return (f"faults that landed and recovered {share(t, landed, lambda v: v.get('recovered'))}"
+                f"; identical to the clean run "
+                f"{share(t, landed, lambda v: v.get('identical_to_clean_run'))}")
     if exp == "EXP-7":
         stable = t.get("stable_no_drift", {})
         caught = share(t, lambda n: n.startswith(("covariate", "concept")),
@@ -99,7 +106,7 @@ def key_result(exp: str, trials: dict[str, dict[str, Any]]) -> str:
                 f"over {num(stable.get('months_replayed'))} stable months")
     if exp == "EXP-8":
         def seeded(n):
-            return not n.startswith("control")
+            return not n.startswith("control") and not t[n].get("toolchain_failure")
         return ("stopped before reading data: "
                 + share(t, seeded, lambda v: v.get("detected_before_data", v.get("detected")))
                 + "; by the static gates alone: " + share(t, seeded, lambda v: v.get("detected")))

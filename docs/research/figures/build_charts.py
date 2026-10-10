@@ -228,13 +228,15 @@ def fig23() -> None:
     for condition, v in e8.items():
         if "_" not in condition or condition.startswith("control"):
             continue
+        if v.get("toolchain_failure"):
+            continue   # a gate that failed for another reason says nothing about the fault
         name = condition.split("_", 1)[1].replace("_", " ")
         bucket = classes.setdefault(name, {"gate 2": 0, "gate 4": 0, "gate 5": 0, "other gate": 0,
                                            "not before execution": 0})
         gate = v.get("first_failed_gate")
-        if v.get("fixture_gate_passed") is False:   # passed gates 1-4, stopped by the fixtures
+        if gate in (5, "5") or v.get("fixture_gate_passed") is False:   # the fixtures stopped it
             bucket["gate 5"] += 1
-        elif not v.get("detected"):
+        elif gate is None:
             bucket["not before execution"] += 1
         elif gate in (2, "2"):
             bucket["gate 2"] += 1
@@ -269,10 +271,14 @@ def fig23() -> None:
     # fault no gate caught is drawn hollow at the time it took to pass all of them.
     ax = axes[1]
     for i, name in enumerate(names):
-        times = [(v.get("wall_clock_s"), bool(v.get("detected_before_data", v.get("detected"))))
+        # Time to the first verdict: the run also repeats a detected fault's gates once, to
+        # measure the circuit breaker, and that second attempt is not the gate's cost.
+        times = [(v.get("verdict_s", v.get("wall_clock_s")),
+                  bool(v.get("detected_before_data", v.get("detected"))))
                  for c, v in e8.items()
-                 if not c.startswith("control") and c.split("_", 1)[-1].replace("_", " ") == name
-                 and isinstance(v.get("wall_clock_s"), (int, float))]
+                 if not c.startswith("control") and not v.get("toolchain_failure")
+                 and c.split("_", 1)[-1].replace("_", " ") == name
+                 and isinstance(v.get("verdict_s", v.get("wall_clock_s")), (int, float))]
         for j, (secs, caught) in enumerate(times):
             x = i + (j - (len(times) - 1) / 2) * 0.08
             ax.scatter([x], [secs], s=14, marker="o", linewidths=0.7,
@@ -338,6 +344,17 @@ def fig24() -> None:
 # --- Fig. 25: reliability (EXP-4, -6, -8, -9, -10; trust scores) --------------------------
 
 
+def spark_faults_landed(e6: dict[str, dict]) -> dict[str, dict]:
+    """EXP-6's arms whose fault landed: a kill read as a lost executor, or an out-of-memory."""
+    out = {}
+    for name, v in e6.items():
+        kill = v.get("container_killed") and v.get("first_error_class") == "EXECUTOR_LOST"
+        oom = "EXECUTOR_OOM" in (v.get("first_error_class"), v.get("feature_first_error_class"))
+        if kill or oom:
+            out[name] = v
+    return out
+
+
 def fig25() -> None:
     rows: list[tuple[str, int, int]] = []
 
@@ -346,14 +363,15 @@ def fig25() -> None:
     rows.append(("schema faults stopped or handled (EXP-4)",
                  sum(1 for v in faults.values() if v.get("_ok")), len(faults)))
     e6 = load("EXP-6", "Fig 25")["trials"]
-    failures = {k: v for k, v in e6.items() if k != "clean_baseline"}
-    rows.append(("Spark failures recovered (EXP-6)",
-                 sum(1 for v in failures.values() if v.get("recovered")), len(failures)))
-    rows.append(("Spark failures escalated, not lost (EXP-6)",
-                 sum(1 for v in failures.values() if v.get("escalated") and not v.get("recovered")),
-                 len(failures)))
+    # Only a fault that landed is a failure to recover from (EXP-6 counts no other); an arm whose
+    # fault did not land, or that injected none, is not drawn as a recovery.
+    landed = spark_faults_landed(e6)
+    if landed:
+        rows.append(("Spark failures recovered (EXP-6)",
+                     sum(1 for v in landed.values() if v.get("recovered")), len(landed)))
     e8 = load("EXP-8", "Fig 25")["trials"]
-    seeded = {k: v for k, v in e8.items() if not k.startswith("control")}
+    seeded = {k: v for k, v in e8.items()
+              if not k.startswith("control") and not v.get("toolchain_failure")}
     rows.append(("generated-code faults stopped before execution (EXP-8)",
                  sum(1 for v in seeded.values()
                      if v.get("detected_before_data", v.get("detected"))), len(seeded)))

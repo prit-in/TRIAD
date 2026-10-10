@@ -283,6 +283,9 @@ def _run_fault(exp: Experiment, mutation: Any, template: Any, baseline_slot: str
     write_artifact(art)
 
     first = _attempt(art, template)
+    # The time to the first verdict, for Fig. 23b; `wall_clock_s` also covers attempt 2.
+    trial.record("verdict_s", round(time.perf_counter() - started, 1), "s",
+                 note="from the fault's start to the first gate verdict")
     genuine = _genuine(first)
     toolchain = first["gate"] is not None and not genuine
     detected = genuine and first["gate"] in (1, 2, 3, 4)
