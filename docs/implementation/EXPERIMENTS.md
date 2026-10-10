@@ -111,13 +111,14 @@ segment's behaviour on demand.
 
 ### EXP-4, schema errors — held, completed
 
-Run `20261009T184842Z` (09-10-2026 18:48 to 19:19 UTC), 400 customers, every condition through
+Run `20261010T121337Z` (10-10-2026 12:13 to 12:33 UTC, on the code after the review of that day;
+`20261009T184842Z` had the same outcomes), 400 customers, every condition through
 ingestion, profiling and cleaning; the baseline and the dropped table also through the feature job.
 
 | Fault | Detected at | What the platform did | Row accounting |
 | --- | --- | --- | --- |
 | clean baseline | not detected | cleaned; all five feature groups available, 46 feature columns | balanced |
-| renamed required column (`customer_id` -> `cust_id`) | **ingest** | refused; proposed `cust_id -> customer_id` (name similarity 0.778, types match); a `schema_change` approval pending, nothing registered, applying it refused; after approval the renamed copy registered and cleaned 229.7 s later | balanced |
+| renamed required column (`customer_id` -> `cust_id`) | **ingest** | refused; proposed `cust_id -> customer_id` (name similarity 0.778, types match); a `schema_change` approval pending, nothing registered, applying it refused; after approval the renamed copy registered and cleaned 135.6 s later | balanced |
 | price as text with currency codes | **clean** | converted by `try_cast` after the currency code was checked against the row's own `currency` (DEC-36); 0 values quarantined | balanced |
 | dropped optional table (`support_tickets`) | **features** | the customer-service group marked unavailable; none of its 6 catalogue features produced (40 columns) | balanced |
 

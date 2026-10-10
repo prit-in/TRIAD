@@ -99,7 +99,7 @@ of the same type - and filed a schema-change approval. While that request was pe
 was registered and an attempt to apply the mapping was refused; once a data engineer approved it
 (in the experiment, the harness acting in that role), the platform registered a renamed copy
 whose version records the original file and the approval, and the copy cleaned with balanced row
-accounting 230 s after the decision. Prices written as text with currency codes were converted by
+accounting 136 s after the decision. Prices written as text with currency codes were converted by
 the cleaning job, every value parsing, with the row accounting balanced. Without the optional
 support tickets table, the feature job marked the customer-service group unavailable and produced
 none of its six features - 40 columns where the baseline had 46. No mapping was applied without a
@@ -209,10 +209,12 @@ verdict, and the result it turned on.
   2.917 of 2.93 GiB, and `ps` the B3 JVM at 2 261 888 kB resident.
 - EXP-3: `experiments/EXP-3/latest.json` (run of 07-10-2026 21:57 UTC); per-stage observations in
   `trials[].observations.stages`; host CPU: Section 13 evidence.
-- EXP-4: `experiments/EXP-4/20261009T184842Z/result.json` (09-10-2026 18:48 to 19:19 UTC):
+- EXP-4: `experiments/EXP-4/20261010T121337Z/result.json` (10-10-2026 12:13 to 12:33 UTC, on the
+  code after the review; the same outcomes as `20261009T184842Z`):
   renamed column refused at ingest, proposal `cust_id -> customer_id` (name similarity 0.778,
   types match), `schema_change` approval pending before the decision, `registered_before_decision`
-  false, `applied_while_pending` false, recovery 229.7 s after the decision; price as text
+  false, `applied_while_pending` false, recovery 135.6 s after the decision (229.7 s in the run of
+  09-10); price as text
   converted, `price_quarantined` 0, balanced; dropped tickets: `customer_service` unavailable,
   `ticket_features_present` [] of 6, feature columns 40 against 46. Earlier runs kept as records:
   `20261009T003414Z` (CleanJob deprecation), `20261009T174535Z` (no proposal, no feature stage).

@@ -16,11 +16,11 @@
     "customer_service_group",
     "wall_clock_s"
   ],
-  "started_at": "2026-10-09T18:48:42.971332+00:00",
-  "duration_s": 1863.47,
+  "started_at": "2026-10-10T12:13:37.844823+00:00",
+  "duration_s": 1186.51,
   "status": "completed",
   "hypothesis_held": true,
-  "conclusion": "Detected at: renamed_required_column -> ingest, price_as_text_with_symbols -> clean, dropped_optional_table -> features. 3 of 3 faults detected and 3 handled correctly; the clean baseline passed: True. The renamed column was refused at ingest with the mapping cust_id -> customer_id proposed and a schema_change approval requested; while it was pending nothing was registered and applying it was refused, and once approved the mapped copy registered and cleaned with balanced rows 229.7 s after the decision. Prices written as text were fixed: the column was converted with try_cast and 0 value(s) that did not convert were quarantined, with the row accounting balanced. Without the support tickets table the feature job marked the customer service group unavailable and produced none of its 6 features, which the baseline produced. 0 mappings were applied without a person. 0 conditions lost rows silently (cleaning reported success while the row accounting did not balance). Detection is measured against the baseline on purpose: a detector that flagged everything would otherwise score perfectly.",
+  "conclusion": "Detected at: renamed_required_column -> ingest, price_as_text_with_symbols -> clean, dropped_optional_table -> features. 3 of 3 faults detected and 3 handled correctly; the clean baseline passed: True. The renamed column was refused at ingest with the mapping cust_id -> customer_id proposed and a schema_change approval requested; while it was pending nothing was registered and applying it was refused, and once approved the mapped copy registered and cleaned with balanced rows 135.6 s after the decision. Prices written as text were fixed: the column was converted with try_cast and 0 value(s) that did not convert were quarantined, with the row accounting balanced. Without the support tickets table the feature job marked the customer service group unavailable and produced none of its 6 features, which the baseline produced. 0 mappings were applied without a person. 0 conditions lost rows silently (cleaning reported success while the row accounting did not balance). Detection is measured against the baseline on purpose: a detector that flagged everything would otherwise score perfectly.",
   "limitations": [
     "`register_version` returns early on an identical checksum, before it validates anything. That is correct idempotence, but it means a file whose bytes were registered before a contract existed for its dataset is never re-validated. This experiment sidesteps it by registering each condition under a fresh dataset name; a deployment would need a re-validation pass when a contract is introduced or changed. Not a defect, but not covered either.",
     "The proposed mapping was approved by the harness acting as a Data Engineer, so the time to recovery covers the platform's work after the decision and not the time a person would take to make it."
@@ -202,7 +202,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 995.1,
+          "value": 603.7,
           "unit": "s",
           "note": ""
         },
@@ -230,7 +230,7 @@
           "web_sessions"
         ],
         "refusals": [],
-        "profile_uri": "file:///data/triad/profiles/run-2026-10-09-015_transactions.json",
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-10-022_transactions.json",
         "issues": [
           "info:OUTLIERS.discount",
           "info:OUTLIERS.price",
@@ -354,7 +354,7 @@
           "name": "applied_while_pending",
           "value": false,
           "unit": "",
-          "note": "approval d2785b4a-91f1-40a6-a707-d8ece6f858fe is pending; a mapping is applied only after it is approved"
+          "note": "approval a39c5c4d-7986-4d02-9407-47eccb4888f8 is pending; a mapping is applied only after it is approved"
         },
         {
           "name": "mapping_applied_after_approval",
@@ -436,7 +436,7 @@
         },
         {
           "name": "time_to_recovery_s",
-          "value": 229.7,
+          "value": 135.6,
           "unit": "s",
           "note": "from the approval to cleaned, balanced output; the time a person takes to decide is not included"
         },
@@ -472,7 +472,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 232.8,
+          "value": 138.2,
           "unit": "s",
           "note": ""
         },
@@ -521,13 +521,13 @@
             "proposed_mapping": {
               "cust_id": "customer_id"
             },
-            "approval_id": "d2785b4a-91f1-40a6-a707-d8ece6f858fe"
+            "approval_id": "a39c5c4d-7986-4d02-9407-47eccb4888f8"
           }
         ],
         "proposed_mapping": {
           "cust_id": "customer_id"
         },
-        "profile_uri": "file:///data/triad/profiles/run-2026-10-09-016_transactions.json",
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-10-023_transactions.json",
         "issues": [
           "info:OUTLIERS.discount",
           "info:OUTLIERS.price",
@@ -570,7 +570,7 @@
           {
             "action": "schema_change",
             "status": "approved",
-            "target": "transactions__exp04_renamed_required_column_4059c4@sha256:53e95c0e54edc1d9",
+            "target": "transactions__exp04_renamed_required_column_a01403@sha256:53e95c0e54edc1d9",
             "decided_by_a_person": true
           }
         ]
@@ -715,7 +715,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 209.7,
+          "value": 145.5,
           "unit": "s",
           "note": ""
         },
@@ -749,7 +749,7 @@
           "web_sessions"
         ],
         "refusals": [],
-        "profile_uri": "file:///data/triad/profiles/run-2026-10-09-017_transactions.json",
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-10-024_transactions.json",
         "issues": [
           "info:OUTLIERS.discount",
           "info:OUTLIERS.quantity",
@@ -966,7 +966,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 420.0,
+          "value": 292.4,
           "unit": "s",
           "note": ""
         },
@@ -999,7 +999,7 @@
           "web_sessions"
         ],
         "refusals": [],
-        "profile_uri": "file:///data/triad/profiles/run-2026-10-09-018_transactions.json",
+        "profile_uri": "file:///data/triad/profiles/run-2026-10-10-025_transactions.json",
         "issues": [
           "info:OUTLIERS.discount",
           "info:OUTLIERS.price",
@@ -1060,5 +1060,5 @@
       }
     }
   ],
-  "run_dir": "20261009T184842Z"
+  "run_dir": "20261010T121337Z"
 }
