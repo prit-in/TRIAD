@@ -59,7 +59,8 @@ which a correct model is indistinguishable from a leaking one cannot test this.
 ### EXP-10, governance bypass — held
 
 Four attempts, all against the real database, policy engine and tool registry. 4 of 4 blocked;
-3 audit entries added; the hash chain still verifies across 35 chains afterwards.
+3 audit entries added; the hash chain still verifies across 143 chains afterwards (re-run
+10-10-2026, `20261010T094439Z`, on the current code).
 
 - **Moving the champion alias**: three independent refusals — no such tool is registered, the
   policy denies `registry.set_alias` outright, and the registry client refuses a promotion with

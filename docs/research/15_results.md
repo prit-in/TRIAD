@@ -149,7 +149,7 @@ so both kinds of defence are needed. The point-in-time control was not blocked.
 **Governance (EXP-10).** Four attempts to bypass governance were made: an agent moving the
 champion alias, a requester approving their own promotion, instructions hidden in product data,
 and a run continuing after its language-model budget was spent. All four were refused, the
-refusals were written to the audit trail, and the hash chain still verified across 101 chains.
+refusals were written to the audit trail, and the hash chain still verified across 143 chains.
 
 ## 15.7 The acceptance policy at the sizes it meets
 
@@ -203,8 +203,10 @@ verdict, and the result it turned on.
   `20261009T003414Z` (CleanJob deprecation), `20261009T174535Z` (no proposal, no feature stage).
 - EXP-8: `experiments/EXP-8/latest.json` (07-10-2026 22:54 UTC), `raw/per_class.json`.
 - EXP-7: `experiments/EXP-7/latest.json` (07-10-2026 21:57 UTC), `raw/thresholds.json`.
-- EXP-9: `experiments/EXP-9/latest.json` (07-10-2026 21:56 UTC).
-- EXP-10: `experiments/EXP-10/latest.json` (07-10-2026 21:56 UTC).
+- EXP-9: `experiments/EXP-9/20261010T094418Z/` (10-10-2026 09:44 UTC; the same inflation as the
+  07-10 run, +0.5470 and +0.4975).
+- EXP-10: `experiments/EXP-10/20261010T094439Z/` (10-10-2026 09:44 UTC; 4 of 4 refused, 143 chains
+  verified).
 - 15.7: `experiments/EXP-5/calibration_noise_floor.json` (20 000 trials per cell; 324 rows:
   share above 0.05 = 0.421/0.458/0.404 across three concentrations); `experiments/policy_floors/
   segment_gap_noise_floor.json` (false-alarm rate, all four segmentations: 0.655, 0.971, 0.951,
