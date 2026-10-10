@@ -17,7 +17,7 @@ carrying an estimate.
 | EXP-2 | Medium dataset: where a single node gives out | **partial** | **refuted on this node** (B3 stopped first, at 100 000 customers) | `experiments/EXP-2/latest.json` |
 | EXP-3 | Scaling with parallelism | **partial** | **did not hold** | `experiments/EXP-3/latest.json` |
 | EXP-4 | Schema errors | **completed** | **held** (every fault detected and handled; the mapping proposed, approved, then applied) | `experiments/EXP-4/latest.json` |
-| EXP-5 | Missing values | **partial** | **no verdict on PR-AUC; the reason for that is now measured** | `experiments/EXP-5/latest.json`, `experiments/EXP-5/calibration_noise_floor.json` |
+| EXP-5 | Missing values | **completed** | **did not hold** (PR-AUC flat within noise; key nulls quarantined, non-key nulls cost no row, the over-limit plan paused for approval) | `experiments/EXP-5/latest.json`, `experiments/EXP-5/calibration_noise_floor.json` |
 | EXP-6 | Spark failures and recovery | **partial** | **did not hold** | `experiments/EXP-6/latest.json` |
 | EXP-7 | Model degradation | **partial** | **held** | `experiments/EXP-7/latest.json` |
 | EXP-8 | Scala compile failures | **partial** | **no verdict** | `experiments/EXP-8/latest.json` |
@@ -344,54 +344,45 @@ as the seeded fault being caught. Fifteen of the twenty detections were real; fi
 experiment detecting its own bug. The suffix is now sanitised and the false result is gone from
 `experiments/`.
 
-### EXP-5, missing values — no verdict, partial
+### EXP-5, missing values — did not hold, completed
 
-| Non-key null rate | Key null rate | Quarantined | Row accounting | Outcome | Test PR-AUC |
-| --- | --- | --- | --- | --- | --- |
-| 0% | 0% | 0 of 8 078 | balanced | SELECTED | 0.7259 |
-| 5% | 1% | 72 of 8 078 (0.89%) | balanced | **ESCALATED, MISCALIBRATED** | not measured |
-| 20% | 1% | 72 of 8 078 (0.89%) | balanced | **ESCALATED, MISCALIBRATED** | not measured |
-| 50% | 1% | 72 of 8 078 (0.89%) | balanced | **ESCALATED, MISCALIBRATED** | not measured |
+Run `20261010T094502Z` (10-10-2026 09:45 to 11:31 UTC), 2 000 customers, each condition in a
+process of its own, the reference drawing the same random numbers as the others (DEC-42); keys
+are 1% missing in every trend condition.
 
-The half of the hypothesis about rows **holds, and holds cleanly**. Row accounting balanced in
-every condition — `input = output + quarantined + removed_duplicates` — so no row was lost
-silently at any null rate. Key nulls quarantine and non-key nulls do not: the 72 quarantined
-rows are the 1% key-null injection and the number does not move between 5% and 50% non-key
-nulls, which is exactly the behaviour the rule describes. Cleaning affected 0.89% of rows
-against the `cleaning.execute` policy limit of 5%, so it ran under bounded autonomy with no
-approval request in any condition.
+| Condition | Non-key nulls (counted) | Key nulls quarantined | Rows affected | Test PR-AUC [95% interval] | ECE | Policy |
+| --- | --- | --- | --- | --- | --- | --- |
+| none of the non-key values missing | 0 | 391 of 391 | 1.01% | 0.6338 [0.5875, 0.6817] | 0.0283 | ESCALATE (AP-6) |
+| 5% missing | 5 853 | 391 of 391 | 1.01% | 0.6419 [0.5963, 0.6901] | 0.0364 | ESCALATE (AP-6) |
+| 20% missing | 23 274 | 391 of 391 | 1.01% | 0.6391 [0.5924, 0.6841] | 0.0287 | ESCALATE (AP-6) |
+| 50% missing | 58 476 | 391 of 391 | 1.01% | 0.6351 [0.5905, 0.6841] | 0.0225 | ESCALATE (AP-6) |
+| 10% of keys missing (added) | 0 | 3 901 of 3 901 | **10.05%** | - | - | **paused: APPROVAL_REQUIRED** |
 
-The half about PR-AUC declining gradually **has no verdict, because three of the four
-conditions never produced a PR-AUC**. Every condition carrying nulls escalated on
-MISCALIBRATED after the full AP-5 remedy chain — isotonic, then sigmoid, then sigmoid with
-class weighting removed. The pipeline does not degrade gracefully as values go missing; it
-stops. That is the acceptance policy behaving as specified rather than a defect, and it means
-the trend the hypothesis asks about cannot be measured on this pipeline without changing the
-policy the experiment is supposed to observe.
+- **Key nulls are quarantined, all of them and only them**: the cleaning job's `null_customer`
+  rule quarantined exactly the nulls counted in each registered file, and no other row was
+  quarantined or de-duplicated in any trend condition, so the non-key nulls cost no row.
+- **PR-AUC did not decline, so the hypothesis did not hold.** The four estimates are within 0.008
+  of each other and inside each other's 95% intervals (1 366 test rows, prevalence 0.289). With
+  half of three columns empty the model ranked customers as well as with none.
+- **Approval when more than 5% of rows are affected** - the PRD's expected observation, which none
+  of its own conditions reaches - holds: at 10% missing keys the cleaning plan filed a
+  `destructive_cleaning` request and the run paused with its output uncommitted (DEC-40).
+- Every trend model escalated on AP-6 (tenure-band recall gaps 0.23 to 0.28 on 1 181 validation
+  rows), inside the segment rule's measured noise floor at that size (Section 15.7). Calibration
+  passed: ECE 0.02 to 0.04.
 
-**The previous run of this experiment reported this hypothesis as held, and that was wrong in
-two separate ways.** It called a monotone decline from a single surviving data point, because
-`all()` over a one-element list is vacuously true; and on escalation it discarded the cleaning
-evidence it had already collected, so the quarantine and row-accounting measurements — the
-half that genuinely holds — were thrown away in the conditions that produced them. Both are
-fixed: the trend is reported as *not assessable* below two points, and an escalated condition
-now keeps every measurement it made before it stopped. The table above exists because of the
-second fix.
+Runs that shaped this protocol, kept as records:
 
-#### The question this experiment left open, and its answer
-
-The previous revision of this section asked whether MISCALIBRATED at 5% non-key nulls was the
-acceptance policy correctly refusing an uncalibratable model, or a calibration chain that gave
-up too early. It is neither, and the evidence was already in the run's own artifact.
-
-**The gate is inside the estimator's noise floor at this validation size.** AP-5 requires
-ECE ≤ 0.05. `expected_calibration_error` is the standard 10-bin equal-width estimator, which is
-biased upward on small samples: each bin's observed rate is an average over few rows, so it
-differs from the bin's mean predicted probability by sampling noise alone, and the estimator
-sums those differences as though they were miscalibration. `experiments/calibration_noise_floor.py`
-measures the floor directly, with no model involved — a predictor whose scores *are* the
-probabilities its labels are drawn from is perfectly calibrated by construction, so drawing
-20 000 of them at each size gives the distribution of the estimator under perfect calibration:
+- `20261009T233715Z` died in its fifth condition with `Cannot allocate memory`; its reference had
+  no key nulls and drew four masks' fewer random numbers, so its returns, sessions and tickets were
+  a different sample. It scored **0.6527** and made the same series look like a monotone decline -
+  the decline disappears once the reference draws the same numbers. `20261009T192937Z` died the
+  same way in its fourth condition. Hence one process per condition, and production's JVM heaps
+  for the `dev` service.
+- The 400-customer runs of 21-09-2026 escalated MISCALIBRATED in every condition with nulls. The
+  cause was the size of the validation split, not the models: at 324 rows a perfectly calibrated
+  model exceeds AP-5's 0.05 about as often as not (`experiments/calibration_noise_floor.py`, a
+  model-free simulation), which is why the experiment runs 2 000 customers (DEC-33):
 
 | Validation rows | Median ECE | p90 | P(ECE > 0.05) |
 | --- | --- | --- | --- |
@@ -400,40 +391,6 @@ probabilities its labels are drawn from is perfectly calibrated by construction,
 | 1 300 | 0.023–0.024 | 0.032–0.034 | ~0% |
 | 2 600 | 0.017 | 0.023 | 0% |
 | 5 200 | 0.012 | 0.017 | 0% |
-
-At n=324 the threshold sits at the *median* of that distribution: a perfectly calibrated model
-is refused about as often as it is accepted. The winning model's measured 0.0554 is therefore not
-evidence of miscalibration, and neither are 0.0737 and 0.0666 at the higher null rates.
-
-The run said the same thing from the inside, and it had said it all along. Its `dummy`
-classifier — a constant at the base rate, which is exactly calibrated in expectation — measured
-**ECE 0.0511** and was itself flagged `MISCALIBRATED`. A gate that a constant predictor cannot
-pass is not measuring the model.
-
-**The threshold is sound; the split was too small.** The floor falls to 4–7% by n=650 and to
-nothing by n=1 300, so 0.05 is a reasonable requirement wherever the validation split is a
-thousand rows or more — which the production configuration reaches and a 400-customer experiment
-does not. The threshold is therefore unchanged. AP-5 now records `ece_n_rows` beside the value,
-because a reader of an escalation cannot otherwise tell a miscalibrated model from a small split.
-
-**Two defects in the reporting were found in the course of answering it**, both of which had made
-the question harder than it was.
-
-- The escalation message read "calibration rules still failing after isotonic and sigmoid" in all
-  four conditions, and **isotonic was never fitted in any of them**. `calibrate` substitutes
-  sigmoid when the calibration slice has fewer than 500 rows, silently, and EXP-5's slice is
-  smaller than that; the remedy loop then skipped its own sigmoid step as redundant. So a chain
-  reported at three steps ran one calibrator and one variant of it. The substitution is now
-  recorded, and the message names the remedies actually tried.
-- `remedies_tried` was built on every path and read only on the successful one, so an escalation —
-  the single path where a person has to decide what to do next — recorded the ECE that failed and
-  none of the attempts made to fix it. It is now in the escalation's evidence, with the
-  calibration method, the note about any substitution, and whether class weighting was removed.
-
-Neither changes the verdict: the row-accounting half of the hypothesis holds, and the PR-AUC half
-still has no verdict on this pipeline, because the conditions carrying nulls still escalate. What
-has changed is that the escalation is now legible, and the reason for it is measured rather than
-speculated about.
 
 ## Deviations from PRD section 33 that apply to every experiment
 

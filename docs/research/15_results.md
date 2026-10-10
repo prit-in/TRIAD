@@ -107,7 +107,22 @@ person, and no condition lost rows silently. The first two runs of this experime
 show this: the mapping proposal the requirements describe did not exist, and the feature stage
 was not part of the protocol.
 
-<!-- RESULTS-PENDING: EXP-5 (missing values) and EXP-6 (Spark failures) paragraphs. -->
+EXP-5 removed values at random from 2 000 customers' transactions - 1% of the customer keys in
+every condition, and none, 5%, 20%, or 50% of three non-key columns (payment method, channel,
+discount) - and ran the whole first phase of the pipeline on each. Every null key was quarantined
+by the cleaning job's key rule, 391 of 391 in each condition, and nothing else was: the 58 476
+non-key nulls of the 50% condition cost no row. The model's test PR-AUC did not decline, so the
+hypothesis did not hold: it was 0.634, 0.642, 0.639, and 0.635 from none to half of the values
+missing, each inside the others' 95% intervals of about 0.046 either side on 1 366 test rows. With
+half of three columns empty, the model ranked customers as well as with none; which features
+carried its signal was not measured here. One step of the protocol mattered: an earlier run whose
+reference condition drew different random numbers from the others - and so different returns,
+sessions, and tickets - scored 0.653 and made the same series look like a steady decline. A fifth
+condition, with 10% of the keys missing, took the cleaning plan to 10.1% of rows, over the 5% the
+policy allows without a person: the run paused with its output uncommitted and an approval request
+filed, the expected observation that none of the PRD's own conditions comes near.
+
+<!-- RESULTS-PENDING: EXP-6 (Spark failures) paragraph. -->
 
 ## 15.5 Code generation: what the gates stop, and how quickly
 
@@ -201,6 +216,13 @@ verdict, and the result it turned on.
   converted, `price_quarantined` 0, balanced; dropped tickets: `customer_service` unavailable,
   `ticket_features_present` [] of 6, feature columns 40 against 46. Earlier runs kept as records:
   `20261009T003414Z` (CleanJob deprecation), `20261009T174535Z` (no proposal, no feature stage).
+- EXP-5: `experiments/EXP-5/20261010T094502Z/result.json` (10-10-2026 09:45 to 11:31 UTC),
+  each condition in its own process (DEC-42): key nulls 391/391 x4 and 3 901/3 901; non-key nulls
+  0 / 5 853 / 23 274 / 58 476; test PR-AUC 0.6338 [0.5875, 0.6817], 0.6419 [0.5963, 0.6901],
+  0.6391 [0.5924, 0.6841], 0.6351 [0.5905, 0.6841], 1 366 test rows, prevalence 0.289; every trend
+  condition ESCALATE on AP-6 (tenure_band gaps 0.23 to 0.28 at 1 181 validation rows); over-limit
+  10.0539% of rows, one `destructive_cleaning` request, APPROVAL_REQUIRED. The confounded
+  reference: `20261009T233715Z` (0.6527; that run then died in its fifth condition).
 - EXP-8: `experiments/EXP-8/latest.json` (07-10-2026 22:54 UTC), `raw/per_class.json`.
 - EXP-7: `experiments/EXP-7/latest.json` (07-10-2026 21:57 UTC), `raw/thresholds.json`.
 - EXP-9: `experiments/EXP-9/20261010T094418Z/` (10-10-2026 09:44 UTC; the same inflation as the
