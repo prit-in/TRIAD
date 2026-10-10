@@ -52,7 +52,7 @@ overhead - the requirements' 10 GB tier and above - were not run and are not est
 
 No Scala-only configuration was built, so this comparison is by the measurements that isolate
 what the compiled language contributes. In EXP-8 every type mismatch and every missing import in
-generated Scala was stopped by compilation, before the job touched data, at a cost of 37 to 41 s
+generated Scala was stopped by compilation, before the job touched data, at a cost of 37 to 52 s
 per compile; a dynamically typed script would have revealed the same faults only when the
 offending line ran. That is the case for Scala in the transformation layer, where generated code
 meets data at scale. A Scala-only platform would keep it and give up the modelling layer that the

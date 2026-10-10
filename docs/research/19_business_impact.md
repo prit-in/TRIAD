@@ -69,7 +69,7 @@ does not have, and a figure computed from guessed values would be a guess presen
 | People needed to promote a model | Cost | 1 approver; 2 for a promotion despite a failed check | Section 12, the override run |
 | Churners reached by contacting 10% of customers | Benefit | 29.8% (2.98 times random) | test cutoff, run-2026-10-07-001 |
 | Precision at the operating threshold | Benefit | 74.6% of flagged customers churned | same |
-| Generated-code faults stopped before execution | Risk avoided | 15 of 20 | EXP-8 |
+| Generated-code faults stopped before reading data | Risk avoided | 19 of 20 | EXP-8 |
 | Planted leaks blocked | Risk avoided | 2 of 2, which would have inflated PR-AUC by about 0.5 | EXP-9 |
 | Under-served segment surfaced before deployment | Risk avoided | newest customers: 16.4% of churners flagged | AP-6 escalation |
 | Monetary return | - | not computed: no customer value, retention effect, or cost data | Section 19.4 |

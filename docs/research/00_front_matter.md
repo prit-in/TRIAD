@@ -13,7 +13,8 @@ with no network; candidate models are calibrated and judged by a written accepta
 promotion requires a person other than the requester; and every decision is recorded on a
 tamper-evident audit trail. Evaluated for customer churn prediction on synthetic retail data on a
 single workstation, the gates stopped every forbidden call, type error, and missing import before
-execution, while misnamed columns passed every static check. The published model reached 30
+execution, while misnamed columns passed every static check and only tests on fixture data caught
+them, four times in five. The published model reached 30
 percent of churners by contacting 10 percent of customers, yet the acceptance policy refused it
 for missing most churners among the newest customers, and the disparity became a recorded decision
 by two named approvers. Fixed thresholds proved unreliable at small samples: a perfectly
@@ -45,7 +46,8 @@ model that failed a rule only after two people do. Every choice is a decision re
 action an entry on a hash-chained audit trail.
 
 The evaluation ran ten experiments on one workstation (Table 1). It found the gates effective
-against syntactic faults and blind to semantic ones, the drift monitors complementary, the
+against syntactic faults and, until a job runs on fixtures, blind to semantic ones, the drift
+monitors complementary, the
 leakage and governance defences intact, and the acceptance policy right at production sizes but
 unreliable at pilot sizes, where fixed thresholds refuse sound models by chance. It also found
 that governance must be exercised to be trusted: walking a promotion despite a failed check end to
@@ -61,7 +63,7 @@ a 3 GB node it was Spark, not the single Python process, that gave out first.
 | Contribution | Outcome | Section |
 | --- | --- | --- |
 | A governed agentic architecture over Python, Scala, and Spark | Every stage implemented and exercised end to end; all 65 mandatory requirements met | 5, 4 |
-| Nine validation gates for generated code | 15 of 20 seeded faults stopped before execution; misnamed columns invisible to static checks | 6, 15 |
+| Nine validation gates for generated code | 19 of 20 seeded faults stopped before reading data; misnamed columns invisible to static checks, 4 of 5 caught by fixture tests | 6, 15 |
 | Sandboxed execution with per-stage metrics | Jobs in network-less containers with hard memory limits; shuffle, spill, and skew measured for every stage | 9, 12 |
 | Cleaning without deletion | Row accounting balances in every run; text-typed values conformed or quarantined, never guessed | 7, 15 |
 | Calibrated models under a written acceptance policy | Published model: 2.98 times random lift at 10% of customers; calibration error 0.019 | 8, 19 |
@@ -75,7 +77,7 @@ a 3 GB node it was Spark, not the single Python process, that gave out first.
 
 - Abstract numbers: business snapshot (gain 0.298 at 10%); calibration noise floor (0.458 max
   share above 0.05 at 324 rows); EXP-8 (forbidden API 5/5 at gate 2, type mismatch and missing
-  import 5/5 each at gate 4, wrong column 0/5).
+  import 5/5 each at gate 4, wrong column 0/5 static and 4/5 at gate 5; run 20261010T131443Z).
 - Table 1: requirement counts (`REQUIREMENTS_TRACEABILITY.md`); EXP-8, EXP-9, EXP-10; segment and
   calibration noise floors; DEC-35 (memory limits), DEC-36 (conformance).
 - Abstract length: 213 words, one paragraph, no abbreviations, references, or equations; index

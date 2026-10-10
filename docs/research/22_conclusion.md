@@ -16,8 +16,10 @@ Six findings stand out.
 **Bounded generation works where it can see.** The static gates refused every forbidden API call
 in a fifth of a second and every type or import fault at compile time, so none of them ran. A
 wrong column name passed all four static gates, because a name is only text until Spark resolves
-it: the gates that run the job on fixtures and on a sample are not optional extras but the only
-defence against semantic faults.
+it; running the job on hand-checked fixtures stopped four of five, and the fifth, a fallback the
+fixture could not tell from the intended behaviour, passed everything. The gates that run the job
+are not optional extras but the only defence against semantic faults, and they are as good as
+their fixtures.
 
 **Fixed thresholds are not neutral at the sizes most teams see.** A perfectly calibrated model
 fails a 0.05 calibration-error limit 40% to 46% of the time on a 324-row validation split, and a
@@ -67,7 +69,8 @@ with enough repetitions to tell an effect from noise.
 
 ## Evidence (not part of the manuscript)
 
-- Gates: EXP-8 (0.2 s; 37-41 s compile; wrong column 0/5 at gates 1-4).
+- Gates: EXP-8 `20261010T131443Z` (0.2-0.3 s; 37-52 s compile; wrong column 0/5 at gates 1-4, 4/5
+  at gate 5).
 - Data faults: EXP-4 `20261010T121337Z`, EXP-5 `20261010T094502Z` (PR-AUC 0.634 to 0.642, intervals
   about +/-0.046; over-limit 10.05% paused), EXP-6 `20261010T113128Z` (kill: EXECUTOR_LOST,
   resubmit, identical; 460m on 20 000 customers: 178.8 MB spilled, no failure).

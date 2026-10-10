@@ -45,9 +45,10 @@ for attempt in 1..k:
 escalate with the diagnoses
 ```
 
-The gates run in order of cost. The four static gates take from a fraction of a second to about
-forty seconds and stop most faults before any data is read (Section 15); the fixture and sample
-runs cost a sandbox start each; and only a job that has passed them all runs on the full input.
+The gates run in order of cost. The four static gates take from a fraction of a second to under
+a minute and stop most faults before any data is read (Section 15); the fixture tests take four to
+five minutes for new code and nothing for code that has passed them before; the run on a sample
+costs a sandbox start; and only a job that has passed them all runs on the full input.
 The circuit breaker ends a repair loop that is making no progress: an attempt that fails with an
 error fingerprint already seen stops the stage at once, rather than spending the rest of the
 budget on a remedy that has already failed.

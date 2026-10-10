@@ -141,22 +141,26 @@ language model, and a killed container as an unknown error.
 
 ## 15.5 Code generation: what the gates stop, and how quickly
 
-EXP-8 seeded twenty faults into generated Scala, five each of four classes, ran the four gates
-that precede any execution - structured output, static checks, dependencies, and compilation -
-and recorded which gate stopped each fault (Fig. 23). Fifteen were stopped. All five forbidden
-API calls were refused by the static scan of gate 2 in 0.2 s each, without being compiled; all
-five type mismatches and all five missing imports failed compilation at gate 4, in 37 to 41 s
-each, which is the cost of a Scala compile. None of the five wrong column names was stopped: a
-column name is a string until Spark resolves it, so the job compiles and passes all four gates.
-The requirements expected semantic faults to escalate more often than syntactic ones; the
-measurement is stronger - they are invisible to static analysis entirely. Gates 5 and 6, which
-run the job on fixtures and on a data sample, are where such a fault can first appear; this
-experiment did not run them, so whether they catch it is not measured here.
-Every detected fault produced the same error fingerprint on three successive attempts, so the
-circuit breaker stops an unrepairable fault instead of spending the attempt budget. The share of
-faults *repaired* - the experiment's headline hypothesis - is not measured: repairing a slot
-requires a language model, none was configured, and a measured zero would describe the missing
-provider, not the repair loop.
+EXP-8 seeded twenty faults into generated Scala, five each of four classes, ran the five gates
+that come before a job reads any data - structured output, static checks, dependencies,
+compilation, and fixture tests on hand-checked data - and recorded which gate stopped each fault
+(Fig. 23). Nineteen were stopped. All five forbidden API calls were refused by the static scan of
+gate 2 in 0.2 to 0.3 s, without being compiled; all five type mismatches and all five missing
+imports failed compilation at gate 4, in 37 to 52 s each (one took 96 s), the cost of a Scala
+compile once its dependencies are cached. No static gate saw a wrong column name: a name is a
+string until Spark resolves it, so all five compiled. The fixture tests of gate 5 stopped four of
+them, in 257 to 318 s each - a misspelled de-duplication key that merged different orders, a
+cancellation test on a column that does not exist, an order key declared numeric, and a filter on
+a name Spark could not resolve. The fifth misspelled both de-duplication keys, so the job fell back
+to removing whole-row duplicates, which the fixture's exact duplicate cannot tell apart from the
+intended behaviour: it passed every gate, as reading the fixture had predicted, and would have
+reached the dry run on a sample. Semantic faults are therefore stopped later and at more cost than
+syntactic ones, and what escapes is whatever the fixtures do not exercise. Every detected fault
+failed identically when its gates ran a second time on the same code, and the stage runner's
+circuit breaker stopped it there rather than spending the attempt budget. The share of faults
+*repaired* - the experiment's headline hypothesis - is not measured: repairing a slot requires a
+language model, none was configured, and a measured zero would describe the missing provider, not
+the repair loop.
 
 ## 15.6 Monitoring, leakage, and governance
 
@@ -246,7 +250,11 @@ verdict, and the result it turned on.
   memory, clean identical, features not (`experiments/EXP-6/diag_feature_determinism_20261010.md`:
   3 monetary columns, 9 of 110 900 rows, relative difference below 1e-16); pilots in
   `experiments/EXP-6/pilot_20261010.md`; skew arm task skew 1.0 against 1.0.
-- EXP-8: `experiments/EXP-8/latest.json` (07-10-2026 22:54 UTC), `raw/per_class.json`.
+- EXP-8: `experiments/EXP-8/20261010T131443Z/result.json` (10-10-2026 13:14 to 14:29 UTC, warm
+  caches, DEC-42/43), `raw/per_class.json`: gate 2 5/5 (0.2-0.3 s), gate 4 10/10 (verdicts 37.4 to
+  51.6 s, MI-5 95.5 s), gate 5 4/5 (fixtures 257.0 to 318.5 s), WC-2 reached execution; escalation
+  `circuit_breaker` at attempt 2 for 19/19, fingerprints identical. Earlier: `20261007T225415Z`
+  (gates 1-4 only); `20261010T120955Z` failed on a dependency download (DEC-43).
 - EXP-7: `experiments/EXP-7/latest.json` (07-10-2026 21:57 UTC), `raw/thresholds.json`.
 - EXP-9: `experiments/EXP-9/20261010T094418Z/` (10-10-2026 09:44 UTC; the same inflation as the
   07-10 run, +0.5470 and +0.4975).

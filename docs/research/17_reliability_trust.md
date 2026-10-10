@@ -30,11 +30,13 @@ requires before it reports success.
 
 ## 17.3 Fault containment
 
-Fig. 25a summarizes the injected-fault experiments. Generated-code faults: 15 of 20 stopped
-before execution (EXP-8), with the five wrong column names as the measured blind spot of static
-checking. Leakage: both planted leaks blocked (EXP-9). Governance bypass: all four attempts
-refused and audited (EXP-10). <!-- RESULTS-PENDING: schema faults (EXP-4) and Spark failures
-(EXP-6) on the current code. --> Beyond the experiments, a worker killed in the middle of a run
+Fig. 25a summarizes the injected-fault experiments. Generated-code faults: 19 of 20 stopped
+before the job read any data (EXP-8) - 15 by the static gates and four of the five wrong column
+names by the fixture tests, the fifth passing everything. Schema faults: all three detected and
+handled, the renamed column waiting for a person's approval before anything ran (EXP-4). Spark
+failures: a killed executor recovered with identical output, while no out-of-memory could be
+provoked on this node (EXP-6). Leakage: both planted leaks blocked (EXP-9). Governance bypass:
+all four attempts refused and audited (EXP-10). Beyond the experiments, a worker killed in the middle of a run
 lost its lease, and the run's task was re-queued and resumed by the next claim, which is the
 fault tolerance a long, governed run needs most.
 
@@ -74,7 +76,7 @@ is the property the score measures.
 | Explanation | Scored customers with reasons | 6 814 of 6 814, method named | official predictions, run-2026-10-07-001 |
 | Calibration | Expected calibration error after calibration | 0.019 (limit 0.05) | the same run's evaluation |
 | Reproducibility | Output hashes equal on replay | all three Spark outputs | replay check |
-| Containment of code faults | Stopped before execution | 15 of 20 | EXP-8 |
+| Containment of code faults | Stopped before reading data | 19 of 20 | EXP-8 |
 | Leakage defence | Planted leaks blocked | 2 of 2 | EXP-9 |
 | Governance under attack | Bypass attempts refused and audited | 4 of 4 | EXP-10 |
 | Separation of duties | Override shares decided by distinct, eligible people | 2 of 2 | approvals of run-2026-10-07-001 |
