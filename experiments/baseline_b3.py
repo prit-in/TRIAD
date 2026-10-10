@@ -172,9 +172,14 @@ def build_features(spark: Any, root: Path, cutoffs: list[pd.Timestamp]) -> pd.Da
 
 
 def run(
-    spark: Any, root: Path, cutoffs: dict[str, list[pd.Timestamp]], *, seed: int = 42
+    spark: Any, root: Path, cutoffs: dict[str, list[pd.Timestamp]], *, seed: int = 42,
+    after_spark: Any = None,
 ) -> BaselineResult:
-    """A fixed DAG: features, split, screen, score. Any failure stops the run."""
+    """A fixed DAG: features, split, screen, score. Any failure stops the run.
+
+    `after_spark` is called once the features are a pandas frame, before the modelling, so
+    the caller can release the Spark JVM it no longer needs (see `run_with_own_session`).
+    """
     started = time.perf_counter()
     stages: dict[str, float] = {}
     try:
@@ -183,6 +188,8 @@ def run(
             spark, root, sorted({c for group in cutoffs.values() for c in group})
         )
         stages["features_spark"] = round(time.perf_counter() - t0, 2)
+        if after_spark is not None:
+            after_spark()
 
         features["snapshot_date"] = pd.to_datetime(features["snapshot_date"])
         feature_cols = [c for c in features.columns
@@ -248,11 +255,23 @@ def run_with_own_session(
     cores: int = 2,
     driver_memory: str = "1500m",
 ) -> BaselineResult:
-    """B3 in a SparkSession of its own, for `run_isolated`: start, run, read the JVM's peak, stop."""
+    """B3 in a SparkSession of its own, for `run_isolated`: start, build the features, read the
+    JVM's peak, shut the JVM down, then model.
+
+    The JVM is shut down before the modelling, not after it. `spark.stop()` alone leaves the
+    gateway JVM running with its heap committed, and at 100 000 customers that was 2.2 GB held
+    idle beside scikit-learn in a 3 GB container: EXP-2 recorded B3 as timed out at that size,
+    and a diagnostic run saw the kernel OOM-kill the idle JVM while the models trained (DEC-44).
+    A Spark engineer hands the features on and lets the cluster go; this is that, in one process.
+    """
+    from pyspark import SparkContext
     from pyspark.sql import SparkSession
 
     from experiments.baselines import jvm_peak_rss_mb
 
+    # Only a JVM this call starts is shut down: in a process that already has a session (a
+    # test run, say), getOrCreate would return it, and ending it would break its owner.
+    owned = SparkContext._active_spark_context is None
     spark = (
         SparkSession.builder.appName("triad-b3-isolated")
         .master(f"local[{cores}]")
@@ -263,9 +282,35 @@ def run_with_own_session(
         .config("spark.driver.memory", driver_memory)
         .getOrCreate()
     )
+    peak: dict[str, float | None] = {}
+
+    def release() -> None:
+        peak["jvm"] = jvm_peak_rss_mb(spark)
+        if owned:
+            shut_down_jvm(spark)
+
     try:
-        result = run(spark, root, cutoffs, seed=seed)
-        result.jvm_peak_rss_mb = jvm_peak_rss_mb(spark)
+        result = run(spark, root, cutoffs, seed=seed, after_spark=release)
+        result.jvm_peak_rss_mb = peak["jvm"] if peak else jvm_peak_rss_mb(spark)
         return result
     finally:
-        spark.stop()
+        if not peak:   # the Spark stage failed, so `release` never ran
+            spark.stop()
+
+
+def shut_down_jvm(spark: Any) -> None:
+    """Stop the session and end its gateway JVM, so its memory goes back to the container.
+
+    PySpark starts the gateway JVM with its stdin on a pipe, and the JVM exits when that pipe
+    closes (`pyspark/java_gateway.py`, "so that the Java gateway can die when the pipe is
+    broken"). That is how it dies with its parent; closing the pipe is the same ending, early.
+    """
+    from pyspark import SparkContext
+
+    gateway = spark.sparkContext._gateway
+    spark.stop()
+    gateway.proc.stdin.close()
+    gateway.proc.wait(timeout=60)
+    # The class still holds the dead gateway; cleared, a later session starts a new JVM.
+    SparkContext._gateway = None
+    SparkContext._jvm = None

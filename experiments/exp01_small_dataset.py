@@ -39,14 +39,14 @@ compares whole pipelines; the second compares models.
 
 from __future__ import annotations
 
-import time
 import uuid
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-from experiments.baselines import BASELINE_FEATURES, run_isolated
+from experiments.baselines import BASELINE_FEATURES, IsolatedProcessKilled, run_isolated
+from experiments.configuration_p import record_p
 from experiments.harness import Experiment
 
 CUSTOMERS = 400
@@ -55,193 +55,23 @@ SEED = 42
 DATA_START = "2024-01-01"
 
 
-def _spark(app: str):
-    from pyspark.sql import SparkSession
-
-    from triad_core.config import settings
-
-    session = (
-        SparkSession.builder.appName(app)
-        .master(settings().spark_master_url)
-        .config("spark.sql.ansi.enabled", "true")
-        .config("spark.sql.session.timeZone", "UTC")
-        .config("spark.sql.parquet.outputTimestampType", "TIMESTAMP_MICROS")
-        .config("spark.sql.shuffle.partitions", "8")
-        .config("spark.ui.enabled", "false")
-        .config("spark.driver.memory", "1g")
-        .getOrCreate()
-    )
-    session.sparkContext.setLogLevel("ERROR")
-    return session
-
-
 def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
-    """Configuration P: the governed agentic loop, through `churn.prepare`."""
-    from agents.graph import churn
-    from agents.graph import queue as q
-    from dataeng.ingest import DatasetRegistry
-    from triad_core.db import session_scope
-    from triad_core.models import PipelineRun
-    from triad_core.storage import storage
+    """Configuration P, in a process of its own like the baselines (experiments.configuration_p).
 
+    Run in this process, P's memory was never measurable apart from the experiment's own, and
+    it is the same code EXP-2 measures at scale.
+    """
     trial = exp.trial("P_triad")
-    store = storage()
-    started = time.perf_counter()
-    out: dict[str, Any] = {}
-
-    with session_scope() as session:
-        pipeline_name = f"exp01_p_{uuid.uuid4().hex[:6]}"
-        run = q.create_run(
-            session, pipeline_name=pipeline_name, trigger_type="manual",
-            triggered_by="exp01", config={"experiment": "EXP-1", "configuration": "P"},
-        )
-        session.flush()
-
-        registry = DatasetRegistry(session, store)
-        registered: dict[str, str] = {}
-        t0 = time.perf_counter()
-        for table in sorted(p.name for p in source.iterdir() if p.is_dir()):
-            name = f"{table}__{pipeline_name}"
-            contract = Path("pipelines") / "contracts" / f"{table}.yaml"
-            registry.register_source(
-                name, entity_type=table, source_type="parquet",
-                contract_yaml=contract.read_text(encoding="utf-8") if contract.exists() else None,
-            )
-            files = sorted((source / table).glob("*.parquet"))
-            if not files:
-                continue
-            result = registry.register_version(name, files[0], actor="exp01")
-            if result.version_id:
-                registered[table] = result.storage_uri or ""
-        ingest_s = round(time.perf_counter() - t0, 2)
-        run_id = run.id
-
-    # Committed before the pipeline starts. `audit.record` takes a per-chain
-    # `pg_advisory_xact_lock` and the ingest writes above land in the *system* chain, so one
-    # transaction spanning the whole run holds that lock for its duration and every
-    # `auth.login` blocks behind it. This experiment was observed doing exactly that: one
-    # transaction idle for 377s with a login queued behind it.
-    with session_scope() as session:
-        run = session.get(PipelineRun, run_id)
-        if run is None:
-            raise RuntimeError(f"run {run_id} vanished between transactions")
-
-        spark = _spark("triad-exp01-p")
-        try:
-            prepared = churn.prepare(
-                session, run, inputs=registered, spark=spark, store=store,
-                seed=SEED, requested_by="exp01",
-            )
-        finally:
-            spark.stop()
-
-        wall = time.perf_counter() - started
-        trial.record("wall_clock_s", round(wall, 2), "s")
-        trial.record("ingest_s", ingest_s, "s")
-        trial.record("prepare_ok", prepared.ok)
-        trial.record("prepare_state", prepared.state)
-
-        # Per-stage timings, from the pipeline's own stage records rather than a stopwatch here.
-        stage_times = {
-            s.get("stage"): round(float(s.get("duration_ms") or 0) / 1000.0, 2)
-            for s in prepared.details.get("stages", [])
-        } if isinstance(prepared.details.get("stages"), list) else {}
-        from sqlalchemy import select as sa_select
-
-        from triad_core.models import AuditLog, DecisionRecord, Execution, LlmInvocation
-
-        executions = session.execute(
-            sa_select(Execution).where(Execution.run_id == run.id)
-        ).scalars().all()
-        stage_times = stage_times or {
-            f"{e.engine}:{e.id.hex[:6]}": round(float(e.duration_ms or 0) / 1000.0, 2)
-            for e in executions
-        }
-        trial.observations["per_stage_s"] = stage_times
-
-        llm_calls = session.execute(
-            sa_select(LlmInvocation).where(LlmInvocation.run_id == run.id)
-        ).scalars().all()
-        decisions = session.execute(
-            sa_select(DecisionRecord).where(DecisionRecord.run_id == run.id)
-        ).scalars().all()
-        audits = session.execute(
-            sa_select(AuditLog).where(AuditLog.run_id == run.id)
-        ).scalars().all()
-        trial.record("llm_calls", len(llm_calls),
-                     note="0 because no provider is configured (ADR-0003), not because the "
-                          "loop made none")
-        trial.record("decision_records", len(decisions))
-        trial.record("audit_entries", len(audits))
-        trial.record("spark_jobs", len(executions))
-
-        # P counts as having run end to end when it reached selection - every stage executed
-        # and the candidate was judged - whatever the acceptance policy then decided. An
-        # escalation is the policy stopping for a person, which is the outcome the platform
-        # exists to produce when a rule fails; it is recorded beside the measurements, not in
-        # place of them (DEC-34). Since DEC-27 a candidate that failed a calibration or segment
-        # rule is still scored once on the test cutoff, so its test figures exist.
-        state = prepared.details or {}
-        selection = state.get("selection") or {}
-        if not state.get("split"):
-            trial.record("test_pr_auc", None, note="the pipeline did not reach selection")
-            trial.ok = False
-            trial.detail = f"stopped at {prepared.state}: {prepared.reason[:150]}"
-            q.set_state(session, run, "CANCELLED", actor="exp01")
-            return out
-        escalated = not prepared.ok
-        trial.record("escalated", escalated)
-        if escalated:
-            trial.record("escalation_reason", prepared.reason[:300])
-            trial.record("failed_rules", selection.get("failed_rules") or [])
-        verdict = (selection.get("verdicts") or {}).get(selection.get("selected_family")) or {}
-        trial.record("valid_rows", (verdict.get("evidence") or {}).get("ece_n_rows"),
-                     note="the split AP-5's calibration error is measured on")
-        # `SelectionResult.to_dict` writes `selected_family` and `test` - not `selected` and
-        # `test_metrics`, which are the attribute names on the object. Reading the attribute
-        # names off the serialised dict returned None for both and the experiment reported a
-        # completed run with no model and no PR-AUC.
-        test_values = (selection.get("test") or {}).get("values", {}) or {}
-        trial.record("selected_family", selection.get("selected_family"))
-        trial.record("test_pr_auc", _round(test_values.get("pr_auc")))
-        trial.record("test_roc_auc", _round(test_values.get("roc_auc")))
-        trial.record("test_brier", _round(test_values.get("brier")))
-        trial.record("selection_outcome", selection.get("outcome"))
-
-        # Human actions: the approval gate is the only manual step the hypothesis allows, so
-        # it is counted separately from anything else a person had to do. An escalation is a
-        # decision for a person too - two approvals if the candidate may be promoted anyway
-        # (PRD section 30), otherwise a person deciding what happens next - and is counted as
-        # that, not as a manual step in the pipeline.
-        approvals_needed = (
-            1 if selection.get("outcome") == "PROPOSE_PROMOTION"
-            else (2 if escalated and selection.get("override_eligible") else 0)
-        )
-        trial.record("person_decision_required", escalated or approvals_needed > 0)
-        trial.record("human_actions_excluding_approval", 0)
-        trial.record("approvals_required", approvals_needed)
-
-        out = {
-            "features_uri": state.get("features_uri"),
-            "labels_uri": state.get("labels_uri"),
-            "split": state.get("split"),
-            "feature_columns": state.get("feature_columns"),
-            "numeric_columns": state.get("numeric_columns"),
-            "categorical_columns": state.get("categorical_columns"),
-            "cutoffs": state.get("cutoffs"),
-        }
-        trial.ok = True
-        trial.detail = (
-            f"ran end to end in {wall:.0f}s over {len(executions)} Spark jobs; "
-            f"{selection.get('selected_family')} at test PR-AUC "
-            f"{_round(test_values.get('pr_auc'))}; "
-            + (f"the acceptance policy escalated it ({prepared.reason[:120]}), "
-               "so a person decides what happens next; "
-               if escalated else f"{approvals_needed} approval(s) required; ")
-            + "no other manual step"
-        )
-        q.set_state(session, run, "CANCELLED", actor="exp01")
-    return out
+    try:
+        p = run_isolated("experiments.configuration_p:run_p", source=str(source),
+                         prefix="exp01", experiment="EXP-1", seed=SEED)
+    except IsolatedProcessKilled as exc:
+        trial.ok = False
+        trial.detail = f"P's process ended without returning: {exc}"
+        trial.record("test_pr_auc", None, note="not measured")
+        return {}
+    record_p(trial, p)
+    return p.get("shared") or {}
 
 
 def _cutoff_groups(split: dict[str, Any]) -> dict[str, list[pd.Timestamp]]:
@@ -257,13 +87,6 @@ def _cutoff_groups(split: dict[str, Any]) -> dict[str, list[pd.Timestamp]]:
         "valid": [pd.Timestamp(split["valid_cutoff"])],
         "test": [pd.Timestamp(split["test_cutoff"])],
     }
-
-
-def _round(value: Any, places: int = 4) -> Any:
-    try:
-        return round(float(value), places)
-    except (TypeError, ValueError):
-        return value
 
 
 def run() -> Experiment:
