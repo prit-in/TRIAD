@@ -42,7 +42,7 @@ gates it claims were called by nothing at all.
 | FR-004 | Relational (JDBC) ingestion | **not met** (Should) | Nothing reads a database source. `Dataset.source_type` accepts `jdbc`, which makes the gap look smaller than it is |
 | FR-005 | Storage watching | met | `DatasetRegistry.watch_folder`; `tests/unit/test_ingest.py` |
 | FR-006 | Immutable dataset versioning | met | `copy_immutable` refuses an existing target; duplicate checksums create no new version |
-| FR-007 | Ingest contract validation | met | `triad_core/contracts.py`. EXP-4 found it unreachable: `register_version` enforced a contract only when handed one and no caller on the real path ever did. It now resolves the dataset's own contract, and three tests hold the refused / still-registers / no-contract cases |
+| FR-007 | Ingest contract validation | met | `triad_core/contracts.py`. EXP-4 found it unreachable: `register_version` enforced a contract only when handed one and no caller on the real path ever did. It now resolves the dataset's own contract, and three tests hold the refused / still-registers / no-contract cases. A refused file is kept in quarantine, and a renamed required column is proposed as a mapping for approval (ATC-06, DEC-39). The contract's row checks (C-TX-01 to C-TX-05, CR-11's compiled aggregates) are not evaluated on the run path: `check_expressions` and `evaluate_counts` have no caller; the cleaning job's quarantine rules enforce the same conditions |
 | FR-008 | Streaming-ready connector interface | **not met** (Could) | No connector abstraction exists |
 | FR-009..012 | Schema, semantic types, nulls, cardinality, distributions | met | `dataeng/profile.py`; `tests/unit/test_profile.py` |
 | FR-013 | Outlier detection | met | IQR and z-score in `profile.py` |
@@ -174,7 +174,8 @@ gates it claims were called by nothing at all.
 | ATC-13 | Prompt injection in data | met — `tests/unit/test_injection.py`, four defences tested separately. EXP-10 found a fifth class the scanner read past: chat-template control tokens, now flagged and broken up before fencing |
 | ATC-17 | Self-approval refused | met — asserted through the service *and* through the API |
 | ATC-18 | Replay with no LLM calls | **met** — verified end to end on run-2026-09-21-007: 3/3 stored artifacts reused with identical content hashes, 0 LLM invocations, and all three outputs identical (clean `061e97b5…`, features `2a97e511…`, labels `ce277092…`). Getting there needed two fixes, because there were two causes: Spark's per-job UUID in every part-file name, and row-to-file assignment that varies with task scheduling. A table's content is now the multiset of its rows |
-| ATC-06..11, 14..16 | (various) | **partly covered** by the tests above; not individually mapped |
+| ATC-06 | Schema mismatch: mapping proposed, approval requested, nothing runs before a decision | met since 10-10-2026 (DEC-39) - a renamed required column is refused, its likely source proposed by name, and a `schema.change` approval filed; nothing registers while it is pending, applying it is refused, and an approved mapping registers a renamed copy with its lineage. `tests/unit/test_ingest.py` (`TestARenamedColumnIsProposedNotApplied`, `TestAMappingIsAskedOnceAndAppliedFaithfully`), `tests/unit/test_api.py` (`test_a_renamed_column_upload_is_proposed_then_applied_once_approved`), and EXP-4's renamed condition. Until then `Remedy.PROPOSE_MAPPING` existed and nothing used it |
+| ATC-07..11, 14..16 | (various) | **partly covered** by the tests above; not individually mapped |
 
 ## Security tests (PRD 47: ST-01 to ST-08)
 
