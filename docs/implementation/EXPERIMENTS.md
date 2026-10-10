@@ -18,7 +18,7 @@ carrying an estimate.
 | EXP-3 | Scaling with parallelism | **partial** | **did not hold** | `experiments/EXP-3/latest.json` |
 | EXP-4 | Schema errors | **completed** | **held** (every fault detected and handled; the mapping proposed, approved, then applied) | `experiments/EXP-4/latest.json` |
 | EXP-5 | Missing values | **completed** | **did not hold** (PR-AUC flat within noise; key nulls quarantined, non-key nulls cost no row, the over-limit plan paused for approval) | `experiments/EXP-5/latest.json`, `experiments/EXP-5/calibration_noise_floor.json` |
-| EXP-6 | Spark failures and recovery | **partial** | **did not hold** | `experiments/EXP-6/latest.json` |
+| EXP-6 | Spark failures and recovery | **partial** | **no verdict** (the executor loss absorbed with identical output; no out-of-memory lands on this node; skew not assessable at this size) | `experiments/EXP-6/latest.json` |
 | EXP-7 | Model degradation | **partial** | **held** | `experiments/EXP-7/latest.json` |
 | EXP-8 | Scala compile failures | **partial** | **no verdict** | `experiments/EXP-8/latest.json` |
 | EXP-9 | Leakage sentinel | **completed** | **held** | `experiments/EXP-9/latest.json` |
@@ -140,63 +140,42 @@ Earlier runs, kept as records, are why the protocol looks the way it does:
   contract), the generator's `rename_column` broken, the profiler calling a nullable-by-design
   column blocking, and prices as text escalating instead of being converted (DEC-36).
 
-### EXP-6, Spark failures — did NOT hold, partial
+### EXP-6, Spark failures — no verdict, partial
 
-This is the one experiment whose hypothesis failed, and it is the most informative of the four.
+Run `20261010T113128Z` (10-10-2026 11:31 to 12:09 UTC). An arm counts only if its fault was seen
+to land (DEC-42).
 
-| Arm | Recovered | Attempts | Remedies applied | Output identical to the clean run |
-| --- | --- | --- | --- | --- |
-| clean baseline | yes | 2 | — | reference |
-| low driver memory (256m) | **no** | 2 | none | no |
-| sandbox container killed | yes | 1 | — | **no** |
-| skew, one account holds 20% | yes | 1 | — | not compared |
+| Arm | Fault landed | Attempts | First failure | Remedy | Output against its reference |
+| --- | --- | --- | --- | --- | --- |
+| clean baseline, 400 customers | - | 1 | - | - | reference |
+| container killed 10.3 s into the job | **yes** | 2 | `EXECUTOR_LOST` | resubmit | **identical** |
+| memory reference, 20 000 customers | - | 1 | - | - | reference (no spill) |
+| executor memory 460m, the same 20 000 | **no** out-of-memory; 178.8 MB spilled | 1 | - | - | clean identical; features differ in the last bit of 3 monetary sums, 9 of 110 900 rows |
+| one customer holds 20% of the lines | - (task skew 1.0) | 1 | - | - | not compared (different data) |
 
-Four findings, none of which a passing test would have surfaced:
+- **The executor loss is absorbed**: the runner read the engine's exit (a kill from outside, not
+  the kernel's memory limit), the playbook resubmitted, and the output was identical. In local
+  mode that is the platform's resubmit, not Spark's task retries, which this node cannot show.
+- **Out-of-memory recovery is untested here.** Two pilots and the run itself found no heap Spark
+  starts with at which these jobs fail: they spill instead (`experiments/EXP-6/pilot_20261010.md`).
+  Below about 450 MiB Spark refuses to start, which is `RESOURCE_CONFIG_INVALID` and a person's
+  (DEC-20); and even a landed out-of-memory could only be remedied with more partitions, because
+  raising the local JVM's heap is `spark.driver.memory`, outside the allowlist (DEC-41).
+- **Spill changed the last bit of some sums.** The diagnostic
+  (`experiments/EXP-6/diag_feature_determinism_20261010.md`) rebuilt both feature tables: every
+  key and every non-monetary feature identical, three monetary sums different by less than 1e-16
+  relative. Bit-for-bit reproduction holds under the same plan (ATC-18), not across memory
+  settings; summing money as `decimal` would make it exact.
+- **Skew handling is not assessable at this size**: no partition approaches adaptive execution's
+  thresholds, and the skewed feature job's slowest task was the median's.
 
-1. **The content hash of a Spark output was not reproducible.** The killed-container arm read
-   byte-identical source data and ran identical code, produced the same 8078 rows with balanced
-   accounting, and committed a *different* content hash. **Fixed**, and it took two goes,
-   because there were two causes and only the first was visible from this experiment:
-
-   - Spark mints a UUID per job and puts it in every part-file name, and `sha256_dir` folded
-     the names into the digest.
-   - `OutputValidator` writes without sorting, so which rows land in which part file — and in
-     what order inside one — depends on task scheduling. A replay with the names dealt with
-     reproduced the identical 7815 clean rows and *still* wrote different bytes.
-
-   A table's content is now defined as the multiset of its rows: each row hashed with its
-   column names attached, the hashes sorted, the digest over that. Measured stable across 3, 4
-   and 5 files holding the same rows. `sha256_dir` keeps its name-sensitive behaviour for code
-   trees. The cost is a read-back on commit, O(rows); the cheaper alternative is a
-   deterministic sort before write in the Scala job, and that trade is recorded in the code.
-
-   Confirmed end to end afterwards: a replay of run-2026-09-21-007 reused 3/3 stored artifacts,
-   made 0 LLM calls, and reproduced all three outputs identically — clean `061e97b5…`, features
-   `2a97e511…`, labels `ce277092…`. ATC-18 passes.
-2. **A 256m Spark driver's out-of-memory failure is classified `UNKNOWN`,** so the playbook
-   prescribed `none` and `RAISE_EXECUTOR_MEMORY` never fired. The classifier does not recognise
-   the signature this failure actually produces. **Fixed (DEC-20):** Spark's
-   `[INVALID_DRIVER_MEMORY]` refusal is now `RESOURCE_CONFIG_INVALID`, escalated naming the
-   setting rather than remedied, because the policy does not let the agent raise driver memory.
-3. **`docker` is not on the PATH inside the dev container,** so `get_runner()` falls back to
-   `LocalRunner` and Spark jobs are *not* running in containers in this environment. The
-   container kill could not land — recorded as `container_killed: false` rather than reported as
-   a recovery that never happened. Every claim about container isolation therefore describes
-   `DockerRunner`, which is implemented and exercised by its own tests, but is not the path this
-   machine takes. **Resolved 04-10-2026 (ADR-0004)** - and the finding was worse than it read:
-   `DockerRunner` shelled out to a CLI the image does not have and could never have run. Jobs now
-   run in containers started by the `sandbox-runner` service, so the killed-container arm can
-   land; EXP-6 is to be re-run to measure it.
-4. **sbt's dependency download failure is classified as `SCALA_COMPILE_ERROR`.** The clean
-   baseline took two attempts because attempt 1 failed on a coursier network fetch inside
-   `gate4_compile`. A network problem is not a compile error and the prescribed remedy
-   (`regenerate_code`) cannot help it. **Fixed (DEC-20):** `DEPENDENCY_RESOLUTION`, resubmitted
-   once and never sent to code regeneration; the compile pattern now requires a file and line.
-
-EXP-6 is also what proved the `RAISE_EXECUTOR_MEMORY` plumbing fix: that remedy bumped an input
-nothing read, so an out-of-memory retry was submitted with exactly the memory that had just
-failed. The plumbing is fixed and the classifier gap in (2) now stands between it and the
-failure it exists for.
+What the earlier runs found, all fixed: the content hash folded Spark's per-job file names in and
+depended on row placement (a table's content is now the multiset of its rows, ATC-18); a 256m
+driver is below Spark's minimum, so that arm never was an out-of-memory (DEC-20); the kill thread
+called a docker CLI the image lacked; a local-mode heap exhaustion was read as a driver fault or a
+Python exception, the memory raise read only gigabytes, and a killed container was `UNKNOWN`
+(DEC-41); and every first compile in a fresh container downloaded sbt and its dependencies,
+because the caches were mounted where nothing looked (DEC-43).
 
 ### EXP-1, TRIAD against the non-agentic baselines — held, partial
 

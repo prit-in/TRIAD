@@ -122,7 +122,22 @@ condition, with 10% of the keys missing, took the cleaning plan to 10.1% of rows
 policy allows without a person: the run paused with its output uncommitted and an approval request
 filed, the expected observation that none of the PRD's own conditions comes near.
 
-<!-- RESULTS-PENDING: EXP-6 (Spark failures) paragraph. -->
+EXP-6 injected the PRD's three Spark faults, and an arm counted only if its fault was seen to land.
+A sandbox container killed 10 s into its cleaning job was reported by the runner as a lost
+executor, resubmitted by the playbook, and recovered on the second attempt with output identical
+to the clean run; in local mode it is the platform, not Spark's task retries, that absorbs the
+loss, so that claim was observed in this form only. Executor memory set as low as Spark accepts -
+460 MB, below which it refuses to start and the playbook leaves the setting to a person - produced
+no out-of-memory at 400 customers or at 20 000: the feature job spilled 179 MB to disk and
+finished, so the playbook's out-of-memory remedy was never exercised and that claim is untested
+here. That run's cleaned output matched the run at normal memory exactly; its feature table
+differed in the last bit of three monetary sums in 9 of 110 900 rows, because spilling changed
+the order of floating-point additions - an output is reproducible bit for bit under the same
+plan, not across memory settings. One customer holding a fifth of the lines changed nothing
+measurable at this size (slowest task 1.0 times the median), so whether adaptive execution
+handles skew is not assessable here. Two defects the experiment exposed were fixed before this
+run: an out-of-memory in local mode was classified as a driver fault whose remedy needs a
+language model, and a killed container as an unknown error.
 
 ## 15.5 Code generation: what the gates stop, and how quickly
 
@@ -225,6 +240,12 @@ verdict, and the result it turned on.
   condition ESCALATE on AP-6 (tenure_band gaps 0.23 to 0.28 at 1 181 validation rows); over-limit
   10.0539% of rows, one `destructive_cleaning` request, APPROVAL_REQUIRED. The confounded
   reference: `20261009T233715Z` (0.6527; that run then died in its fifth condition).
+- EXP-6: `experiments/EXP-6/20261010T113128Z/result.json` (10-10-2026 11:31 to 12:09 UTC): kill
+  10.3 s into the job, `EXECUTOR_LOST`, `resubmit`, 2 attempts, content hash identical; memory arm
+  460m on 20 000 customers, no failure, feature spill 178 765 620 bytes against 0 at the configured
+  memory, clean identical, features not (`experiments/EXP-6/diag_feature_determinism_20261010.md`:
+  3 monetary columns, 9 of 110 900 rows, relative difference below 1e-16); pilots in
+  `experiments/EXP-6/pilot_20261010.md`; skew arm task skew 1.0 against 1.0.
 - EXP-8: `experiments/EXP-8/latest.json` (07-10-2026 22:54 UTC), `raw/per_class.json`.
 - EXP-7: `experiments/EXP-7/latest.json` (07-10-2026 21:57 UTC), `raw/thresholds.json`.
 - EXP-9: `experiments/EXP-9/20261010T094418Z/` (10-10-2026 09:44 UTC; the same inflation as the
