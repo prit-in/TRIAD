@@ -1,0 +1,51 @@
+{
+  "exp_id": "EXP-8",
+  "title": "Scala compile failures",
+  "hypothesis": "At least 70% of seeded code faults are repaired within 3 attempts; repeated fingerprints escalate; forbidden APIs never run.",
+  "independent_variable": "fault class",
+  "dependent_measures": [
+    "detected",
+    "first_failed_gate",
+    "error_class",
+    "detected_before_data",
+    "reached_execution",
+    "toolchain_failure",
+    "escalation",
+    "attempts_to_escalation",
+    "repair_rate"
+  ],
+  "started_at": "2026-10-10T12:09:55.817451+00:00",
+  "duration_s": 205.23,
+  "status": "failed",
+  "hypothesis_held": null,
+  "conclusion": "the unmutated control did not pass its own gates (failed at gate 4), so no statement about the seeded faults would mean anything: eam-2.9.8.jar: download error: Caught java.net.UnknownHostException (repo1.maven.org) while downloading https://repo1.maven.org/maven2/com/clearspring/analytics/stream/2.9.8/stream-2.9.8.jar\n[error] Total time: 130 s (0:02:10.0), completed Oct 10, 2026, 12:13:21 PM\n[info] [launcher] getting org.scala-sbt sbt 1.13.0  (this may take some time)...\n[info] [launcher] getting Scala 2.12.21 (for sbt)...\n",
+  "limitations": [],
+  "trials": [
+    {
+      "condition": "control_unmutated",
+      "ok": false,
+      "detail": "",
+      "measurements": [
+        {
+          "name": "passed_all_gates",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 205.2,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {}
+    }
+  ]
+}

@@ -118,7 +118,11 @@ services:
       TRIAD_WORKER_NAME: orchestrator-1
       # Gate 5 runs sbt and a forked ScalaTest JVM at once, beside the worker: two JVMs whose
       # default heaps (sbt's 1 GB, the suite's 1500m) alone exceeded the old 1600M limit.
-      SBT_OPTS: "-Xmx800m -Xss4m"
+      # The caches live on the volumes mounted below. The process runs as root, whose home is
+      # /root, so without these sbt and coursier used /root inside the container and fetched
+      # sbt and every dependency again after each container start (DEC-43).
+      SBT_OPTS: "-Xmx800m -Xss4m -Dsbt.boot.directory=/home/triad/.sbt/boot -Dsbt.global.base=/home/triad/.sbt/1.0 -Dsbt.ivy.home=/home/triad/.ivy2"
+      COURSIER_CACHE: /home/triad/.cache/coursier
       TRIAD_TEST_HEAP: "700m"
       # Generated code runs in containers started by sandbox-runner; without these two the
       # worker falls back to LocalRunner and every result says isolation was not in force.
@@ -133,6 +137,7 @@ services:
       - triad-data:/data/triad
       - triad-ivy:/home/triad/.ivy2
       - triad-sbt:/home/triad/.sbt
+      - triad-coursier:/home/triad/.cache/coursier
     deploy:
       resources:
         limits: {memory: 2600M}
@@ -222,7 +227,10 @@ services:
       # The orchestrator's JVM heaps (DEC-23), so experiments run gates 4 and 5 as production
       # does. Without them sbt took its 1 GB default and the forked test JVM 1500m, about a
       # gigabyte more than production beside a Spark job, and the VM ran out under EXP-5 (DEC-42).
-      SBT_OPTS: "-Xmx800m -Xss4m"
+      # ...and its caches on the mounted volumes: every fresh experiment container otherwise
+      # downloaded sbt and 386 MB of dependencies inside its first compile (DEC-43).
+      SBT_OPTS: "-Xmx800m -Xss4m -Dsbt.boot.directory=/home/triad/.sbt/boot -Dsbt.global.base=/home/triad/.sbt/1.0 -Dsbt.ivy.home=/home/triad/.ivy2"
+      COURSIER_CACHE: /home/triad/.cache/coursier
       TRIAD_TEST_HEAP: "700m"
       # Experiments and tests take the production path: jobs run in sandbox-runner's containers.
       TRIAD_SANDBOX_URL: http://sandbox-runner:8090
