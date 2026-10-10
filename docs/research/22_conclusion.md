@@ -11,7 +11,7 @@ decision recorded and every action on a tamper-evident audit trail (Fig. 32).
 
 **Fig. 32. Research Contribution Framework.** *(figures/drawio/Fig 32 Research Contribution Framework.drawio)*
 
-Five findings stand out.
+Six findings stand out.
 
 **Bounded generation works where it can see.** The static gates refused every forbidden API call
 in a fifth of a second and every type or import fault at compile time, so none of them ran. A
@@ -45,7 +45,13 @@ the code that implements it, found an evidence bundle that omitted what approver
 card silent about an override, and a rollback that could deploy a model nobody had approved.
 Each was invisible to tests that checked the rules one at a time.
 
-<!-- RESULTS-PENDING: EXP-4, EXP-5, EXP-6 headline sentences. -->
+**Faults in the data were caught where they arose, and a person decided what only a person
+should.** A renamed customer key was refused at ingestion and proposed as a mapping that waited for
+a data engineer; prices written as text were converted; a missing optional table switched off
+exactly its own features. Missing keys were quarantined to the row, missing values elsewhere cost
+no row and, at the sizes measured, no ranking quality, and a cleaning plan that would have removed
+a tenth of the rows paused for approval. A killed executor was absorbed with identical output, but
+no out-of-memory could be provoked on this node at all: Spark spilled to disk instead.
 
 The limits of this evaluation are its strongest qualifications. No language-model provider was
 configured, so every agent ran its deterministic path and the repair rate of generated code is
@@ -62,6 +68,9 @@ with enough repetitions to tell an effect from noise.
 ## Evidence (not part of the manuscript)
 
 - Gates: EXP-8 (0.2 s; 37-41 s compile; wrong column 0/5 at gates 1-4).
+- Data faults: EXP-4 `20261010T121337Z`, EXP-5 `20261010T094502Z` (PR-AUC 0.634 to 0.642, intervals
+  about +/-0.046; over-limit 10.05% paused), EXP-6 `20261010T113128Z` (kill: EXECUTOR_LOST,
+  resubmit, identical; 460m on 20 000 customers: 178.8 MB spilled, no failure).
 - Noise floors: `experiments/EXP-5/calibration_noise_floor.json` (324 rows: 40-46% above 0.05);
   `experiments/policy_floors/segment_gap_noise_floor.json` (false-alarm rate of a fair model
   0.655/0.971/0.951/0.809/0.396 at 494/1000/2000/4000/8000 rows, all four segmentations).
