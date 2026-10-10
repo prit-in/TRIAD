@@ -21,6 +21,8 @@ export class ApiProblem extends Error {
   readonly title: string;
   readonly detail: string;
   readonly type: string;
+  /** Extension members of the problem, e.g. a refused upload's `approval_id` (RFC 9457). */
+  readonly extra: Record<string, unknown>;
 
   constructor(status: number, body: Record<string, unknown> | null) {
     const title = typeof body?.title === "string" ? body.title : "Request failed";
@@ -30,6 +32,7 @@ export class ApiProblem extends Error {
     this.title = title;
     this.detail = detail;
     this.type = typeof body?.type === "string" ? body.type : "";
+    this.extra = body ?? {};
   }
 }
 
@@ -62,7 +65,11 @@ async function send(
   authenticated: boolean,
 ): Promise<{ response: Response; text: string }> {
   const headers = new Headers(init.headers);
-  if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
+  // A file upload is multipart, and the browser must write that header itself: it carries the
+  // boundary between the parts.
+  if (!headers.has("Content-Type") && init.body && !(init.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
 
   const token = storedToken();
   if (authenticated && token) headers.set("Authorization", `Bearer ${token}`);
@@ -172,6 +179,16 @@ export const api = {
   datasets: () => request<DatasetSummary[]>("/datasets"),
   datasetVersions: (ref: string) =>
     request<DatasetVersionSummary[]>(`/datasets/${encodeURIComponent(ref)}/versions`),
+  /** A file as a new version (UC-01). A refusal is a problem; a mapping proposal names its
+   *  approval in `extra.approval_id` (ATC-06). */
+  uploadVersion: (ref: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<DatasetSummary>(`/datasets/${encodeURIComponent(ref)}/upload`, {
+      method: "POST",
+      body: form,
+    });
+  },
   datasetProfile: (ref: string, versionNo: number) =>
     request<Profile>(`/datasets/${encodeURIComponent(ref)}/versions/${versionNo}/profile`),
   /** The rendered document, not its metadata row (FR-072). */
@@ -506,7 +523,19 @@ export interface EvidenceBundle {
   model_card_uri: string | null;
   /** Filled for a schema change: what the proposed column mapping alters and touches. */
   schema_diff?: { missing_required?: string[]; not_in_contract?: string[] };
-  impact_estimate?: { rows?: number | null; effect?: string };
+  /** A schema change: rows and the effect of approving. A cleaning plan over its limit (US-06):
+   *  the share of rows it affects and what each rule quarantined. */
+  impact_estimate?: {
+    rows?: number | null;
+    effect?: string;
+    rows_affected_pct?: number;
+    input_rows?: string | number | null;
+    quarantined_rows?: string | number | null;
+    removed_duplicates?: string | number | null;
+    by_rule?: Record<string, string | number>;
+  };
+  /** A few of the rows a cleaning plan would quarantine, with their reasons. */
+  sample_rows?: Record<string, unknown>[];
 }
 
 export interface Alert {

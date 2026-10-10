@@ -315,6 +315,12 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
 .decide label { flex: 1; margin-top: 0; }
 .decide button { margin-top: 0; }
 
+/* The dataset upload form (Datasets.tsx): the same row as a decision, the outcome below it. */
+.upload { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem; margin-bottom: 1rem; }
+.upload label { flex: 1; margin-top: 0; }
+.upload button { margin-top: 0; }
+.upload p { flex-basis: 100%; margin: 0; }
+
 /* --- charts (charts.tsx) ------------------------------------------------------
    Plain SVG, so everything it needs is here rather than in a library's own sheet.
    Series carry a dash pattern as well as a colour: hue alone is not a signal

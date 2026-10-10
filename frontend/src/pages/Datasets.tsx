@@ -14,6 +14,7 @@
  */
 
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiProblem, api } from "../api";
 import type { DatasetSummary, DatasetVersionSummary, Profile, ProfileColumn } from "../api";
 import { BarChart, LineChart } from "../charts";
@@ -134,6 +135,7 @@ function DatasetDetail({ name }: { name: string }) {
       }
     >
       <Problem error={versions.problem} />
+      <UploadVersion name={name} latest={rows[0]?.version_no ?? null} onDone={versions.refresh} />
       {versions.data && rows.length === 0 && <Empty what="versions of this dataset" />}
 
       {rows.length > 0 && (
@@ -167,6 +169,82 @@ function DatasetDetail({ name }: { name: string }) {
 
       {current !== null && <ProfileView name={name} versionNo={current} />}
     </Panel>
+  );
+}
+
+/**
+ * A file as a new version, through the same registry the pipeline uses (UC-01).
+ *
+ * The server decides everything: identical bytes are the version that already holds them, a
+ * contract refusal says why, and a renamed required column comes back as a proposed mapping
+ * waiting for a Data Engineer (ATC-06) - shown with the way to the approval queue, because
+ * nothing registers before that decision.
+ */
+function UploadVersion({ name, latest, onDone }: {
+  name: string;
+  latest: number | null;
+  onDone: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Error | null>(null);
+
+  async function upload() {
+    if (!file) return;
+    setBusy(true);
+    setMessage(null);
+    setProblem(null);
+    try {
+      const summary = await api.uploadVersion(name, file);
+      setMessage(
+        summary.latest_version === latest
+          ? `These bytes are already v${latest}; nothing new was registered.`
+          : `Registered as v${summary.latest_version}.`,
+      );
+      onDone();
+    } catch (error) {
+      setProblem(error as Error);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const proposed =
+    problem instanceof ApiProblem && typeof problem.extra.approval_id === "string";
+  return (
+    <form
+      className="upload"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void upload();
+      }}
+    >
+      <label>
+        Upload a new version
+        <input
+          type="file"
+          accept=".csv,.parquet,.json,.jsonl"
+          onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)}
+        />
+      </label>
+      <button type="submit" disabled={!file || busy}>
+        {busy ? "Uploading…" : "Upload"}
+      </button>
+      {message && <p role="status">{message}</p>}
+      {problem && (
+        <p className="problem" role="alert">
+          <strong>{problem instanceof ApiProblem ? problem.title : "Upload failed"}.</strong>{" "}
+          {problem.message}
+          {proposed && (
+            <>
+              {" "}
+              <Link to="/approvals">Open the approval queue</Link>.
+            </>
+          )}
+        </p>
+      )}
+    </form>
   );
 }
 

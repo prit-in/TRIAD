@@ -156,7 +156,8 @@ function Evidence({ approvalId }: { approvalId: string }) {
               {bundle.impact_estimate.effect}.
             </p>
           )}
-          {bundle.action_type !== "schema.change" && (
+          {bundle.impact_estimate?.by_rule && <CleaningPlan bundle={bundle} />}
+          {!["schema.change", "cleaning.execute"].includes(bundle.action_type) && (
           <dl className="metrics">
             <div>
               <dt>PR-AUC against the champion (AP-8)</dt>
@@ -182,6 +183,63 @@ function Evidence({ approvalId }: { approvalId: string }) {
         </>
       )}
     </details>
+  );
+}
+
+/**
+ * A cleaning plan over its limit (US-06, DEC-40): what it would take out of the clean output, by
+ * rule, and a few of those rows with their reasons. Every one is kept in quarantine either way;
+ * the decision is whether the plan's output is committed.
+ */
+function CleaningPlan({ bundle }: { bundle: EvidenceBundle }) {
+  const impact = bundle.impact_estimate ?? {};
+  const rules = Object.entries(impact.by_rule ?? {});
+  const sample = bundle.sample_rows ?? [];
+  const columns = Object.keys(sample[0] ?? {});
+  return (
+    <section className="cleaning-plan">
+      <p>
+        The plan would take <strong>{num(impact.rows_affected_pct, 2)}%</strong> of{" "}
+        {String(impact.input_rows ?? "?")} rows out of the clean output:{" "}
+        {String(impact.quarantined_rows ?? "?")} quarantined and{" "}
+        {String(impact.removed_duplicates ?? "?")} removed as duplicates.
+      </p>
+      {rules.length > 0 && (
+        <table>
+          <thead>
+            <tr>
+              <th>Rule</th>
+              <th>Rows</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rules.map(([rule, count]) => (
+              <tr key={rule}>
+                <td className="mono">{rule}</td>
+                <td>{String(count)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {sample.length > 0 && (
+        <details>
+          <summary>{sample.length} of the rows it would quarantine</summary>
+          <table>
+            <thead>
+              <tr>{columns.map((c) => <th key={c}>{c}</th>)}</tr>
+            </thead>
+            <tbody>
+              {sample.map((row, i) => (
+                <tr key={i}>
+                  {columns.map((c) => <td key={c} className="mono">{String(row[c] ?? "")}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
+    </section>
   );
 }
 
