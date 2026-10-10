@@ -63,7 +63,9 @@ must be justified by a measurement that involves no test data - for example, EXP
 because a separate study of the calibration estimator showed its 324-row validation split to be
 inside the estimator's noise floor (Section 15). Failures caused by the environment rather than by
 the system under test, such as the virtual machine running out of memory, are recorded as such
-and the experiment re-run, never reported as results.
+and the experiment re-run, never reported as results. An injected fault must be seen to land -
+a container killed while its job runs, a failure classified as the fault it was meant to be -
+and a claim whose fault did not land is reported as untested, never as refuted.
 
 **Table 8. Experimental Configurations**
 
@@ -72,11 +74,11 @@ and the experiment re-run, never reported as results.
 | EXP-1 Small dataset | Does P run end to end without manual steps, and what does its overhead cost? | 400 customers, 24 months | configuration (B1, B2, B3, P) | wall clock, manual steps, LLM calls, test PR-AUC, like-for-like PR-AUC |
 | EXP-2 Single-node limit | Is single-node pandas the first to fail as data grows? | 400 to 200 000 customers, stopping at the first failure | dataset size, configuration (B2, B3) | completion, wall clock, peak memory |
 | EXP-3 Parallelism | Does doubling the cores give at least 1.6 times speed-up? | 6 000 customers | Spark parallelism (1, 2, 4 cores) | wall clock, work time, shuffle bytes, spill, task skew, core utilization |
-| EXP-4 Schema errors | Are schema faults stopped before they corrupt anything? | 400 customers | fault (renamed key, price as text, missing table) | where detected, rows affected, outcome |
-| EXP-5 Missing values | Are key nulls quarantined without losing rows, and does quality decline gradually? | 2 000 customers | non-key null rate 0-50%, key nulls 1% | quarantine, row accounting, test PR-AUC, calibration error |
-| EXP-6 Spark failures | Are infrastructure failures recovered or escalated, never lost? | 400 customers | fault (low memory, killed container, skew) | recovered, attempts, remedy, output identical |
+| EXP-4 Schema errors | Are schema faults stopped before they corrupt anything? | 400 customers | fault (renamed key, price as text, missing table) | where detected, mapping proposed, approval, time to recovery, rows affected |
+| EXP-5 Missing values | Are key nulls quarantined without losing rows, and does quality decline gradually? | 2 000 customers, each condition in its own process | non-key null rate 0-50% with keys at 1%; one condition at 10% keys | quarantine, row accounting, test PR-AUC with interval, calibration error, approval requested |
+| EXP-6 Spark failures | Are infrastructure failures recovered or escalated, never lost? | 400 customers; the memory arm 20 000 | fault (low memory, killed container, skew) | fault landed, recovered, attempts, remedy, output identical, spill, task skew |
 | EXP-7 Drift | Do the monitors detect drift and fire retraining without false alarms? | 1 500 customers | drift type (covariate, segment, concept) | PSI, months to detection, triggers, false alarms |
-| EXP-8 Code faults | Do the gates stop faulty generated code before execution? | 20 seeded faults | fault class (four, five each) | gate that stopped it, time to verdict, repeats |
+| EXP-8 Code faults | Do the gates stop faulty generated code before execution? | 20 seeded faults | fault class (four, five each) | gate that stopped it (1 to 5), time to verdict, escalation on a repeated fingerprint |
 | EXP-9 Leakage | Are leaked features blocked? | 1 200 customers | leak type (post-cutoff, lifetime total) | which defence blocked it, PR-AUC inflation |
 | EXP-10 Governance | Are attempts to bypass governance refused and recorded? | one run per attempt | attempt (alias move, self-approval, injection, budget) | refused, audited, chain verified |
 
@@ -93,5 +95,7 @@ and the experiment re-run, never reported as results.
 - Configurations: `experiments/baseline_b2.py`, `baseline_b3.py`, `baselines.py`
   (`BASELINE_FEATURES`, twelve features), `exp01_small_dataset.py` (like-for-like trial).
 - Sizes: the constants at the top of each `experiments/exp*.py`; EXP-2 ladder and ceilings,
-  EXP-5 size: DEC-33, DEC-34, DEC-35.
+  EXP-5 size: DEC-33, DEC-34, DEC-35. Faults that must land, EXP-5's process per condition and
+  same-draw reference, EXP-6's memory arm (two pilots, `experiments/EXP-6/pilot_20261010.md`),
+  EXP-8's anchors and two-attempt breaker measurement: DEC-42.
 - Bootstrap: `python_ml/triad_ml/evaluate.py` (`DEFAULT_BOOTSTRAP = 1000`, `bootstrap_difference`).
