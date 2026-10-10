@@ -11,8 +11,8 @@
     "held_out_roc_auc",
     "inflation_vs_control"
   ],
-  "started_at": "2026-10-07T21:56:17.713949+00:00",
-  "duration_s": 9.67,
+  "started_at": "2026-10-10T09:44:18.804626+00:00",
+  "duration_s": 9.72,
   "status": "completed",
   "hypothesis_held": true,
   "conclusion": "2 of 2 leaks blocked; the point-in-time control was not blocked: True. Inflation on held-out data, with the defences bypassed: leak_post_cutoff_feature +0.5470 PR-AUC, leak_lifetime_total +0.4975 PR-AUC. The post-cutoff feature is caught by name before any model is fitted; the lifetime total is name-innocent and is caught only by the behavioural checks, which is why both kinds of defence are needed.",
@@ -269,5 +269,5 @@
       }
     }
   ],
-  "run_dir": "20261007T215617Z"
+  "run_dir": "20261010T094418Z"
 }
