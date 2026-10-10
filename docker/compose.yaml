@@ -219,6 +219,11 @@ services:
     environment:
       <<: *common-env
       TRIAD_DB_URL: postgresql+psycopg://triad:${POSTGRES_PASSWORD:-triad_dev_pw}@postgres:5432/triad
+      # The orchestrator's JVM heaps (DEC-23), so experiments run gates 4 and 5 as production
+      # does. Without them sbt took its 1 GB default and the forked test JVM 1500m, about a
+      # gigabyte more than production beside a Spark job, and the VM ran out under EXP-5 (DEC-42).
+      SBT_OPTS: "-Xmx800m -Xss4m"
+      TRIAD_TEST_HEAP: "700m"
       # Experiments and tests take the production path: jobs run in sandbox-runner's containers.
       TRIAD_SANDBOX_URL: http://sandbox-runner:8090
       TRIAD_SANDBOX_TOKEN: ${TRIAD_SANDBOX_TOKEN:-dev-only-sandbox-token-change-me}

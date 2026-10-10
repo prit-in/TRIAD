@@ -59,10 +59,15 @@ CUSTOMERS = 400
 MONTHS = 24
 SEED = 42
 DATA_START = "2024-01-01"
-# Just above the minimum Spark needs to start (1.5 x its 300 MB reservation, about 450 MB of
-# usable heap), so the job starts and must then fit its work into what is left. Chosen from
-# Spark's documented minimum before any run, not from a result.
-OOM_DRIVER_MEMORY = "512m"
+# The memory arm runs where memory matters. Two pilots on 10-10-2026, which ran only this arm
+# and measured only whether its fault lands (experiments/EXP-6/pilot_20261010.md), found that
+# at 512m and 460m on 400 customers neither job failed or spilled a byte, and that at 460m on
+# 20 000 customers neither failed and the feature job spilled 191 MB. So the arm runs 20 000
+# customers at 460m - the least heap Spark starts with (about 450 MiB; below it Spark refuses to
+# start, which the playbook leaves to a person, DEC-20) - beside the same data at the
+# configured memory, and compares the outputs.
+MEMORY_CUSTOMERS = 20_000
+OOM_DRIVER_MEMORY = "460m"
 # How far into the running job the container is killed: past JVM and Spark start-up, inside
 # the work. The baseline's own job duration is recorded beside it, to show the kill landed.
 KILL_INTO_JOB_SECONDS = 10.0
@@ -430,20 +435,24 @@ def run() -> Experiment:
         config={
             "customers": CUSTOMERS, "months": MONTHS, "seed": SEED,
             "oom_driver_memory": OOM_DRIVER_MEMORY,
+            "memory_arm_customers": MEMORY_CUSTOMERS,
             "kill_into_job_seconds": KILL_INTO_JOB_SECONDS,
             "arms": {
                 "clean_baseline": "no fault; the reference output checksum, and the reference "
                                   "feature-job skew",
-                "low_executor_memory": f"first attempt given {OOM_DRIVER_MEMORY}, just above "
-                                       "Spark's minimum, so the work itself must not fit",
+                "memory_reference": f"{MEMORY_CUSTOMERS} customers at the configured memory; "
+                                    "the memory arm's reference",
+                "low_executor_memory": f"the same {MEMORY_CUSTOMERS} customers given "
+                                       f"{OOM_DRIVER_MEMORY}, the least heap Spark starts with",
                 "sandbox_container_killed": "the job's container is killed "
                                             f"{KILL_INTO_JOB_SECONDS:.0f} s into its run",
                 "skewed_one_customer_20pct": "one account holds 20% of all order lines; "
                                              "cleaning and the feature job",
             },
             "shared_source_note": (
-                "the first three arms read byte-identical source data, which is what makes the "
-                "checksum comparison meaningful; the skew arm necessarily differs"
+                "the clean baseline and the killed arm read byte-identical source data, and so do "
+                "the memory reference and the memory arm, which is what makes each checksum "
+                "comparison meaningful; the skew arm necessarily differs"
             ),
         },
     ) as exp:
@@ -458,8 +467,14 @@ def run() -> Experiment:
         baseline = _arm(exp, "clean_baseline", shared, features=True)
         reference_hash = baseline.get("content_hash")
 
-        # --- arm 2: out of memory ------------------------------------------------
-        _arm(exp, "low_executor_memory", shared, features=True,
+        # --- arm 2: memory too low, at a size where memory matters ---------------
+        memory_data = root / "memory"
+        SyntheticGenerator(
+            GeneratorConfig(customers=MEMORY_CUSTOMERS, months=MONTHS, seed=SEED,
+                            start_date=DATA_START)
+        ).write(memory_data)
+        memory_reference = _arm(exp, "memory_reference", memory_data, features=True)
+        _arm(exp, "low_executor_memory", memory_data, features=True,
              config_overrides={"spark.driver_memory": OOM_DRIVER_MEMORY})
 
         # --- arm 3: the executor is killed ---------------------------------------
@@ -476,20 +491,20 @@ def run() -> Experiment:
         # --- read it -------------------------------------------------------------
         by_name = {t.condition: t for t in exp.trials}
         base, oom = by_name["clean_baseline"], by_name["low_executor_memory"]
+        mref = by_name["memory_reference"]
         kill, skew = by_name["sandbox_container_killed"], by_name["skewed_one_customer_20pct"]
-        for trial in (oom, kill):
-            trial.record(
-                "identical_to_clean_run",
-                bool(reference_hash) and _value(trial, "content_hash") == reference_hash,
-                note="the committed output's content hash against the clean run's",
-            )
-        reference_features = baseline.get("feature_content_hash")
-        oom.record(
-            "features_identical_to_clean_run",
-            bool(reference_features)
-            and _value(oom, "feature_content_hash") == reference_features,
-            note="the feature table's content hash against the clean run's",
+        kill.record(
+            "identical_to_clean_run",
+            bool(reference_hash) and _value(kill, "content_hash") == reference_hash,
+            note="the committed output's content hash against the clean run's",
         )
+        for name, key in (("identical_to_clean_run", "content_hash"),
+                          ("features_identical_to_clean_run", "feature_content_hash")):
+            oom.record(
+                name,
+                bool(memory_reference.get(key)) and _value(oom, key) == memory_reference.get(key),
+                note="against the same data at the configured memory",
+            )
         skew.record("identical_to_clean_run", None,
                     note="not compared: the skewed arm reads different source data by design")
 
@@ -509,7 +524,8 @@ def run() -> Experiment:
         # At this size no partition approaches AQE's skew thresholds (256 MB), so completing
         # says nothing about skew handling; the measured task skew is reported instead.
         skew_ok = None
-        parts = {"baseline_ran": bool(reference_hash) and base.ok, "oom_fixed": oom_ok,
+        parts = {"baseline_ran": bool(reference_hash) and base.ok and mref.ok,
+                 "oom_fixed": oom_ok,
                  "kill_absorbed": kill_ok, "skew_handled": skew_ok}
         verdict = (False if any(v is False for v in parts.values())
                    else None if any(v is None for v in parts.values()) else True)
@@ -528,9 +544,13 @@ def run() -> Experiment:
         )
         if not oom_landed:
             exp.limitation(
-                f"The memory fault did not land: at {OOM_DRIVER_MEMORY} the cleaning and feature "
-                f"jobs' first failures were {oom_classes} (None means no failure), so that arm "
-                "measures no out-of-memory recovery and the claim is untested."
+                f"The memory fault did not land as an out-of-memory: at {OOM_DRIVER_MEMORY} on "
+                f"{MEMORY_CUSTOMERS} customers the first failures were {oom_classes} (None means "
+                f"no failure). The feature job spilled {_value(oom, 'feature_disk_spill_bytes')} "
+                f"bytes to disk against {_value(mref, 'feature_disk_spill_bytes')} at the "
+                "configured memory: Spark degraded rather than failed, so the playbook's "
+                "out-of-memory remedy was not exercised and that claim is untested here. The "
+                "pilots behind the setting are in experiments/EXP-6/pilot_20261010.md."
             )
         if not kill_landed:
             exp.limitation(
@@ -560,8 +580,15 @@ def run() -> Experiment:
                     f"{_value(t, 'identical_to_clean_run')}."
                     for t in (oom, kill, skew)
                 )
-                + f" Out-of-memory landed: {oom_landed} (first failures {oom_classes}); fixed "
-                f"within 2 retries with identical output: {oom_ok}. The kill landed "
+                + f" Memory at {OOM_DRIVER_MEMORY} on {MEMORY_CUSTOMERS} customers: out-of-memory "
+                f"landed {oom_landed} (first failures {oom_classes}); feature-job spill "
+                f"{_value(oom, 'feature_disk_spill_bytes')} bytes against "
+                f"{_value(mref, 'feature_disk_spill_bytes')} at the configured memory; feature "
+                f"job {_value(oom, 'feature_job_duration_s')} s against "
+                f"{_value(mref, 'feature_job_duration_s')} s; outputs identical to the reference: "
+                f"clean {_value(oom, 'identical_to_clean_run')}, features "
+                f"{_value(oom, 'features_identical_to_clean_run')}; fixed within 2 retries: "
+                f"{oom_ok}. The kill landed "
                 f"{_value(kill, 'killed_seconds_into_job')} s into the job as a lost executor: "
                 f"{kill_landed}; recovered identically: {kill_ok}. Feature job "
                 f"task skew (slowest over median task): baseline "
