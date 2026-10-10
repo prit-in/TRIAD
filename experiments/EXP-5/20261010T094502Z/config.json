@@ -1,0 +1,58 @@
+{
+  "exp_id": "EXP-5",
+  "title": "Missing values",
+  "hypothesis": "Key nulls are quarantined, others are handled without losing rows; PR-AUC declines gradually with the null rate; a cleaning plan affecting more than 5% of rows waits for approval.",
+  "independent_variable": "null rate, column role",
+  "dependent_measures": [
+    "key_nulls_injected",
+    "quarantined_null_customer",
+    "nonkey_nulls_injected",
+    "quarantined_rows",
+    "rows_affected_pct",
+    "row_accounting_balanced",
+    "test_pr_auc",
+    "test_pr_auc_interval",
+    "test_ece",
+    "cleaning_approval_requests"
+  ],
+  "started_at": "2026-10-10T09:45:02.436051+00:00",
+  "config": {
+    "customers": 2000,
+    "months": 24,
+    "seed": 42,
+    "conditions": {
+      "nulls_0pct_nonkey": {
+        "null_rate_non_key": 1e-12,
+        "null_rate_key": 0.01
+      },
+      "nulls_5pct_nonkey": {
+        "null_rate_non_key": 0.05,
+        "null_rate_key": 0.01
+      },
+      "nulls_20pct_nonkey": {
+        "null_rate_non_key": 0.2,
+        "null_rate_key": 0.01
+      },
+      "nulls_50pct_nonkey": {
+        "null_rate_non_key": 0.5,
+        "null_rate_key": 0.01
+      },
+      "nulls_key_10pct_over_limit": {
+        "null_rate_non_key": 0.0,
+        "null_rate_key": 0.1
+      }
+    },
+    "trend_conditions": [
+      "nulls_0pct_nonkey",
+      "nulls_5pct_nonkey",
+      "nulls_20pct_nonkey",
+      "nulls_50pct_nonkey"
+    ],
+    "over_limit_condition": "nulls_key_10pct_over_limit",
+    "isolation": "each condition in a freshly spawned process (baselines.run_isolated, ceiling 5400 s)",
+    "reference_note": "the 0% non-key condition asks for 1e-12 so the generator draws the same random numbers as the others; its nulls are counted",
+    "pipeline_phase": "churn.prepare (profile -> clean -> features -> labels -> train -> select)",
+    "tuning": "left enabled, as production has it; held constant across conditions",
+    "imputation_note": "TRIAD does not impute during cleaning. Non-key nulls reach the feature tables and are handled by the imputer inside the model pipeline, so the measurable claim is that they do not cause rows to be quarantined."
+  }
+}
