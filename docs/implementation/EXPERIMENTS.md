@@ -13,7 +13,7 @@ carrying an estimate.
 
 | ID | Title | Status | Hypothesis | Where |
 | --- | --- | --- | --- | --- |
-| EXP-1 | Small dataset against the non-agentic baselines | **partial** | **held** (P end to end, no manual step; escalated on AP-5 at 243 rows) | `experiments/EXP-1/latest.json` |
+| EXP-1 | Small dataset against the non-agentic baselines | **partial** | **held** (P end to end in 831 s, no manual step; escalated on AP-5 at 243 rows) | `experiments/EXP-1/latest.json` |
 | EXP-2 | Medium dataset: where a single node gives out | **partial** | **refuted on this node** (B3 stopped first, at 100 000 customers) | `experiments/EXP-2/latest.json` |
 | EXP-3 | Scaling with parallelism | **partial** | **did not hold** | `experiments/EXP-3/latest.json` |
 | EXP-4 | Schema errors | **completed** | **held** (every fault detected and handled; the mapping proposed, approved, then applied) | `experiments/EXP-4/latest.json` |
@@ -29,11 +29,13 @@ PRD specifies, and the limitation is recorded in the result. The harness refuses
 `not_run` result that names no limitation, and refuses a verdict on a hypothesis when no
 measurement was recorded.
 
-All ten have now been run: **five hypotheses held, three did not, and two have no verdict**
-because the measurement they turn on could not be taken here — EXP-8's repair rate needs an LLM
-provider, and EXP-5's trend needs more than one condition to survive the acceptance policy — which
-at its validation size nothing could, for a reason that is now measured rather than guessed at. The
-five sections that are not a plain "held" are the ones worth reading first.
+All ten have been run on the code as it stands (EXP-1, EXP-4, EXP-5, EXP-6, EXP-8, EXP-9 and
+EXP-10 on 10-10-2026, after a read-only review of the experiment paths and the fixes it led to,
+DEC-42 and DEC-43). **Five hypotheses held, three did not, and two have no verdict.** EXP-8's has
+none because its headline clause, the repair rate, needs a language model; EXP-6's because the
+out-of-memory fault cannot be made to land on this node and skew handling cannot act at these sizes
+- each recorded as untested, not as refuted. The sections that are not a plain "held" are the ones
+worth reading first.
 
 ## What each experiment found
 
@@ -179,13 +181,14 @@ because the caches were mounted where nothing looked (DEC-43).
 
 ### EXP-1, TRIAD against the non-agentic baselines — held, partial
 
-Run `experiments/EXP-1/20261009T172131Z/` (09-10-2026, 17:21 UTC, 400 customers).
+Run `experiments/EXP-1/20261010T143000Z/` (10-10-2026, 14:30 UTC, 400 customers, warm build
+caches - DEC-43).
 
 | Configuration | Wall clock | Test PR-AUC | Model | Features | Hand-written lines | Manual steps | Audit entries |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| P (TRIAD) | 989 s | 0.741 (escalated) | xgboost | full catalogue (44) | 0 | 0 | 17 |
-| B2 (pandas only) | 5.5 s | 0.790 | logreg | 12 | 188 | 0 | 0 |
-| B3 (Spark, no agents) | 71 s | 0.787 | logreg | 12 | 228 | 0 | 0 |
+| P (TRIAD) | 831 s | 0.741 (escalated) | xgboost | full catalogue (44) | 0 | 0 | 17 |
+| B2 (pandas only) | 7.1 s | 0.790 | logreg | 12 | 188 | 0 | 0 |
+| B3 (Spark, no agents) | 76 s | 0.787 | logreg | 12 | 228 | 0 | 0 |
 | B1 (manual runbook) | **not measured** | - | - | - | - | - | - |
 
 The hypothesis is that P finishes end to end with no manual step except approval. **It holds:**
@@ -195,13 +198,15 @@ both remedies - on a validation split of 243 rows, which Section 15 shows is ins
 calibration estimator's noise floor at that size. An escalation is the policy handing a person the
 decision, which is what it is for.
 
-**Where P's time goes.** Of P's 989 s, the gates took about 600 s: compilation 415 s (the first
-compile of a run starts sbt cold - CleanJob 326 s, FeatureJob 48 s, LabelJob 41 s), the dry runs
-on a sample 185 s, and the fixture suite nothing, because its result for these exact sources was
-reused (FR-083). The rest is the four full Spark runs, training with tuning and calibration, and
-the governance writes. The first run after the template fix, `20261009T161555Z`, is kept as the
-cold case: every fixture run was fresh (1 867 s of gate 5), the first compile after the build
-change rebuilt everything (718 s), and P took 3 397 s.
+**Where P's time goes.** Of P's 831 s, the gates took about 395 s: compilation 188 s (CleanJob
+82 s, FeatureJob 63 s, LabelJob 43 s), the dry runs on a sample 206 s, and the fixture suite
+nothing, because its result for these exact sources was reused (FR-083). The rest is the four full
+Spark runs, training with tuning and calibration, and the governance writes. The run of 09-10-2026
+(`20261009T172131Z`) took 989 s with the same models: its first compile, 326 s, included
+downloading sbt and the build's dependencies, because the cache volumes were mounted where the
+build did not look (DEC-43). The first run after the template fix, `20261009T161555Z`, is kept as
+the cold case: every fixture run was fresh (1 867 s of gate 5), the first compile rebuilt
+everything (718 s, downloads included), and P took 3 397 s.
 
 **The PR-AUC column is not a quality comparison.** P uses its 44-feature catalogue, the baselines
 twelve hand-picked features, and the baselines train on P's training and calibration cutoffs

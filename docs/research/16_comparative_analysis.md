@@ -14,7 +14,7 @@ Table 11).
 ## 16.1 Against traditional Python analytics and a Spark-native pipeline
 
 On 400 customers the conventional pipelines are far faster: the single pandas process finished in
-5.5 s and the Spark pipeline in 71 s, against 989 s for TRIAD (Table 11). Neither needed a
+7.1 s and the Spark pipeline in 76 s, against 831 s for TRIAD (Table 11). Neither needed a
 manual step, and neither did TRIAD; the difference is in what each run leaves behind. The
 baselines produce a model and its scores. TRIAD produced the same kind of model together with 8
 decision records, 17 hash-chained audit entries, three generated Spark jobs that each passed the
@@ -30,8 +30,8 @@ against TRIAD's 44 - and so are not a comparison of modelling. Holding the featu
 the baselines' model shortlist refitted on TRIAD's feature table and split reached 0.776, on the
 same 280 test rows as TRIAD's 0.741, with no interval computed for either. What TRIAD adds over
 the conventional pipelines is therefore not a better model at this size but a governed one, at a
-cost of about 16 minutes per run on this workstation, of which the validation gates take about
-ten.
+cost of about 14 minutes per run on this workstation, of which the validation gates take about
+six and a half.
 
 {{include: tables/table11_comparative_performance.md}}
 

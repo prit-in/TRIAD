@@ -29,12 +29,16 @@ and a streaming connector are not implemented, so TRIAD reads files only.
 
 ## 20.3 Computational cost
 
-Safety has a measurable price. Compiling a generated job takes one to five minutes, running its
-fixture tests on first sight six to twelve minutes, and its dry run one to two minutes, before the
-job does any useful work; caching makes a repeated job's fixture tests free, but a changed job pays
-again. Running each job in its own container adds a container start to every submission. And the
-platform's memory budget had to be raised for one of its own gates: running the fixture suite
-beside the compiler needs two Java virtual machines at once.
+Safety has a measurable price. Compiling a generated job takes about a minute (43 to 82 s with the
+build's dependencies cached), running a new cleaning job's fixture tests about five minutes, and
+its dry run one to two minutes, before the job does any useful work; caching makes a repeated
+job's fixture tests free, but a changed job pays again. Running each job in its own container adds
+a container start to every submission. Some costs stayed invisible until they were measured. The
+platform's memory budget had to be raised for one of its own gates, because running the fixture
+suite beside the compiler needs two Java virtual machines at once. And with the build caches
+mounted where the build did not look, every new container downloaded the build's dependencies
+inside its first compile - about four minutes of each experiment run and of the first run after
+every restart of the orchestrator - until a failed download exposed it.
 
 ## 20.4 Skills
 

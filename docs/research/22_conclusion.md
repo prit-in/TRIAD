@@ -32,8 +32,8 @@ customers the policy refused a model that beat the champion with confidence, bec
 16.4% of churners among its newest customers against 45.8% to 49.5% elsewhere. A segment-aware
 threshold would have closed most of that gap at the price of contacting 2.4 more customers per
 hundred; whether to accept the disparity became a decision two named people made on recorded
-evidence, rather than a default. The cost was measured too: on 400 customers TRIAD took 989 s
-against 71 s and 5.5 s for the conventional pipelines, about 600 s of it in the validation gates,
+evidence, rather than a default. The cost was measured too: on 400 customers TRIAD took 831 s
+against 76 s and 7.1 s for the conventional pipelines, about 395 s of it in the validation gates,
 and what the time bought was evidence rather than accuracy - with the features held constant, the
 conventional model shortlist scored 0.776 against TRIAD's 0.741.
 

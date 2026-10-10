@@ -19,11 +19,13 @@ the policy working as written.
 
 **Fig. 21. Performance Benchmark Results.** *(figures/png/Fig 21 Performance Benchmark Results.png)*
 
-P took 989 s; the Spark pipeline without agents took 71 s and the single pandas process 5.5 s.
-The gates account for about 600 s of P's time - 415 s of compilation, most of it the run's first
-compile (326 s, against 48 s and 41 s for the next two), and 185 s of dry runs on samples - and
-the fixture tests none, because their result for exactly these sources was reused. The first run after a template change shows the
-other end: every fixture run was fresh, the build was compiled from scratch, and P took 3 397 s.
+P took 831 s; the Spark pipeline without agents took 76 s and the single pandas process 7.1 s.
+The gates account for about 395 s of P's time - 188 s of compilation and 206 s of dry runs on
+samples - and the fixture tests none, because their result for exactly these sources was reused.
+An earlier run took 989 s: its first compile included about four minutes of downloading the
+build's dependencies, because the build caches were mounted where the build did not look (Section
+20.3). The first run after a template change shows the other end: every fixture run was fresh,
+the build was compiled from scratch, and P took 3 397 s, downloads included.
 In return P produced 8 decision records and 17 audit entries, ran each job in a sandbox, and
 calibrated, tested, and judged its model against a written policy; the baselines produced none of
 that evidence. Measured test PR-AUC was 0.741 for P and 0.790 and 0.787 for the baselines, but
@@ -214,12 +216,14 @@ verdict, and the result it turned on.
 
 ## Evidence (not part of the manuscript)
 
-- EXP-1: run `experiments/EXP-1/20261009T172131Z/` (09-10-2026 17:21 UTC): P 988.97 s, B3
-  71.25 s, B2 5.5 s; P xgboost test PR-AUC 0.7405, escalated on AP-5 at 243 validation rows;
-  like-for-like random_forest 0.7757 on 44 features, 390 training and 280 test rows; gate
-  durations from `code_artifacts.gate_results` of run-2026-10-09-009 (compile 326/48/41 s, dry
-  runs 70/74/41 s, gate 5 reused). Cold case: run `20261009T161555Z` (P 3 396.87 s; gate 5
-  1 867 s, all fresh; CleanJob compile 718 s; run-2026-10-09-008).
+- EXP-1: run `experiments/EXP-1/20261010T143000Z/` (10-10-2026 14:30 UTC, warm build caches,
+  DEC-43): P 830.58 s, B3 75.62 s, B2 7.05 s; P xgboost test PR-AUC 0.7405, escalated on AP-5 at
+  243 validation rows; like-for-like random_forest 0.7757 on 44 features, 390 training and 280 test
+  rows; gate durations from `code_artifacts.gate_results` of run-2026-10-10-027 (compile
+  82.4/62.7/43.3 s, dry runs 64.2/96.1/46.1 s, gate 5 reused). Earlier: `20261009T172131Z`
+  (P 988.97 s; first compile 325.9 s with the dependency download; run-2026-10-09-009). Cold case:
+  run `20261009T161555Z` (P 3 396.87 s; gate 5 1 867 s, all fresh; CleanJob compile 718 s;
+  run-2026-10-09-008).
 - EXP-2: `experiments/EXP-2/20261008T171242Z/result.json` (08-10-2026, 17:12 to 18:15 UTC). The
   earlier run of 16:17 stopped because the data generator itself was OOM-killed at 100 000
   customers (DEC-37, committed as `20261008T161715Z`). PR-AUC pairs B2/B3: 0.7929/0.7923,
