@@ -37,12 +37,15 @@ customer holding 20% of the lines never meets a customer-keyed shuffle there; th
 aggregates per customer and does. The baseline and the skew arm therefore also run the feature
 job, and the slowest task over the median task of its stages is compared between them.
 
-**The executor kill is real, not simulated.** A watcher thread waits for the job's own sandbox
-container, lets it run into the job, and kills it through the Docker engine. In local mode the
-driver *is* the executor, so killing the container is losing the executor - the closest this
-environment gets to the PRD's fault, and it is stated as that rather than as a distributed
-executor loss. Spark's own task retries cannot be observed here at all: local mode retries no
-task, so what absorbs the loss is the platform resubmitting the job.
+**The executor kill is real, not simulated, and it is made twice.** In local mode the driver
+*is* the executor: a watcher thread waits for the job's own sandbox container, lets it run into
+the job, and kills it through the Docker engine, and what absorbs that is the platform
+resubmitting the job - local mode retries no task. The PRD's claim is about Spark's own task
+retries, so the same data is also run on the compose Spark cluster (`spark-master` and one
+`spark-worker`, started for this experiment), where the driver stays in its sandbox container
+and the executor JVM inside the worker is killed mid-job. That arm counts only if an executor
+died under a running job, the platform made one attempt, and Spark's own log shows the tasks it
+lost - and its output is compared with a clean run on the same cluster.
 """
 
 from __future__ import annotations
@@ -71,6 +74,29 @@ OOM_DRIVER_MEMORY = "460m"
 # How far into the running job the container is killed: past JVM and Spark start-up, inside
 # the work. The baseline's own job duration is recorded beside it, to show the kill landed.
 KILL_INTO_JOB_SECONDS = 10.0
+# The compose cluster (`--profile spark`). Its worker runs the executors; the driver of a
+# cluster job stays in the job's sandbox container, on the internal sandbox network.
+CLUSTER_MASTER = "spark://spark-master:7077"
+WORKER_CONTAINER = "triad-spark-worker-1"
+# Spark's own account of an executor loss, in the driver's log (TaskSchedulerImpl and
+# TaskSetManager at Spark's default INFO level).
+SPARK_LOSS_MARKERS = ("Lost executor", "Lost task", "ExecutorLostFailure")
+# Run inside the worker: SIGKILL every executor JVM there, and print their pids.
+KILL_EXECUTORS = (
+    "import os, signal\n"
+    "pids = []\n"
+    "for p in os.listdir('/proc'):\n"
+    "    if not p.isdigit():\n"
+    "        continue\n"
+    "    try:\n"
+    "        cmd = open('/proc/' + p + '/cmdline', 'rb').read()\n"
+    "    except OSError:\n"
+    "        continue\n"
+    "    if b'CoarseGrainedExecutorBackend' in cmd:\n"
+    "        os.kill(int(p), signal.SIGKILL)\n"
+    "        pids.append(p)\n"
+    "print(','.join(pids))\n"
+)
 
 
 def _spark(app: str):
@@ -177,9 +203,9 @@ class _ContainerKiller:
                     if target.status != "running":
                         self.error = f"the job's container was {target.status} before the kill"
                         return
-                    target.kill()
-                    self.killed = target.name
-                    self.seconds_into_job = round(time.perf_counter() - seen, 1)
+                    self._kill(client, target)
+                    if self.killed:
+                        self.seconds_into_job = round(time.perf_counter() - seen, 1)
                     return
             except APIError as exc:  # the container went between listing and killing it
                 self.error = f"{type(exc).__name__}: {exc}"[:300]
@@ -188,6 +214,34 @@ class _ContainerKiller:
         if not self.killed and not self.error:
             self.error = ("the stage ended before its job's container appeared"
                           if self._stop.is_set() else "no job container appeared in 900 s")
+
+    def _kill(self, client: Any, target: Any) -> None:
+        target.kill()
+        self.killed = target.name
+
+
+class _ExecutorKiller(_ContainerKiller):
+    """Kills the executor JVMs in the cluster's worker, once, a set time into the arm's job.
+
+    The job's container is the driver here, and it is left alone: the fault is the executor
+    dying under it, which is the PRD's "kill an executor mid-stage". Only the arm's job runs on
+    the cluster at that moment - its dry run on a sample has finished, and nothing else in this
+    environment submits to the cluster - so every executor in the worker is the job's.
+    """
+
+    def __init__(self, into_job: float, prefix: str, worker: str) -> None:
+        super().__init__(into_job, prefix)
+        self.worker = worker
+
+    def _kill(self, client: Any, target: Any) -> None:
+        result = client.containers.get(self.worker).exec_run(["python3", "-c", KILL_EXECUTORS])
+        output = (result.output or b"").decode("utf-8", "replace").strip()
+        if result.exit_code != 0:
+            self.error = f"the kill inside {self.worker} failed: {output[:300]}"
+        elif not output:
+            self.error = f"no executor was running in {self.worker} at the kill"
+        else:
+            self.killed = f"executor pid(s) {output} in {self.worker}"
 
 
 def _execution_metric(session: Any, run_id: Any, stage: str) -> dict[str, Any]:
@@ -209,6 +263,46 @@ def _execution_metric(session: Any, run_id: Any, stage: str) -> dict[str, Any]:
             "disk_spill_bytes": totals.get("disk_spill_bytes")}
 
 
+def _spark_saw_loss(session: Any, run_id: Any, stage: str) -> dict[str, Any]:
+    """Count Spark's own lost-executor and lost-task lines in the stage's successful job log."""
+    from sqlalchemy import select
+
+    from triad_core.models import Execution
+    from triad_core.storage import storage
+
+    row = session.execute(
+        select(Execution).where(Execution.run_id == run_id, Execution.stage == stage,
+                                Execution.status == "succeeded")
+        .order_by(Execution.started_at.desc())
+    ).scalars().first()
+    if row is None or not row.log_uri:
+        return {"log_kept": False}
+    try:
+        text = storage().read_text(storage().path(row.log_uri))
+    except OSError:
+        return {"log_kept": False}
+    return {"log_kept": True, **count_loss_lines(text)}
+
+
+def count_loss_lines(text: str) -> dict[str, Any]:
+    """Spark's own lines about a lost executor or lost tasks, counted, with a few examples."""
+    lines = [line for line in text.splitlines() if any(m in line for m in SPARK_LOSS_MARKERS)]
+    return {"loss_lines": len(lines),
+            "lost_task_lines": sum("Lost task" in line for line in lines),
+            "examples": [line[-300:] for line in lines[:3]]}
+
+
+def _cluster_reachable() -> bool:
+    import socket
+
+    host, port = CLUSTER_MASTER.removeprefix("spark://").split(":")
+    try:
+        with socket.create_connection((host, int(port)), timeout=5):
+            return True
+    except OSError:
+        return False
+
+
 def _arm(
     exp: Experiment,
     name: str,
@@ -216,6 +310,7 @@ def _arm(
     *,
     config_overrides: dict[str, Any] | None = None,
     kill_container: bool = False,
+    kill_executor: bool = False,
     features: bool = False,
 ) -> dict[str, Any]:
     """Profile and clean - and, for the skew comparison, build features - and report how the
@@ -270,8 +365,11 @@ def _arm(
 
         pipeline = ChurnPipeline(session, run, store=store, config_path=config_path)
         output_dir = store.clean_dir("transactions", 1)
-        killer = (_ContainerKiller(KILL_INTO_JOB_SECONDS, f"triad-sbx-{run.run_key}-clean-")
-                  if kill_container else None)
+        prefix = f"triad-sbx-{run.run_key}-clean-"
+        killer = (_ExecutorKiller(KILL_INTO_JOB_SECONDS, prefix, WORKER_CONTAINER)
+                  if kill_executor
+                  else _ContainerKiller(KILL_INTO_JOB_SECONDS, prefix) if kill_container
+                  else None)
         spark = _spark(f"triad-exp06-{name}")
         feature_out: dict[str, Any] = {}
         try:
@@ -326,11 +424,19 @@ def _arm(
         trial.record("recovered", recovered)
 
         if killer is not None:
-            trial.record("container_killed", killer.killed is not None)
+            trial.record("executor_killed" if kill_executor else "container_killed",
+                         killer.killed is not None)
             trial.record("killed_container", killer.killed or "")
             trial.record("killed_seconds_into_job", killer.seconds_into_job, "s")
             if killer.error:
                 trial.record("killer_error", killer.error)
+        if kill_executor:
+            seen = _spark_saw_loss(session, run.id, "clean")
+            trial.record("spark_log_kept", seen.get("log_kept"))
+            trial.record("spark_loss_lines", seen.get("loss_lines"),
+                         note="driver log lines naming a lost executor or a lost task")
+            trial.record("spark_lost_task_lines", seen.get("lost_task_lines"))
+            trial.observations["spark_loss_examples"] = seen.get("examples") or []
 
         # The stage's own record of how many attempts it took and what it changed between them.
         stage_record = next(
@@ -448,6 +554,11 @@ def run() -> Experiment:
                                             f"{KILL_INTO_JOB_SECONDS:.0f} s into its run",
                 "skewed_one_customer_20pct": "one account holds 20% of all order lines; "
                                              "cleaning and the feature job",
+                "cluster_baseline": f"the shared data on the compose cluster ({CLUSTER_MASTER}), "
+                                    "no fault",
+                "executor_killed_on_cluster": "the same, with the executor JVM in the worker "
+                                              f"killed {KILL_INTO_JOB_SECONDS:.0f} s into the "
+                                              "job",
             },
             "shared_source_note": (
                 "the clean baseline and the killed arm read byte-identical source data, and so do "
@@ -488,6 +599,15 @@ def run() -> Experiment:
         ).write(skewed)
         _arm(exp, "skewed_one_customer_20pct", skewed, features=True)
 
+        # --- arm 5: an executor of a cluster job is killed --------------------------
+        cluster = {"spark_master": CLUSTER_MASTER}
+        cluster_up = _cluster_reachable()
+        cluster_reference: dict[str, Any] = {}
+        if cluster_up:
+            cluster_reference = _arm(exp, "cluster_baseline", shared, config_overrides=cluster)
+            _arm(exp, "executor_killed_on_cluster", shared, config_overrides=cluster,
+                 kill_executor=True)
+
         # --- read it -------------------------------------------------------------
         by_name = {t.condition: t for t in exp.trials}
         base, oom = by_name["clean_baseline"], by_name["low_executor_memory"]
@@ -507,6 +627,17 @@ def run() -> Experiment:
             )
         skew.record("identical_to_clean_run", None,
                     note="not compared: the skewed arm reads different source data by design")
+        executor_kill = by_name.get("executor_killed_on_cluster")
+        cbase = by_name.get("cluster_baseline")
+        if executor_kill is not None and cbase is not None:
+            cluster_hash = cluster_reference.get("content_hash")
+            cbase.record("identical_to_clean_run",
+                         bool(reference_hash) and cluster_hash == reference_hash,
+                         note="the cluster's clean output against local mode's, same data")
+            executor_kill.record(
+                "identical_to_clean_run",
+                bool(cluster_hash) and _value(executor_kill, "content_hash") == cluster_hash,
+                note="against the clean run on the same cluster")
 
         # Each arm counts only if its fault landed (module docstring); a claim whose fault did
         # not land is untested (None), never refuted.
@@ -521,22 +652,44 @@ def run() -> Experiment:
         ) if oom_landed else None
         kill_ok = (kill.ok and _value(kill, "identical_to_clean_run") is True
                    if kill_landed else None)
+        # Spark's own retries absorbed it only if the executor died under the running job, the
+        # platform did not have to resubmit, and the driver's log shows the tasks it lost.
+        spark_landed = (executor_kill is not None
+                        and bool(_value(executor_kill, "executor_killed"))
+                        and bool(_value(executor_kill, "spark_lost_task_lines")))
+        spark_ok = (bool(executor_kill.ok) and _value(executor_kill, "attempts") == 1
+                    and _value(executor_kill, "identical_to_clean_run") is True
+                    if spark_landed else None)
         # At this size no partition approaches AQE's skew thresholds (256 MB), so completing
         # says nothing about skew handling; the measured task skew is reported instead.
         skew_ok = None
         parts = {"baseline_ran": bool(reference_hash) and base.ok and mref.ok,
                  "oom_fixed": oom_ok,
-                 "kill_absorbed": kill_ok, "skew_handled": skew_ok}
+                 "spark_retries_absorbed_executor_loss": spark_ok,
+                 "platform_resubmission_absorbed_container_loss": kill_ok,
+                 "skew_handled": skew_ok}
         verdict = (False if any(v is False for v in parts.values())
                    else None if any(v is None for v in parts.values()) else True)
 
-        exp.limitation(
-            "Spark runs in local mode inside the sandbox, so the driver is the executor and no "
-            "task is retried by Spark itself. Killing the sandbox container is therefore losing "
-            "the executor, and what absorbs it is the platform resubmitting the job - not "
-            "Spark's task retries on a multi-executor cluster, which this environment cannot "
-            "show (ADR-0002)."
-        )
+        if cluster_up:
+            exp.limitation(
+                "The cluster is the compose one: a master and one worker on the same 5.27 GB "
+                "VM, so an executor loss is recovered by the same worker launching a new "
+                "executor, not by a different machine taking the tasks (ADR-0002)."
+            )
+        else:
+            exp.limitation(
+                f"The compose Spark cluster ({CLUSTER_MASTER}) was not reachable, so Spark's own "
+                "task retries were not tested; in local mode the driver is the executor and no "
+                "task is retried by Spark itself."
+            )
+        if executor_kill is not None and not spark_landed:
+            exp.limitation(
+                "The executor kill on the cluster did not land as a loss Spark recorded "
+                f"(executor killed: {_value(executor_kill, 'executor_killed')}, lost-task lines "
+                f"in the driver's log: {_value(executor_kill, 'spark_lost_task_lines')}). "
+                + (_value(executor_kill, "killer_error") or "")
+            )
         exp.limitation(
             f"At {CUSTOMERS} customers one account's 20% of the lines is a small partition, so "
             "the skew arm shows whether the feature job completes and how uneven its tasks "
@@ -590,7 +743,17 @@ def run() -> Experiment:
                 f"{_value(oom, 'features_identical_to_clean_run')}; fixed within 2 retries: "
                 f"{oom_ok}. The kill landed "
                 f"{_value(kill, 'killed_seconds_into_job')} s into the job as a lost executor: "
-                f"{kill_landed}; recovered identically: {kill_ok}. Feature job "
+                f"{kill_landed}; recovered identically: {kill_ok}. "
+                + (f"On the cluster the executor was killed "
+                   f"{_value(executor_kill, 'killed_seconds_into_job')} s into the job "
+                   f"({_value(executor_kill, 'killed_container')}); Spark's log named "
+                   f"{_value(executor_kill, 'spark_lost_task_lines')} lost task(s); the job "
+                   f"finished in {_value(executor_kill, 'attempts')} platform attempt(s), output "
+                   f"identical to the clean cluster run: "
+                   f"{_value(executor_kill, 'identical_to_clean_run')} (the clean cluster run "
+                   f"against local mode: {_value(cbase, 'identical_to_clean_run')}). "
+                   if executor_kill is not None else "")
+                + "Feature job "
                 f"task skew (slowest over median task): baseline "
                 f"{_value(base, 'feature_max_task_skew')}, skewed "
                 f"{_value(skew, 'feature_max_task_skew')}; the skewed feature job completed: "

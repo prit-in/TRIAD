@@ -262,3 +262,15 @@ def test_a_killed_container_says_who_killed_it() -> None:
         result = DockerRunner(client=_Client(container), own_mounts=OWN_MOUNTS).run(_request())
         assert not result.ok
         assert expected in result.detail
+
+
+def test_executor_memory_is_set_on_a_cluster_and_never_in_local_mode() -> None:
+    """On a cluster the out-of-memory remedy is the executors' memory; in local mode the
+    driver is the executor, and an executor setting there would change nothing."""
+    base = {"run_key": "r", "stage": "s", "jar": "/data/triad/j.jar",
+            "core_jar": "/data/triad/c.jar", "main_class": "M", "job_args": [],
+            "executor_memory": "2g"}
+    cluster = spark_submit_request(**base, master="spark://spark-master:7077").command
+    local = spark_submit_request(**base, master="local[2]").command
+    assert "spark.executor.memory=2g" in cluster
+    assert not any("spark.executor.memory" in part for part in local)

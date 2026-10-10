@@ -279,6 +279,33 @@ def _write_atomically(path: Path, text: str) -> None:
     os.replace(temporary, path)
 
 
+def load_history(exp_id: str, root: Path | None = None) -> list[dict[str, Any]]:
+    """Every recorded run of one experiment, newest first.
+
+    A run with a result gives its status, verdict and timing; a folder holding only a NOTE.md -
+    a run that was interrupted, or a write that was not a run at all - gives its note. So the
+    history shows every attempt, not only the ones that finished, which is how a reader can see
+    that a result was re-run and why.
+    """
+    base = (root or EXPERIMENTS_ROOT) / exp_id
+    runs: list[dict[str, Any]] = []
+    for folder in sorted((p for p in base.glob("*") if p.is_dir()), reverse=True):
+        entry: dict[str, Any] = {"run_dir": folder.name}
+        result, note = folder / "result.json", folder / "NOTE.md"
+        if result.exists():
+            try:
+                data = json.loads(result.read_text(encoding="utf-8"))
+                entry.update({k: data.get(k) for k in
+                              ("started_at", "duration_s", "status", "hypothesis_held")})
+            except (OSError, json.JSONDecodeError):
+                entry["status"] = "unreadable"
+        if note.exists():
+            entry["note"] = note.read_text(encoding="utf-8")[:4000]
+        if len(entry) > 1:
+            runs.append(entry)
+    return runs
+
+
 def load_results(root: Path | None = None) -> list[dict[str, Any]]:
     """Every experiment's newest result, for the API and the evaluation report."""
     base = root or EXPERIMENTS_ROOT

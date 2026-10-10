@@ -49,6 +49,20 @@ TRUSTED_MODEL_TYPES = (
 )
 
 
+
+def _nullable(example: Any) -> Any:
+    """The input example with its integer columns as floats.
+
+    MLflow infers the model signature from the example, and an integer column there rejects a
+    missing value at scoring time (its own warning says so); counts are integers in the
+    features but may be missing in the data a model scores.
+    """
+    if hasattr(example, "select_dtypes"):
+        ints = list(example.select_dtypes(include="integer").columns)
+        if ints:
+            return example.astype(dict.fromkeys(ints, "float64"))
+    return example
+
 class RegistryError(Exception):
     pass
 
@@ -124,7 +138,7 @@ class ModelRegistry:
             info = self.mlflow.sklearn.log_model(
                 model,
                 name="model",
-                input_example=input_example,
+                input_example=_nullable(input_example),
                 registered_model_name=register_as,
                 skops_trusted_types=list(TRUSTED_MODEL_TYPES),
             )

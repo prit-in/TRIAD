@@ -1,0 +1,21 @@
+{
+  "exp_id": "EXP-7",
+  "title": "Model degradation",
+  "hypothesis": "Drift flags fire; retraining starts; the challenger is compared with the champion; promotion waits for approval.",
+  "independent_variable": "drift type and size",
+  "dependent_measures": [
+    "max_psi",
+    "flagged_features",
+    "scoring_months_to_detection",
+    "label_months_to_detection",
+    "false_alarm_months",
+    "pr_auc"
+  ],
+  "started_at": "2026-10-10T18:48:00.542995+00:00",
+  "duration_s": 0.09,
+  "status": "failed",
+  "hypothesis_held": null,
+  "conclusion": "the experiment raised ModuleNotFoundError: No module named 'sklearn'",
+  "limitations": [],
+  "trials": []
+}

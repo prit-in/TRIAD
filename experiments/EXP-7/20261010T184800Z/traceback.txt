@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "D:\Claude_Cowork_Code\PDS\Case_Study\experiments\exp07_drift.py", line 466, in run
+    model = _fit(train)
+  File "D:\Claude_Cowork_Code\PDS\Case_Study\experiments\exp07_drift.py", line 138, in _fit
+    from sklearn.ensemble import RandomForestClassifier
+ModuleNotFoundError: No module named 'sklearn'

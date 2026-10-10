@@ -184,6 +184,9 @@ def test_xgboost_spark_estimator_trains(spark) -> None:
 
 @pytest.mark.mlflow
 @pytest.mark.slow
+# The model's outputs are class labels, integers by nature; MLflow's hint about integer
+# columns in the inferred schema is about them, not about anything this test checks.
+@pytest.mark.filterwarnings("ignore:Hint.*Inferred schema contains integer:UserWarning")
 def test_mlflow_log_register_alias_load_and_spark_udf(spark, tmp_data_root: Path) -> None:
     import mlflow
     import numpy as np

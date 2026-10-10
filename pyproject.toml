@@ -18,6 +18,12 @@ markers = [
 filterwarnings = [
     "ignore::DeprecationWarning:pyspark.*",
     "ignore::FutureWarning:shap.*",
+    # shap's own colormap set-up calls matplotlib APIs matplotlib is retiring.
+    "ignore::PendingDeprecationWarning:shap.*",
+    # Raised inside langgraph's own checkpoint package when it is imported.
+    "ignore::PendingDeprecationWarning:langgraph.*",
+    # starlette's TestClient still reaches anyio's BlockingPortal through a retired alias.
+    "ignore::DeprecationWarning:starlette.*",
 ]
 
 [tool.ruff]

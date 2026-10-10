@@ -11,13 +11,13 @@
     "false_alarm_months",
     "pr_auc"
   ],
-  "started_at": "2026-10-07T21:57:09.193798+00:00",
-  "duration_s": 14.87,
-  "status": "partial",
+  "started_at": "2026-10-10T17:56:42.243226+00:00",
+  "duration_s": 3049.86,
+  "status": "completed",
   "hypothesis_held": true,
-  "conclusion": "False alarms: 0 of 6 undrifted months flagged, highest PSI 0.03130 against a 0.25 threshold, mean undrifted out-of-sample PR-AUC 0.5064. The detector is not simply flagging everything, which is what makes the delays below mean anything. covariate_shift_recency_x1.8: PSI flagged after 0 scoring month(s), max PSI 0.31099, PR-AUC 0.5538 -> 0.7079, 10% drop visible after None month(s) of matured labels, triggers ['RT-2', 'RT-3', 'RT-5', 'RT-6']. covariate_shift_one_segment: PSI flagged after 0 scoring month(s), max PSI 1.08399, PR-AUC 0.5538 -> 0.7405, 10% drop visible after None month(s) of matured labels, triggers ['RT-2', 'RT-3', 'RT-5', 'RT-6']. concept_drift_one_segment: PSI flagged after None scoring month(s), max PSI 0.03204, PR-AUC 0.5538 -> 0.3281, 10% drop visible after 0 month(s) of matured labels, triggers ['RT-1', 'RT-5', 'RT-6']. The two kinds of drift behave differently, and separating them is the result. Covariate shift is caught by PSI on the first scoring run, with no labels at all - and it does not necessarily hurt: widening a predictive feature raised PR-AUC rather than lowering it, so treating a PSI flag as evidence of damage would be wrong. Concept drift is the opposite: the feature distributions move far less, so PSI is quieter, and the harm shows only once labels mature. That is the PRD's expected observation, and it is why RT-1 and RT-4 (matured PR-AUC) exist alongside RT-2 and RT-3 (distributions): neither family of trigger would catch both cases. Status is partial: the approval half of the hypothesis is covered by the pipeline's own approval gate, not re-tested here.",
+  "conclusion": "False alarms: 0 of 6 undrifted months flagged, highest PSI 0.03130 against a 0.25 threshold, mean undrifted out-of-sample PR-AUC 0.5064. The detector is not simply flagging everything, which is what makes the delays below mean anything. covariate_shift_recency_x1.8: PSI flagged after 0 scoring month(s), max PSI 0.31099, PR-AUC 0.5538 -> 0.7079, 10% drop visible after None month(s) of matured labels, triggers ['RT-2', 'RT-3', 'RT-5', 'RT-6']. covariate_shift_one_segment: PSI flagged after 0 scoring month(s), max PSI 1.08399, PR-AUC 0.5538 -> 0.7405, 10% drop visible after None month(s) of matured labels, triggers ['RT-2', 'RT-3', 'RT-5', 'RT-6']. concept_drift_one_segment: PSI flagged after None scoring month(s), max PSI 0.03204, PR-AUC 0.5538 -> 0.3281, 10% drop visible after 0 month(s) of matured labels, triggers ['RT-1', 'RT-5', 'RT-6']. The two kinds of drift behave differently, and separating them is the result. Covariate shift is caught by PSI on the first scoring run, with no labels at all - and it does not necessarily hurt: widening a predictive feature raised PR-AUC rather than lowering it, so treating a PSI flag as evidence of damage would be wrong. Concept drift is the opposite: the feature distributions move far less, so PSI is quieter, and the harm shows only once labels mature. That is the PRD's expected observation, and it is why RT-1 and RT-4 (matured PR-AUC) exist alongside RT-2 and RT-3 (distributions): neither family of trigger would catch both cases. End to end on the platform: drift flagged on the champion's latest cutoff: True; the scheduler's evaluation fired ['RT-2'] and queued run-2026-10-10-032; the challenger was compared with champion v1: True (ESCALATE); the champion's own promotion waited with no alias until approved: True; the challenger's: alias held at v1 while pending, v2 after approval.",
   "limitations": [
-    "The approval half of the hypothesis - that the challenger is compared with the champion and promotion waits for approval - is not re-tested here. It is the approval gate of the main pipeline, covered by AT-08/AT-13 and demonstrated by scripts/run_demo.py; repeating it inside a drift experiment would measure the gate twice and the drift detectors once.",
+    "In the end-to-end arm the retraining cooldown is 0 days for the scheduler's evaluation, because the champion is minutes old; the question is whether the triggers fire, and publish's own evaluation with the configured 7-day cooldown is recorded beside it. Its promotions are decided by the harness acting as the approvers, so they measure that promotion waits for a decision, not how long a person takes to make one.",
     "Replay is over synthetic months, not Online Retail II. Only the generator can be told to shift one feature or change one segment's behaviour on demand, which is what the independent variable requires."
   ],
   "trials": [
@@ -658,7 +658,225 @@
           ]
         }
       }
+    },
+    {
+      "condition": "end_to_end_drift_to_approval",
+      "ok": true,
+      "detail": "drift flagged on the champion's latest cutoff: True; the scheduler's evaluation fired ['RT-2'] and queued run-2026-10-10-032; the challenger was compared with champion v1: True (ESCALATE); the champion's own promotion waited with no alias until approved: True; the challenger's: alias held at v1 while pending, v2 after approval",
+      "measurements": [
+        {
+          "name": "champion_prepare_s",
+          "value": 1099.1,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "champion_selection",
+          "value": "ESCALATE",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "champion_failed_rules",
+          "value": [
+            "AP-6"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "champion_promotion_path",
+          "value": "model.promote_with_failed_check",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "champion_approvals_pending",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "champion_run_state_while_pending",
+          "value": "APPROVAL_REQUIRED",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "champion_champion_while_pending",
+          "value": null,
+          "unit": "",
+          "note": "the registry's champion alias while the decision is open"
+        },
+        {
+          "name": "champion_after_publish",
+          "value": "1",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "drift_flagged_features",
+          "value": [
+            "monetary_90d"
+          ],
+          "unit": "",
+          "note": "the champion's publish: its latest cutoff against its training rows"
+        },
+        {
+          "name": "drift_max_feature_psi",
+          "value": 6.54397,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "drift_score_psi",
+          "value": 0.01836,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "drift_score_flagged",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "publish_retraining_outcome",
+          "value": "cooldown",
+          "unit": "",
+          "note": "publish's own evaluation, with the configured 7-day cooldown"
+        },
+        {
+          "name": "new_versions_registered",
+          "value": 7,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retraining_rules_fired",
+          "value": [
+            "RT-2"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retraining_should_start",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retraining_blocked_by",
+          "value": "",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retraining_run",
+          "value": "run-2026-10-10-032",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retraining_trigger_type",
+          "value": "drift",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retraining_trains_the_same_model",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retraining_prepare_s",
+          "value": 1843.4,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "challenger_state",
+          "value": "ESCALATED",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "challenger_selection",
+          "value": "ESCALATE",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "challenger_failed_rules",
+          "value": [
+            "AP-6"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "challenger_compared_with_champion",
+          "value": true,
+          "unit": "",
+          "note": "AP-8's comparison on the challenger's test cutoff, with the champion's own scores"
+        },
+        {
+          "name": "challenger_promotion_path",
+          "value": "model.promote_with_failed_check",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "challenger_approvals_pending",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "challenger_run_state_while_pending",
+          "value": "APPROVAL_REQUIRED",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "challenger_champion_while_pending",
+          "value": "1",
+          "unit": "",
+          "note": "the registry's champion alias while the decision is open"
+        },
+        {
+          "name": "champion_after_challenger_publish",
+          "value": "2",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "elapsed_s",
+          "value": 3016.4,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "setup": {
+          "customers": 1500,
+          "months": 24,
+          "new_months": 3,
+          "drift_from_month": 18,
+          "drift_strength": 1.0,
+          "model_name": "churn_classifier_exp07_62e8ac",
+          "pipeline_name": "exp07_62e8ac",
+          "cooldown_days_for_the_scheduler_evaluation": 0
+        },
+        "challenger_vs_champion": {
+          "lower_95": 0.0033218703494778236,
+          "mean": 0.025431668025894676,
+          "upper_95": 0.04799418405594545
+        }
+      }
     }
   ],
-  "run_dir": "20261007T215709Z"
+  "run_dir": "20261010T175642Z"
 }

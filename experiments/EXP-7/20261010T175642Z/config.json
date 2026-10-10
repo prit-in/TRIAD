@@ -1,0 +1,43 @@
+{
+  "exp_id": "EXP-7",
+  "title": "Model degradation",
+  "hypothesis": "Drift flags fire; retraining starts; the challenger is compared with the champion; promotion waits for approval.",
+  "independent_variable": "drift type and size",
+  "dependent_measures": [
+    "max_psi",
+    "flagged_features",
+    "scoring_months_to_detection",
+    "label_months_to_detection",
+    "false_alarm_months",
+    "pr_auc"
+  ],
+  "started_at": "2026-10-10T17:56:42.243226+00:00",
+  "config": {
+    "seed": 42,
+    "customers_per_month": 1500,
+    "features": [
+      "orders_365d",
+      "spend_365d",
+      "recency_days",
+      "basket_size",
+      "sessions_30d"
+    ],
+    "segment_column": "country",
+    "stable_months": 6,
+    "drift_months": 6,
+    "horizon_days": 90,
+    "thresholds": {
+      "psi_feature_threshold": 0.25,
+      "psi_feature_count_threshold": {
+        "psi": 0.1,
+        "features": 3
+      },
+      "psi_score_threshold": 0.2,
+      "high_risk_share_change": 0.5
+    },
+    "drift_types": {
+      "feature_shift": "one top feature multiplied by 1 + size, for everybody",
+      "segment_shift": "one country's ordering, recency and basket behaviour changed"
+    }
+  }
+}

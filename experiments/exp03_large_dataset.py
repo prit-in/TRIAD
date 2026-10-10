@@ -45,6 +45,8 @@ SEED = 42
 DATA_START = "2024-01-01"
 PARALLELISM = (1, 2, 4)
 REPEATS = 2   # a warm repeat, so one unlucky run does not become the result
+# The host as Windows reports it (Win32_Processor, read on 10-10-2026); the VM cannot see it.
+HOST_CPU = "an AMD Ryzen 5 2500U, 4 cores and 8 threads"
 
 
 def _core_jar() -> str:
@@ -160,11 +162,18 @@ def run() -> Experiment:
         )
         exp.limitation(
             "Distributed workers were not used. Compose can start a Spark master and one "
-            "worker, but with 8 host cores and ~3 GB usable for containers two workers would "
+            "worker, but with 8 logical cores and ~3 GB usable for containers two workers would "
             "contend for the same cores and the result would measure scheduling overhead, not "
             "scaling. `local[N]` varies the same knob - cores available to the work - inside "
             "one JVM, so there is no network shuffle and no cross-machine spill. The numbers "
             "below describe intra-node scaling only."
+        )
+        exp.limitation(
+            f"The host is {HOST_CPU}: the Docker VM's 8 vCPUs are 4 physical cores with two "
+            "hardware threads each. local[4] therefore runs four threads that share physical "
+            "cores with each other and with every other process in the VM, so going from 2 to "
+            "4 is not a doubling of compute, and the 2-to-4 ratio below is a lower bound on "
+            "what doubling real cores would give."
         )
 
         source = root / "source"

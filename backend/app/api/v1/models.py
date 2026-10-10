@@ -105,7 +105,17 @@ def _summary(session: DbSession, model: Model) -> ModelSummary:
         target_definition=model.target_definition,
         champion=_version_view(session, champion) if champion else None,
         challenger=_version_view(session, challenger) if challenger else None,
+        experiment=_experiment(session, versions),
     )
+
+
+def _experiment(session: DbSession, versions: list[ModelVersion]) -> str | None:
+    """The experiment whose run trained a version of this model, if any (its run config)."""
+    for version in versions:
+        run = session.get(PipelineRun, version.run_id) if version.run_id else None
+        if run is not None and (run.config_json or {}).get("experiment"):
+            return str(run.config_json["experiment"])
+    return None
 
 
 def _find_model(session: DbSession, model_ref: str) -> Model:

@@ -189,6 +189,10 @@ services:
   spark-master:
     <<: *triad-image
     profiles: ["spark"]
+    # The sandbox's user (SANDBOX_USER, 1000): a cluster job's driver runs in a sandbox container
+    # as that user and commits the files its executors wrote, which it cannot rename out of
+    # folders an executor running as root created.
+    user: "1000:1000"
     command: ["bash", "-c", "$$SPARK_HOME/bin/spark-class org.apache.spark.deploy.master.Master --host spark-master --port 7077 --webui-port 8080"]
     environment:
       <<: *common-env
@@ -206,6 +210,7 @@ services:
   spark-worker:
     <<: *triad-image
     profiles: ["spark"]
+    user: "1000:1000"
     command: ["bash", "-c", "$$SPARK_HOME/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 --cores ${SPARK_WORKER_CORES:-2} --memory ${SPARK_WORKER_MEMORY:-1800m} --webui-port 8081"]
     environment:
       <<: *common-env

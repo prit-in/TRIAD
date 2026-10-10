@@ -13,7 +13,11 @@ mkdir -p "$LOG"
 ORDER="${ORDER:-EXP-9 EXP-10 EXP-7 EXP-3 EXP-4 EXP-1 EXP-8 EXP-2 EXP-5 EXP-6}"
 for exp in $ORDER; do
   extra=""
-  if [ "$exp" = "EXP-6" ]; then extra="-v /var/run/docker.sock:/var/run/docker.sock"; fi
+  if [ "$exp" = "EXP-6" ]; then
+    extra="-v /var/run/docker.sock:/var/run/docker.sock"
+    # Its cluster arm needs the compose Spark cluster, started for EXP-6 alone and stopped after.
+    MSYS_NO_PATHCONV=1 docker compose -f docker/compose.yaml --profile spark up -d       spark-master spark-worker > "$LOG/$exp.cluster.log" 2>&1
+  fi
   # EXP-2 measures where memory runs out. `--no-deps` keeps `compose run` from starting anything
   # beside it; its configuration P needs postgres, mlflow and sandbox-runner already up (DEC-44).
   if [ "$exp" = "EXP-2" ]; then extra="--no-deps"; fi
@@ -22,6 +26,9 @@ for exp in $ORDER; do
   MSYS_NO_PATHCONV=1 docker compose -f docker/compose.yaml --profile tools run --rm -T $extra dev \
     python scripts/run_experiment.py "$exp" > "$LOG/$exp.log" 2>&1
   code=$?
+  if [ "$exp" = "EXP-6" ]; then
+    MSYS_NO_PATHCONV=1 docker compose -f docker/compose.yaml --profile spark stop       spark-master spark-worker >> "$LOG/$exp.cluster.log" 2>&1
+  fi
   verdict=$(tr '\r' '\n' < "$LOG/$exp.log" | grep -E "^\s+status=" | tail -1)
   echo "$(date -u +%FT%TZ) done  $exp exit=$code $verdict" | tee -a "$LOG/progress.txt"
 done

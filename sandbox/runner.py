@@ -426,8 +426,12 @@ def spark_submit_request(
     image: str = "triad-base:0.1",
     data_root: str = "/data/triad",
     driver_memory: str = "1g",
+    executor_memory: str | None = None,
 ) -> SandboxRequest:
-    """Build the one spark-submit shape the runner accepts (DEC-04: thin JARs plus --jars)."""
+    """Build the one spark-submit shape the runner accepts (DEC-04: thin JARs plus --jars).
+
+    `executor_memory` is for a cluster master only: in local mode the driver is the executor.
+    """
     command = [
         "/opt/spark/bin/spark-submit",
         "--master", master,
@@ -435,6 +439,8 @@ def spark_submit_request(
         "--jars", core_jar,
         "--conf", "spark.ui.enabled=false",
         "--conf", f"spark.driver.memory={driver_memory}",
+        *(["--conf", f"spark.executor.memory={executor_memory}"]
+          if executor_memory and not master.startswith("local") else []),
         "--conf", "spark.sql.ansi.enabled=true",
         "--conf", "spark.sql.session.timeZone=UTC",
         "--conf", "spark.sql.parquet.outputTimestampType=TIMESTAMP_MICROS",

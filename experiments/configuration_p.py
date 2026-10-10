@@ -230,9 +230,9 @@ def record_p(trial: Any, p: dict[str, Any]) -> None:
     trial.record("full_runs_s", p.get("full_runs_s"), "s",
                  note="gate 9: the jobs doing their work on the whole input")
     trial.record("peak_rss_mb", p.get("peak_rss_mb"), "MB",
-                 note="P's own process: the profile and cutoff Spark session's driver, the "
-                      "gates' compiler and the modelling; sandboxed jobs run in containers of "
-                      "their own")
+                 note="P's Python process: the pipeline's control and the modelling. The "
+                      "in-process Spark JVM is the next figure; the gates' compiler and the "
+                      "sandboxed jobs run as processes and containers of their own")
     trial.record("jvm_peak_rss_mb", p.get("jvm_peak_rss_mb"), "MB",
                  note="the in-process Spark session's JVM (profile and cutoffs)")
     trial.observations["per_stage_s"] = p.get("per_stage_s") or {}

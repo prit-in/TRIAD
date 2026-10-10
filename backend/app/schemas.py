@@ -189,6 +189,12 @@ class ExecutionView(ApiModel):
     # `{"totals": {...}, "stages": [...]}` as the job's listener measured them; absent for an
     # execution that ran no Spark job, or ran before per-stage metrics were recorded.
     spark: dict[str, Any] | None = None
+    # Where the job was submitted, and where the router would have sent it (DEC-46); absent for
+    # executions recorded before either was kept.
+    master: str | None = None
+    routed_deploy_mode: str | None = None
+    # Whether the job's own log was kept with it. It is not served: it can hold customer values.
+    log_kept: bool = False
 
 
 class LogLine(ApiModel):
@@ -229,6 +235,9 @@ class ModelSummary(ApiModel):
     target_definition: str
     champion: ModelVersionView | None = None
     challenger: ModelVersionView | None = None
+    # The case-study experiment that trained this model, when one did: EXP-7 trains under a
+    # name of its own so it never moves the platform's champion, and retires it afterwards.
+    experiment: str | None = None
 
 
 class ModelDetail(ModelSummary):

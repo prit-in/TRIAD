@@ -389,3 +389,36 @@ def test_the_pipeline_holds_the_memory_raise_against_the_allowlist(db_session, s
                        trigger_type="manual", triggered_by="tester")
     permitted, why = ChurnPipeline(db_session, run, store=storage)._memory_raise_allowed("1024m")
     assert permitted is False and "spark.driver.memory" in why
+
+
+def test_a_job_runs_where_spark_master_says_and_its_memory_remedy_feeds_the_right_jvm() -> None:
+    """The recorded master is the one submitted to, the router's advice beside it; a raised
+    memory is the driver's heap in local mode and the executors' on a cluster."""
+    from agents.graph.pipeline import job_resources
+
+    routed = {"deploy_mode": "cluster"}
+    raised = {"executor_memory": "2048m"}
+    local = job_resources({"spark": {"driver_memory": "1g"}}, raised, routed)
+    assert (local["master"], local["routed_deploy_mode"]) == ("local[2]", "cluster")
+    assert local["driver_memory"] == "2048m" and "executor_memory" not in local
+
+    cluster = job_resources({"spark_master": "spark://spark-master:7077",
+                             "spark": {"driver_memory": "1g"}}, raised, routed)
+    assert cluster["driver_memory"] == "1g" and cluster["executor_memory"] == "2048m"
+    assert job_resources({}, {}, {})["driver_memory"] == "1g", "no remedy: the configured heap"
+
+
+def test_a_jobs_log_is_kept_with_its_execution(db_session, storage) -> None:
+    """`executions.log_uri` was never written, so a job's own account of a lost executor or a
+    failure was gone once the stage returned. The tail is kept under the run's reports."""
+    from agents.graph.pipeline import LOG_TAIL_CHARS, ChurnPipeline
+
+    run = q.create_run(db_session, pipeline_name=f"log_{uuid.uuid4().hex[:8]}",
+                       trigger_type="manual", triggered_by="tester")
+    pipeline = ChurnPipeline(db_session, run, store=storage)
+
+    uri = pipeline._keep_log("clean", "x" * LOG_TAIL_CHARS + "Lost executor 0")
+    kept = storage.read_text(storage.path(uri))
+
+    assert kept.endswith("Lost executor 0") and len(kept) == LOG_TAIL_CHARS
+    assert pipeline._keep_log("clean", "") is None

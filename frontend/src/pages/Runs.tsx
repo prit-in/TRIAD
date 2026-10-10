@@ -564,6 +564,7 @@ function SparkExecutions({ runId }: { runId: string }) {
           <thead>
             <tr>
               <th>Job</th>
+              <th>Ran on</th>
               <th>Wall clock</th>
               <th>Spark stages</th>
               <th>Tasks</th>
@@ -587,6 +588,13 @@ function SparkExecutions({ runId }: { runId: string }) {
                       </button>{" "}
                       {e.status !== "succeeded" && <State value={e.status.toUpperCase()} />}
                     </td>
+                    <td className="mono"
+                        title={e.routed_deploy_mode
+                          ? `the router recommended ${e.routed_deploy_mode}` +
+                            (e.log_kept ? "; the job's log is kept" : "")
+                          : undefined}>
+                      {e.master ? (e.master.startsWith("local") ? e.master : "cluster") : "—"}
+                    </td>
                     <td>{e.duration_ms === null ? "—" : `${(e.duration_ms / 1000).toFixed(1)}s`}</td>
                     <td>{t.stages}</td>
                     <td>{t.tasks}</td>
@@ -599,7 +607,7 @@ function SparkExecutions({ runId }: { runId: string }) {
                   </tr>
                   {open === e.id && (
                     <tr className="spark-stages">
-                      <td colSpan={8}>
+                      <td colSpan={9}>
                         <table>
                           <thead>
                             <tr>

@@ -330,8 +330,8 @@ def _end_to_end(exp: Experiment) -> Any:
 
         # --- 2. new data arrives, and the scheduler evaluates the champion --------------------
         generate(E2E_MONTHS + E2E_NEW_MONTHS, root / "latest")
-        config = load_yaml(settings().pipeline_config_path)
-        config["retraining"] = {**(config.get("retraining") or {}), "cooldown_days": 0}
+        base = load_yaml(settings().pipeline_config_path)
+        config = {**base, "retraining": {**(base.get("retraining") or {}), "cooldown_days": 0}}
         with session_scope() as session:
             arrived = register_tables(session, store, root / "latest", tag, actor=tag)
             trial.record("new_versions_registered", len(arrived))

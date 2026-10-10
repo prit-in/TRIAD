@@ -7,15 +7,15 @@
  * - It does not turn `partial` into a tick. An experiment that could not run the workload the
  *   PRD specifies is not a pass, and its limitations are shown next to its conclusion rather
  *   than folded away.
- * - It does not hide the experiment whose hypothesis failed. EXP-6 is the most informative
- *   result in the set precisely because it did not hold.
+ * - It does not hide an experiment whose hypothesis failed, or one that reached no verdict
+ *   because its fault never landed: both are results, and say more than a row of ticks.
  * - It shows an experiment that has never been run as exactly that, rather than omitting it
  *   and leaving a reader to count to ten themselves.
  */
 
 import { useState } from "react";
 import { api } from "../api";
-import type { ExperimentResult } from "../api";
+import type { ExperimentResult, ExperimentRun } from "../api";
 import { BarChart } from "../charts";
 import { Empty, Panel, Problem, SearchBox, Tabs, useLoad, when } from "../shared";
 
@@ -25,6 +25,14 @@ const STATUS_TONE: Record<string, string> = {
   not_run: "busy",
   failed: "bad",
 };
+
+/** A measurement as recorded: numbers and text as they are, lists joined, nothing as a dash. */
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (Array.isArray(value)) return value.length ? value.map(formatValue).join(", ") : "none";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
 
 function verdict(held: boolean | null): { text: string; tone: string } {
   if (held === true) return { text: "hypothesis held", tone: "good" };
@@ -77,6 +85,43 @@ export function Experiments() {
             tone: STATUS_TONE[status] as "good" | "waiting" | "bad" | "muted",
           }))}
         />
+        <table>
+          <caption className="muted">At a glance</caption>
+          <thead>
+            <tr>
+              <th>Experiment</th>
+              <th>Status</th>
+              <th>Verdict</th>
+              <th>Trials as expected</th>
+              <th>Last run</th>
+            </tr>
+          </thead>
+          <tbody>
+            {all.map((e) => {
+              const outcome = verdict(e.hypothesis_held);
+              const trials = e.trials ?? [];
+              return (
+                <tr key={e.exp_id}>
+                  <td>
+                    <span className="mono">{e.exp_id}</span> {e.title}
+                  </td>
+                  <td>
+                    <span className={`pill ${STATUS_TONE[e.status] ?? "busy"}`}>
+                      {e.status.replace("_", " ")}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`pill ${outcome.tone}`}>{outcome.text}</span>
+                  </td>
+                  <td>
+                    {trials.filter((trial) => trial.ok).length} of {trials.length}
+                  </td>
+                  <td>{e.started_at ? when(e.started_at) : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </Panel>
 
       {shown.length === 0 && !experiments.problem && <Empty what="experiments matching that" />}
@@ -119,6 +164,22 @@ function ExperimentCard({ experiment }: { experiment: ExperimentResult }) {
               content: (
                 <>
                   <p>{experiment.conclusion}</p>
+                  {(experiment.independent_variable || experiment.dependent_measures) && (
+                    <p className="muted">
+                      {experiment.independent_variable &&
+                        `Varied: ${experiment.independent_variable}. `}
+                      {experiment.dependent_measures &&
+                        `Measured: ${experiment.dependent_measures.join(", ")}.`}
+                    </p>
+                  )}
+                  {experiment.run_dir && (
+                    <p className="muted">
+                      Raw outputs:{" "}
+                      <span className="mono">
+                        experiments/{experiment.exp_id}/{experiment.run_dir}/
+                      </span>
+                    </p>
+                  )}
                   {experiment.started_at && (
                     <p className="muted">
                       Run {when(experiment.started_at)}
@@ -153,13 +214,34 @@ function ExperimentCard({ experiment }: { experiment: ExperimentResult }) {
                             </span>
                           </td>
                           <td>
-                            {trial.detail || (
-                              <span className="muted">
-                                {(trial.measurements ?? [])
-                                  .slice(0, 4)
-                                  .map((m) => `${m.name} ${m.value}`)
-                                  .join(", ") || "—"}
-                              </span>
+                            {trial.detail || <span className="muted">—</span>}
+                            {(trial.measurements ?? []).length > 0 && (
+                              <details className="evidence">
+                                <summary>
+                                  All {(trial.measurements ?? []).length} measurements
+                                </summary>
+                                <table>
+                                  <thead>
+                                    <tr>
+                                      <th>Measure</th>
+                                      <th>Value</th>
+                                      <th>Note</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {(trial.measurements ?? []).map((m, i) => (
+                                      <tr key={`${m.name}-${i}`}>
+                                        <td className="mono">{m.name}</td>
+                                        <td>
+                                          {formatValue(m.value)}
+                                          {m.unit && m.value !== null ? ` ${m.unit}` : ""}
+                                        </td>
+                                        <td className="muted">{m.note}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </details>
                             )}
                           </td>
                         </tr>
@@ -167,6 +249,11 @@ function ExperimentCard({ experiment }: { experiment: ExperimentResult }) {
                     </tbody>
                   </table>
                 ),
+            },
+            {
+              id: `${experiment.exp_id}-history`,
+              label: "History",
+              content: <RunHistory expId={experiment.exp_id} />,
             },
             {
               id: `${experiment.exp_id}-limits`,
@@ -189,5 +276,58 @@ function ExperimentCard({ experiment }: { experiment: ExperimentResult }) {
         />
       )}
     </Panel>
+  );
+}
+
+/**
+ * Every recorded run, newest first - including runs that were interrupted or superseded, with
+ * the note that says why. A result that was re-run should show that it was.
+ */
+function RunHistory({ expId }: { expId: string }) {
+  const runs = useLoad<ExperimentRun[]>(() => api.experimentRuns(expId));
+  if (runs.problem) return <Problem error={runs.problem} />;
+  if (!runs.data) return <p className="muted">Loading…</p>;
+  if (runs.data.length === 0) return <Empty what="recorded runs" />;
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Run</th>
+          <th>Status</th>
+          <th>Verdict</th>
+          <th>Took</th>
+        </tr>
+      </thead>
+      <tbody>
+        {runs.data.map((run) => {
+          const outcome = verdict(run.hypothesis_held ?? null);
+          return (
+            <tr key={run.run_dir}>
+              <td>
+                <span className="mono">{run.run_dir}</span>
+                {run.started_at && <span className="muted"> · {when(run.started_at)}</span>}
+                {run.note && (
+                  <details className="evidence">
+                    <summary>Note</summary>
+                    <pre className="note">{run.note}</pre>
+                  </details>
+                )}
+              </td>
+              <td>
+                {run.status ? (
+                  <span className={`pill ${STATUS_TONE[run.status] ?? "busy"}`}>
+                    {run.status.replace("_", " ")}
+                  </span>
+                ) : (
+                  <span className="muted">no result</span>
+                )}
+              </td>
+              <td>{run.status ? <span className={`pill ${outcome.tone}`}>{outcome.text}</span> : "—"}</td>
+              <td>{run.duration_s ? `${Math.round(run.duration_s)}s` : "—"}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }

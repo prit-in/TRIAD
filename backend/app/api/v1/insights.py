@@ -76,6 +76,19 @@ def list_experiments(user: CurrentUser) -> list[dict]:
             })
     return sorted(results, key=lambda r: int(str(r["exp_id"]).split("-")[1]))
 
+
+@router.get("/experiments/{exp_id}/runs", summary="Every recorded run of one experiment")
+def experiment_runs(exp_id: str, user: CurrentUser) -> list[dict]:
+    """Newest first, including runs that were interrupted or superseded and why (their notes).
+
+    `exp_id` names a folder, so only the ten the PRD defines are accepted.
+    """
+    from experiments.harness import load_history
+
+    if exp_id not in {f"EXP-{n}" for n in range(1, 11)}:
+        raise problems.not_found("Experiment", exp_id)
+    return load_history(exp_id)
+
 ROW_ROLES = (BUSINESS_ANALYST, DATA_SCIENTIST, ML_ENGINEER)
 
 

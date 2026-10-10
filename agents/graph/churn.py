@@ -15,6 +15,7 @@ of the sequence and one place where its order is decided.
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
 import json
 from collections.abc import Callable
@@ -160,6 +161,17 @@ def read_state(store: Storage, run: PipelineRun) -> dict[str, Any]:
 
 
 # --- cutoffs, derived from the data rather than assumed -------------------------
+
+
+def release_jvm_heap(spark: Any) -> None:
+    """Ask the in-process JVM for a full collection, after which G1 returns its free heap.
+
+    The session is kept - the worker reuses it - and only its idle memory goes back. Measured on
+    EXP-2's 100 000 customers: profiling left the JVM resident at 1 455 MB, and ten seconds after
+    the collection it held 949 MB (`experiments/_logs/diag_idle_jvm.py`, DEC-47).
+    """
+    with contextlib.suppress(Exception):   # a courtesy to the modelling, never a failure
+        spark.sparkContext._jvm.System.gc()
 
 
 def cutoff_window(
@@ -381,6 +393,9 @@ def prepare(
     window = cutoffs or cutoff_window(spark, clean_out["uri"])
     say("plan", f"cutoffs {window['first_cutoff']} to {window['last_cutoff']}; "
                 f"data ends {window['data_end']}", True)
+    # The in-process session's last use in this phase: the jobs below run in the sandbox and the
+    # modelling in Python, so its JVM gives back what profiling and the cutoffs took (DEC-47).
+    release_jvm_heap(spark)
 
     # -- features and labels ----------------------------------------------------
     # Optional sources are passed only when they exist: an empty URI is not "absent", it is a

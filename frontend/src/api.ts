@@ -173,6 +173,8 @@ export const api = {
   evaluation: (modelRef: string, versionId: string) =>
     request<Evaluation>(`/models/${modelRef}/versions/${versionId}/evaluation`),
   experiments: () => request<ExperimentResult[]>("/experiments"),
+  experimentRuns: (expId: string) =>
+    request<ExperimentRun[]>(`/experiments/${encodeURIComponent(expId)}/runs`),
   auditLogs: (query = "") => request<AuditEntry[]>(`/audit-logs${query}`),
   auditActions: () => request<AuditActionCount[]>("/audit-logs/actions"),
   chainStatus: () => request<ChainStatus>("/audit-logs/verify"),
@@ -268,12 +270,26 @@ export interface ExperimentResult {
   limitations: string[];
   started_at?: string;
   duration_s?: number;
+  independent_variable?: string;
+  dependent_measures?: string[];
+  /** The run's folder under experiments/<exp_id>/, where its raw outputs are. */
+  run_dir?: string;
   trials: {
     condition: string;
     ok: boolean;
     detail: string;
     measurements?: { name: string; value: unknown; unit: string; note: string }[];
   }[];
+}
+
+/** One recorded run of an experiment; `note` explains a folder that holds no result. */
+export interface ExperimentRun {
+  run_dir: string;
+  started_at?: string | null;
+  duration_s?: number | null;
+  status?: string | null;
+  hypothesis_held?: boolean | null;
+  note?: string;
 }
 
 export interface MetricsBlock {
@@ -422,6 +438,8 @@ export interface ModelSummary {
   target_definition: string;
   champion: ModelVersion | null;
   challenger: ModelVersion | null;
+  /** The case-study experiment that trained it (EXP-7 trains and retires its own). */
+  experiment?: string | null;
 }
 
 export interface ModelDetail extends ModelSummary {
@@ -484,6 +502,11 @@ export interface Execution {
     totals: Record<string, number>;
     stages: SparkStage[];
   } | null;
+  /** The master the job was submitted to, and the router's recommendation beside it. */
+  master?: string | null;
+  routed_deploy_mode?: string | null;
+  /** The job's own log was kept with it (not served: it can hold customer values). */
+  log_kept?: boolean;
 }
 
 export interface ThresholdReviewSegment {

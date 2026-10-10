@@ -20,21 +20,41 @@ const HEADLINE = [
 export function Models() {
   const models = useLoad<ModelSummary[]>(() => api.models());
   const [open, setOpen] = useState<string | null>(null);
+  // Models an experiment trained under its own name are evidence, not models the platform
+  // serves: hidden until asked for, so the champion people act on is the one they see first.
+  const [showExperiments, setShowExperiments] = useState(false);
+  const all = models.data ?? [];
+  const fromExperiments = all.filter((m) => m.experiment).length;
+  const shown = all.filter((m) => showExperiments || !m.experiment);
 
   return (
     <>
       <Problem error={models.problem} />
       {models.data?.length === 0 && <Empty what="registered models" />}
+      {fromExperiments > 0 && (
+        <p className="muted">
+          <label>
+            <input type="checkbox" checked={showExperiments}
+                   onChange={(e) => setShowExperiments(e.target.checked)} />{" "}
+            Show the {fromExperiments} model{fromExperiments === 1 ? "" : "s"} trained by
+            experiments
+          </label>
+        </p>
+      )}
 
-      {models.data?.map((model) => (
+      {shown.map((model) => (
         <Panel
           key={model.id}
           title={model.name}
           provenance="Model output"
           actions={
-            <button className="link" onClick={() => setOpen(open === model.name ? null : model.name)}>
-              {open === model.name ? "Hide versions" : "All versions"}
-            </button>
+            <>
+              {model.experiment && <span className="pill busy">{model.experiment}</span>}{" "}
+              <button className="link"
+                      onClick={() => setOpen(open === model.name ? null : model.name)}>
+                {open === model.name ? "Hide versions" : "All versions"}
+              </button>
+            </>
           }
         >
           <p className="muted">{model.target_definition}</p>

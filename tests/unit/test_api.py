@@ -149,7 +149,7 @@ def test_a_token_signed_with_another_key_is_refused(client, users) -> None:
     forged = jwt.encode(
         {"sub": str(users["admin"].id), "role": "admin", "iss": "triad",
          "exp": int((dt.datetime.now(dt.UTC) + dt.timedelta(hours=1)).timestamp())},
-        "not-the-server-secret", algorithm="HS256",
+        "not-the-server-secret-but-as-long-as-hs256-needs", algorithm="HS256",
     )
     response = client.get("/api/v1/pipelines", headers={"Authorization": f"Bearer {forged}"})
     assert response.status_code == 401
@@ -1085,3 +1085,12 @@ def test_a_renamed_column_upload_is_proposed_then_applied_once_approved(
     assert version is not None, "the approval registered nothing"
     assert "customer_id" in version.schema_json["columns"]
     assert version.schema_json["mapped_from"]["mapping"] == {"cust_id": "customer_id"}
+
+
+def test_an_experiments_history_is_served_and_only_for_the_ten(client, users) -> None:
+    """`exp_id` names a folder, so anything but EXP-1..EXP-10 is a 404, not a path."""
+    headers = _auth(users["viewer"])
+    history = client.get("/api/v1/experiments/EXP-7/runs", headers=headers)
+    assert history.status_code == 200 and isinstance(history.json(), list)
+    for bad in ("EXP-11", "EXP-0", "..%2F..%2Fetc", "exp-7"):
+        assert client.get(f"/api/v1/experiments/{bad}/runs", headers=headers).status_code == 404

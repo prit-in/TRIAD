@@ -49,6 +49,7 @@ from triad_core.policy import PolicyEngine, Verdict
 from triad_core.storage import Storage, StorageError, storage
 
 SCALA_ROOT = settings().repo_root / "scala_spark"
+LOG_TAIL_CHARS = 2_000_000   # what a job log keeps: its last 2 MB
 
 
 class ReplayUnavailable(RuntimeError):
@@ -364,6 +365,21 @@ class ChurnPipeline:
             self.session.flush()
         return report
 
+    def _keep_log(self, stage: str, text: str) -> str | None:
+        """Write a job's log under its run's reports and return its URI; None when empty.
+
+        The tail only: a log is read for what happened last, and a runaway job's must not fill
+        the volume.
+        """
+        if not text:
+            return None
+        path = self.storage.write_text(
+            self.storage.reports_dir(self.run.run_key) / "logs"
+            / f"{stage}_{uuid.uuid4().hex[:8]}.log",
+            text[-LOG_TAIL_CHARS:],
+        )
+        return self.storage.uri(path)
+
     def _memory_raise_allowed(self, value: str) -> tuple[bool, str]:
         """A memory remedy is a Spark setting change like any other (LR-10, DEC-20).
 
@@ -579,26 +595,11 @@ class ChurnPipeline:
                 job_args.append(f"--partition-by={','.join(partition_by)}")
             if stage_inputs.get("skew_handling"):
                 job_args.append("--conf=spark.sql.adaptive.skewJoin.enabled=true")
-            # The out-of-memory remedy has to arrive here to mean anything. `_apply_fix` sets
-            # `executor_memory` when it diagnoses an OOM, and for a long while nothing read it:
-            # the retry was submitted with exactly the memory that had just failed, so the
-            # remedy was computed and thrown away and an OOM could only ever exhaust the
-            # attempt budget. In local mode the driver *is* the executor, hence one value.
-            memory = stage_inputs.get("executor_memory") or self.config.get(
-                "spark", {}
-            ).get("driver_memory", "1g")
             return {
                 "artifact": artifact,
                 "job_args": job_args,
                 "command": " ".join(job_args),
-                "resources": {
-                    # PRD 22.4 assigns "small" to dry runs and tests and "medium" to a Spark
-                    # client; the full execution ran as "small", whose 10-minute timeout a full
-                    # job at a larger tier would hit. Gate 6's dry run below keeps "small".
-                    "profile": stage_inputs.get("resource_profile", "medium"),
-                    "master": routing.get("deploy_mode", "local[2]"),
-                    "driver_memory": memory,
-                },
+                "resources": job_resources(self.config, stage_inputs, routing),
             }
 
         def dry_run(artifact):
@@ -636,9 +637,10 @@ class ChurnPipeline:
                     "main_class": main_class
                     or f"triad.jobs.generated.{artifact['artifact'].object_name}",
                     "job_args": job_args,
-                    "master": self.config.get("spark_master", "local[2]"),
+                    "master": artifact["resources"]["master"],
                     "profile": "small",
                     "driver_memory": artifact["resources"]["driver_memory"],
+                    **_executor_memory(artifact["resources"]),
                 },
                 sandbox=self.sandbox,
                 policy_context={"profile": "small"},
@@ -696,9 +698,10 @@ class ChurnPipeline:
                     "core_jar": str(core_jar),
                     "main_class": main_class or generated_class,
                     "job_args": artifact["job_args"],
-                    "master": self.config.get("spark_master", "local[2]"),
+                    "master": artifact["resources"]["master"],
                     "profile": artifact["resources"]["profile"],
                     "driver_memory": artifact["resources"]["driver_memory"],
+                    **_executor_memory(artifact["resources"]),
                 },
                 sandbox=self.sandbox,
                 # Only the profile varies here. The `internal_only` network limit is
@@ -726,6 +729,10 @@ class ChurnPipeline:
                     else ""
                 ),
                 "outputs": {},
+                # The job's own log, kept with its execution (`executions.log_uri`). Nothing
+                # wrote it, so a job that lost an executor - and recovered, or did not - left no
+                # account of what Spark itself saw.
+                "log_uri": self._keep_log(stage, result["stdout"] + result["stderr"]),
             }
             if report_path.exists():
                 report = json.loads(report_path.read_text(encoding="utf-8"))
@@ -1040,6 +1047,43 @@ class ChurnPipeline:
         )
         self.session.commit()
         return self.result
+
+
+def job_resources(
+    config: dict[str, Any], stage_inputs: dict[str, Any], routing: dict[str, Any]
+) -> dict[str, Any]:
+    """Where and with what memory a stage's job is submitted.
+
+    The out-of-memory remedy has to arrive here to mean anything. `_apply_fix` sets
+    `executor_memory` when it diagnoses an OOM, and for a long while nothing read it: the retry
+    was submitted with exactly the memory that had just failed. In local mode the driver *is*
+    the executor, so the remedy is the driver's heap; on a cluster it is the executors', and the
+    driver keeps its own - raising the driver there, as this once did in every mode, fed the
+    wrong JVM.
+    """
+    master = str(config.get("spark_master", "local[2]"))
+    local = master.startswith("local")
+    memory = stage_inputs.get("executor_memory")
+    driver = config.get("spark", {}).get("driver_memory", "1g")
+    return {
+        # PRD 22.4 assigns "small" to dry runs and tests and "medium" to a Spark client; the
+        # full execution ran as "small", whose 10-minute timeout a full job at a larger tier
+        # would hit. Gate 6's dry run keeps "small".
+        "profile": stage_inputs.get("resource_profile", "medium"),
+        # The master the job is submitted to, which `spark_master` sets. The router's
+        # recommendation is kept beside it: recorded as the master, it named a cluster for jobs
+        # that ran in local mode.
+        "master": master,
+        "routed_deploy_mode": routing.get("deploy_mode", "local[2]"),
+        "driver_memory": (memory or driver) if local else driver,
+        **({"executor_memory": memory} if memory and not local else {}),
+    }
+
+
+def _executor_memory(resources: dict[str, Any]) -> dict[str, str]:
+    """The executors' memory for a cluster submission, when the stage set one."""
+    memory = resources.get("executor_memory")
+    return {"executor_memory": memory} if memory else {}
 
 
 def _sample_rows(folder: Path | None, n: int = 5) -> list[dict[str, Any]]:

@@ -7,6 +7,7 @@ credential.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -71,9 +72,19 @@ def settings() -> Settings:
     return Settings()
 
 
-@lru_cache(maxsize=8)
 def load_yaml(path: str | Path) -> dict[str, Any]:
-    """Load a YAML configuration file. Raises if it is missing or not a mapping."""
+    """Load a YAML configuration file. Raises if it is missing or not a mapping.
+
+    The parse is cached; the result is a copy for each caller. It used to be the cached dict
+    itself, so a caller that changed its copy changed every later caller's configuration: EXP-7
+    set its own retraining cooldown to 0 days, and the next pipeline in the process published
+    with that cooldown and queued a retrain no rule had allowed (DEC-47).
+    """
+    return copy.deepcopy(_parse_yaml(str(path)))
+
+
+@lru_cache(maxsize=8)
+def _parse_yaml(path: str) -> dict[str, Any]:
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"configuration file not found: {p}")

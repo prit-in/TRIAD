@@ -481,6 +481,9 @@ def test_a_tuned_model_still_has_to_pass_the_hard_constraints(monkeypatch) -> No
     assert result.selected is None or result.selected.model_size_mb < 200
 
 
+# Every family is fitted on a few hundred rows only to see what it serialises to; whether the
+# MLP converges on them is not this test's question.
+@pytest.mark.filterwarnings("ignore::sklearn.exceptions.ConvergenceWarning")
 def test_the_trusted_type_list_covers_every_registered_family() -> None:
     """TRUSTED_MODEL_TYPES must be computed, not maintained by hand.
 
