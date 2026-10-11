@@ -45,7 +45,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from experiments.baselines import BaselineResult, IsolatedProcessKilled, run_isolated
+from experiments.baselines import IsolatedProcessKilled, run_baseline, run_isolated
 from experiments.configuration_p import record_p
 from experiments.harness import Experiment
 
@@ -173,20 +173,6 @@ def generate(source: str, customers: int) -> float:
     return time.perf_counter() - t0
 
 
-def _measured(target: str, baseline: str, **kwargs) -> BaselineResult:
-    """A baseline's result, or - when the kernel killed it - that failure, as a result.
-
-    "Failures beyond memory limits are recorded as results" (PRD 32.1). An out-of-memory kill
-    at the container's limit is SIGKILL, which no `except MemoryError` inside the baseline can
-    see; it is caught here, with the cgroup's OOM-kill count as the evidence of what it was.
-    """
-    try:
-        return run_isolated(target, timeout_s=BASELINE_CEILING_S, **kwargs)
-    except IsolatedProcessKilled as exc:
-        return BaselineResult(baseline=baseline, ok=False, wall_clock_s=exc.elapsed_s,
-                              detail=f"{'timed out' if exc.timed_out else 'killed'}: {exc}")
-
-
 def run() -> Experiment:
     from triad_core.storage import storage
 
@@ -238,13 +224,14 @@ def run() -> Experiment:
                 generated_s = run_isolated("experiments.exp02_medium_dataset:generate",
                                            timeout_s=GENERATE_CEILING_S,
                                            source=str(source), customers=customers)
-            except IsolatedProcessKilled as exc:
+            except (IsolatedProcessKilled, RuntimeError) as exc:   # killed, or it raised
                 trial.ok = False
                 trial.detail = f"{customers} customers: generating the data itself failed ({exc})"
+                # The exception says which: killed (with the cgroup's OOM-kill count), timed
+                # out, or raised - not every failure here is the container's memory.
                 exp.limitation(
                     f"The ladder stopped at {customers} customers because generating the dataset "
-                    f"exceeded what the container holds ({exc}); neither configuration was run "
-                    "on it."
+                    f"failed ({str(exc)[:300]}); neither configuration was run on it."
                 )
                 break
             sources[trial.condition] = source
@@ -254,8 +241,9 @@ def run() -> Experiment:
 
             # Each baseline in a process of its own: a high-water mark read in this process
             # would carry the generator's peak and every earlier size's.
-            b2 = _measured("experiments.baseline_b2:run", "B2",
-                           root=source, cutoffs=groups, seed=SEED)
+            b2 = run_baseline("experiments.baseline_b2:run", "B2",
+                              timeout_s=BASELINE_CEILING_S, root=source, cutoffs=groups,
+                              seed=SEED)
             trial.record("b2_completed", b2.ok)
             trial.record("b2_wall_clock_s", round(b2.wall_clock_s, 1), "s")
             trial.record("b2_peak_rss_mb", b2.peak_rss_mb, "MB")
@@ -263,8 +251,9 @@ def run() -> Experiment:
             trial.record("b2_test_pr_auc", b2.test_pr_auc)
             trial.observations["b2"] = b2.to_dict()
 
-            b3 = _measured("experiments.baseline_b3:run_with_own_session", "B3",
-                           root=source, cutoffs=groups, seed=SEED)
+            b3 = run_baseline("experiments.baseline_b3:run_with_own_session", "B3",
+                              timeout_s=BASELINE_CEILING_S, root=source, cutoffs=groups,
+                              seed=SEED)
             trial.record("b3_completed", b3.ok)
             trial.record("b3_wall_clock_s", round(b3.wall_clock_s, 1), "s")
             trial.record("b3_peak_rss_mb", b3.peak_rss_mb, "MB",

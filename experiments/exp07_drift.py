@@ -243,8 +243,10 @@ def _end_to_end(exp: Experiment) -> Any:
         governance = GovernanceService(session, PolicyEngine(settings().governance_policy_path))
         state = _state(store, run)
         if not state:
+            # No state: the run stopped before selection, or its candidate escalated without
+            # being eligible for an override - either way there is no promotion to decide.
             trial.record(f"{who}_promotion_path", None,
-                         note=f"{run.state}: the run stopped before selection")
+                         note=f"{run.state}: no promotion proposed or eligible for an override")
             return None
         outcome = state.get("selection_outcome")
         if outcome == "PROPOSE_PROMOTION":
@@ -382,18 +384,28 @@ def _end_to_end(exp: Experiment) -> Any:
         trial.record("retraining_prepare_s", round(time.perf_counter() - t0, 1), "s")
         with session_scope() as session:
             run_c = session.get(PipelineRun, retrain_id)
-            state = _state(store, run_c)
-            # A retrain that stopped before selection never met the champion: the comparison is
-            # then untested, and its state says where it stopped.
-            challenger_reached = bool(state)
-            selection = state.get("selection") or {}
-            delta = selection.get("champion_delta") or {}
+            # The acceptance decision is recorded on every path that reaches selection; the
+            # prepare state is not written when a candidate escalates without being eligible for
+            # an override, which is what a retrain that does not beat its champion does. Reading
+            # only the state recorded such a retrain as never having met the champion (DEC-49).
+            acceptance = _acceptance(session, run_c.id)
+            challenger_reached = acceptance is not None
+            selection = _state(store, run_c).get("selection") or {}
+            evidence = dict(acceptance.evidence_refs or {}) if acceptance is not None else {}
+            delta = selection.get("champion_delta") or evidence.get("champion_delta") or {}
+            rules = list(acceptance.policy_rule_ids or []) if acceptance is not None else []
             trial.record("challenger_state", run_c.state)
-            trial.record("challenger_selection", state.get("selection_outcome"))
-            trial.record("challenger_failed_rules", selection.get("failed_rules") or [])
-            trial.record("challenger_compared_with_champion", bool(delta),
-                         note="AP-8's comparison on the challenger's test cutoff, with the "
-                              "champion's own scores")
+            trial.record("challenger_selection",
+                         acceptance.decision[:200] if acceptance is not None else None,
+                         note="the acceptance decision, as the platform recorded it")
+            trial.record("challenger_failed_rules",
+                         evidence.get("failed_rules") or selection.get("failed_rules") or [])
+            trial.record("challenger_compared_with_champion", "AP-8" in rules,
+                         note="AP-8 applied: the challenger and the champion scored on the "
+                              "challenger's test cutoff")
+            trial.record("challenger_beat_the_champion",
+                         bool(delta) and float(delta.get("lower_95") or 0.0) > 0.0,
+                         note="the lower 95% bound of the PR-AUC difference above zero")
             trial.observations["challenger_vs_champion"] = delta
             publish_task = decide_promotion(session, run_c, "challenger")
         if publish_task is not None:
@@ -441,6 +453,20 @@ def _end_to_end(exp: Experiment) -> Any:
 
 
 CHAIN_PARTS = ("drift_flagged", "retraining_started", "challenger_compared", "promotion_waited")
+
+
+def _acceptance(session: Any, run_id: Any) -> Any:
+    """The run's acceptance decision (model selection), or None if it never reached one."""
+    from sqlalchemy import select
+
+    from triad_core.models import DecisionRecord
+
+    return session.execute(
+        select(DecisionRecord).where(DecisionRecord.run_id == run_id,
+                                     DecisionRecord.agent == "model_selection",
+                                     DecisionRecord.decision_type == "acceptance")
+        .order_by(DecisionRecord.created_at.desc())
+    ).scalars().first()
 
 
 def _state(store: Any, run: Any) -> dict[str, Any]:

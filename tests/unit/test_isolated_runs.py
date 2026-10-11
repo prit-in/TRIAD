@@ -23,6 +23,17 @@ def test_a_child_past_its_ceiling_is_stopped_and_reported() -> None:
     assert stopped.value.timed_out and stopped.value.elapsed_s < 20
 
 
+def test_a_baseline_that_fails_is_its_failed_result_not_the_experiments_end() -> None:
+    from experiments.baselines import run_baseline
+
+    raised = run_baseline("json:loads", "B3", s="{not json")
+    assert not raised.ok and raised.detail.startswith("raised:")
+    assert "JSONDecodeError" in raised.detail
+    assert raised.wall_clock_s > 0, "the time it took, measured - not a placeholder"
+    stopped = run_baseline("subprocess:run", "B2", timeout_s=1, args=["sleep", "30"])
+    assert not stopped.ok and stopped.detail.startswith("timed out")
+
+
 def _jvm_probe() -> dict:
     """In a fresh process: start a session, shut its JVM down as B3 does, report what is left."""
     from pyspark import SparkContext

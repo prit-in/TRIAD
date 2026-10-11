@@ -17,7 +17,10 @@ between those two configurations.
 
 from __future__ import annotations
 
+import contextlib
+import shutil
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -40,8 +43,14 @@ def _read(spark: Any, root: Path, table: str) -> Any:
     return spark.read.parquet(f"file://{path}") if path.exists() else None
 
 
-def build_features(spark: Any, root: Path, cutoffs: list[pd.Timestamp]) -> pd.DataFrame:
-    """The same twelve features as B2, computed in Spark SQL and collected once at the end.
+def build_features(
+    spark: Any, root: Path, cutoffs: list[pd.Timestamp], *, handoff: Path | None = None
+) -> pd.DataFrame | None:
+    """The same twelve features as B2, computed in Spark SQL, and handed on.
+
+    With `handoff`, the table is written there as parquet and None is returned: the hand-off P
+    makes, its jobs writing tables that the modelling reads once the JVM is gone. Without it the
+    table is collected to the driver, which EXP-3 times at a size where that is cheap.
 
     The whole cutoff set is computed in one pass by cross-joining customers with the cutoff
     list, which is how a Spark engineer would write it: a per-cutoff Python loop issuing one job
@@ -168,28 +177,51 @@ def build_features(spark: Any, root: Path, cutoffs: list[pd.Timestamp]) -> pd.Da
     agg = agg.where(F.col("recency_days").isNotNull())
 
     keep = ["customer_id", "snapshot_date", LABEL, *BASELINE_FEATURES, *CATEGORICAL]
-    return agg.select(*[c for c in keep if c in agg.columns]).toPandas()
+    table = agg.select(*[c for c in keep if c in agg.columns])
+    if handoff is None:
+        return table.toPandas()
+    # Collecting a table this size to the driver is the pattern TRIAD's routing policy forbids
+    # at scale (LR-09), and at 200 000 customers B3's JVM died inside it, in the 3 GB container it
+    # shares with the modelling (DEC-50). Written out, it costs the JVM nothing to hand over.
+    table.write.mode("overwrite").parquet(f"file://{handoff}")
+    return None
+
+
+def read_handoff(handoff: Path) -> pd.DataFrame:
+    """The table B3's Spark stage wrote, as `toPandas` would have given it: timestamps naive, in
+    UTC (the session's time zone), so the split by cutoff matches as before."""
+    frame = pd.read_parquet(handoff)
+    for column in frame.columns:
+        if isinstance(frame[column].dtype, pd.DatetimeTZDtype):
+            frame[column] = frame[column].dt.tz_convert("UTC").dt.tz_localize(None)
+    return frame
 
 
 def run(
     spark: Any, root: Path, cutoffs: dict[str, list[pd.Timestamp]], *, seed: int = 42,
-    after_spark: Any = None,
+    after_spark: Any = None, handoff: Path | None = None,
 ) -> BaselineResult:
     """A fixed DAG: features, split, screen, score. Any failure stops the run.
 
-    `after_spark` is called once the features are a pandas frame, before the modelling, so
-    the caller can release the Spark JVM it no longer needs (see `run_with_own_session`).
+    `after_spark` is called once the Spark stage is done, before the modelling, so the caller
+    can release the Spark JVM it no longer needs (see `run_with_own_session`); with `handoff`,
+    the features reach the modelling through parquet written there.
     """
     started = time.perf_counter()
     stages: dict[str, float] = {}
     try:
         t0 = time.perf_counter()
         features = build_features(
-            spark, root, sorted({c for group in cutoffs.values() for c in group})
+            spark, root, sorted({c for group in cutoffs.values() for c in group}),
+            handoff=handoff,
         )
         stages["features_spark"] = round(time.perf_counter() - t0, 2)
         if after_spark is not None:
             after_spark()
+        if handoff is not None:
+            t0 = time.perf_counter()
+            features = read_handoff(handoff)
+            stages["features_read"] = round(time.perf_counter() - t0, 2)
 
         features["snapshot_date"] = pd.to_datetime(features["snapshot_date"])
         feature_cols = [c for c in features.columns
@@ -289,13 +321,18 @@ def run_with_own_session(
         if owned:
             shut_down_jvm(spark)
 
+    handoff = Path(root).parent / f"{Path(root).name}_b3_features_{uuid.uuid4().hex[:6]}"
     try:
-        result = run(spark, root, cutoffs, seed=seed, after_spark=release)
+        result = run(spark, root, cutoffs, seed=seed, after_spark=release, handoff=handoff)
         result.jvm_peak_rss_mb = peak["jvm"] if peak else jvm_peak_rss_mb(spark)
         return result
     finally:
         if not peak:   # the Spark stage failed, so `release` never ran
-            spark.stop()
+            # Its JVM may be what failed. Stopping a dead one raised ConnectionRefusedError
+            # from here and hid the failed result `run` had already made of it (DEC-50).
+            with contextlib.suppress(Exception):
+                spark.stop()
+        shutil.rmtree(handoff, ignore_errors=True)
 
 
 def shut_down_jvm(spark: Any) -> None:

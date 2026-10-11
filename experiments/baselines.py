@@ -310,3 +310,27 @@ def run_isolated(target: str, /, *, timeout_s: float | None = None, **kwargs: An
     if ok:
         return value
     raise RuntimeError(f"{target} raised {value}")
+
+
+def run_baseline(target: str, baseline: str, /, *, timeout_s: float | None = None,
+                 **kwargs: Any) -> BaselineResult:
+    """`run_isolated` for a baseline, with its failure recorded as the baseline's result.
+
+    "Failures beyond memory limits are recorded as results" (PRD 32.1). An out-of-memory kill
+    at the container's limit is SIGKILL, which no `except MemoryError` inside the baseline can
+    see; it arrives here as `IsolatedProcessKilled`, with the cgroup's OOM-kill count as the
+    evidence of what it was. A baseline that raised has failed too: on 11-10-2026 an uncaught
+    one ended the whole of EXP-2 at its largest rung (DEC-50).
+    """
+    import time
+
+    started = time.perf_counter()
+    try:
+        return run_isolated(target, timeout_s=timeout_s, **kwargs)
+    except IsolatedProcessKilled as exc:
+        return BaselineResult(baseline=baseline, ok=False, wall_clock_s=exc.elapsed_s,
+                              detail=f"{'timed out' if exc.timed_out else 'killed'}: {exc}")
+    except RuntimeError as exc:
+        return BaselineResult(baseline=baseline, ok=False,
+                              wall_clock_s=time.perf_counter() - started,
+                              detail=f"raised: {str(exc)[:400]}")

@@ -393,7 +393,7 @@ def fig14() -> Diagram:
     d = Diagram("Fig 14 Explainability Framework", W, 400)
     d.box("m", "Selected\nmodel", 20, 170, 130, 60, kind="compute", bold=True)
     d.box("x0", "TreeSHAP\n(tree ensembles)", 190, 20, 190, 56, kind="agent", size=14)
-    d.box("x1", "Coefficient × input\n(logistic regression)", 190, 95, 190, 56, kind="agent", size=14)
+    d.box("x1", "Coefficient × input\n(logistic regression)", 190, 95, 190, 56, kind="agent", size=14)  # noqa: RUF001 - the figure's multiplication sign
     # A fallback, not a third method that always runs: drawn dashed, as Section 10.1 describes it.
     d.box("x2", "Permutation importance\n(fallback, global only)", 190, 255, 190, 56, kind="agent",
           size=14, dashed=True)

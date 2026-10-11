@@ -604,8 +604,11 @@ def prepare(
         decision=f"{selection.outcome}: {selection.reason}",
         summary=f"{selection.selected.family if selection.selected else 'no candidate'} "
                 f"judged against the acceptance policy",
-        # A JSON column, and the acceptance evidence carries numpy scalars.
-        evidence=jsonable(selection.evidence),
+        # A JSON column, and the acceptance evidence carries numpy scalars. The comparison with
+        # the champion is part of it: a candidate that does not beat its champion escalates on
+        # exactly that (NO_LIFT_OVER_BASELINE), and its decision recorded the reason without the
+        # difference it rested on (DEC-49).
+        evidence=jsonable({**selection.evidence, "champion_delta": selection.champion_delta}),
         policy_rules=selection.rules_applied,
         # `decision_records.alternatives` is a NOT NULL column that was `[]` on all 286 rows:
         # `record_decision` has taken the argument since it was written and no caller passed

@@ -45,7 +45,12 @@ from typing import Any
 
 import pandas as pd
 
-from experiments.baselines import BASELINE_FEATURES, IsolatedProcessKilled, run_isolated
+from experiments.baselines import (
+    BASELINE_FEATURES,
+    IsolatedProcessKilled,
+    run_baseline,
+    run_isolated,
+)
 from experiments.configuration_p import record_p
 from experiments.harness import Experiment
 
@@ -165,13 +170,15 @@ def run() -> Experiment:
         # (experiments.baselines.run_isolated). B3 starts its own SparkSession there, and its
         # JVM's peak is read before that session stops.
         b2_trial = exp.trial("B2_pandas_only")
-        b2_result = run_isolated("experiments.baseline_b2:run",
+        # A baseline killed or raising is that baseline's failed result, as in EXP-2: the
+        # comparison then records it, rather than the experiment ending without one.
+        b2_result = run_baseline("experiments.baseline_b2:run", "B2",
                                  root=source, cutoffs=groups, seed=SEED)
         _record_baseline(b2_trial, b2_result, baseline_b2.source_lines())
 
         # --- B3 -----------------------------------------------------------------
         b3_trial = exp.trial("B3_spark_no_agents")
-        b3_result = run_isolated("experiments.baseline_b3:run_with_own_session",
+        b3_result = run_baseline("experiments.baseline_b3:run_with_own_session", "B3",
                                  root=source, cutoffs=groups, seed=SEED)
         _record_baseline(b3_trial, b3_result, baseline_b3.source_lines())
 
