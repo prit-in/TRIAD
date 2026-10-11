@@ -79,6 +79,7 @@ KILL_INTO_JOB_SECONDS = 10.0
 # cluster job stays in the job's sandbox container, on the internal sandbox network.
 CLUSTER_MASTER = "spark://spark-master:7077"
 WORKER_CONTAINER = "triad-spark-worker-1"
+MASTER_CONTAINER = "triad-spark-master-1"
 # Spark's own account of an executor loss, in the driver's log (TaskSchedulerImpl and
 # TaskSetManager at Spark's default INFO level).
 SPARK_LOSS_MARKERS = ("Lost executor", "Lost task", "ExecutorLostFailure")
@@ -310,24 +311,39 @@ def _execution_metric(session: Any, run_id: Any, stage: str) -> dict[str, Any]:
 
 
 def _spark_saw_loss(session: Any, run_id: Any, stage: str) -> dict[str, Any]:
-    """Count Spark's own lost-executor and lost-task lines in the stage's successful job log."""
+    """Spark's own lost-executor and lost-task lines in every attempt of the stage, and whether
+    a job that lost a task still succeeded - Spark's retries absorbing the loss.
+
+    Every attempt, not only the one that succeeded: if the kill failed a job and the platform's
+    resubmission then succeeded, the loss is in the failed attempt's log, and reading only the
+    successful one would turn a refutation into "the fault did not land".
+    """
     from sqlalchemy import select
 
     from triad_core.models import Execution
     from triad_core.storage import storage
 
-    row = session.execute(
-        select(Execution).where(Execution.run_id == run_id, Execution.stage == stage,
-                                Execution.status == "succeeded")
-        .order_by(Execution.started_at.desc())
-    ).scalars().first()
-    if row is None or not row.log_uri:
-        return {"log_kept": False}
-    try:
-        text = storage().read_text(storage().path(row.log_uri))
-    except OSError:
-        return {"log_kept": False}
-    return {"log_kept": True, **count_loss_lines(text)}
+    store = storage()
+    rows = session.execute(
+        select(Execution).where(Execution.run_id == run_id, Execution.stage == stage)
+        .order_by(Execution.started_at)
+    ).scalars().all()
+    seen: dict[str, Any] = {"log_kept": False, "loss_lines": 0, "lost_task_lines": 0,
+                            "absorbed": False, "examples": []}
+    for row in rows:
+        if not row.log_uri:
+            continue
+        try:
+            counted = count_loss_lines(store.read_text(store.path(row.log_uri)))
+        except OSError:
+            continue
+        seen["log_kept"] = True
+        seen["loss_lines"] += counted["loss_lines"]
+        seen["lost_task_lines"] += counted["lost_task_lines"]
+        seen["examples"] = (seen["examples"] + counted["examples"])[:3]
+        if counted["lost_task_lines"] and row.status == "succeeded":
+            seen["absorbed"] = True
+    return seen
 
 
 def count_loss_lines(text: str) -> dict[str, Any]:
@@ -336,6 +352,46 @@ def count_loss_lines(text: str) -> dict[str, Any]:
     return {"loss_lines": len(lines),
             "lost_task_lines": sum("Lost task" in line for line in lines),
             "examples": [line[-300:] for line in lines[:3]]}
+
+
+def _cluster_containers(action: str) -> bool:
+    """Start or stop the compose cluster's containers through the engine (the batch runner
+    creates them); False when they do not exist or the engine is out of reach."""
+    try:
+        import docker
+
+        client = docker.from_env(timeout=60)
+        names = (MASTER_CONTAINER, WORKER_CONTAINER)
+        for name in names if action == "start" else tuple(reversed(names)):
+            getattr(client.containers.get(name), action)()
+        return True
+    except Exception:
+        return False
+
+
+def _start_cluster() -> bool:
+    """Start the cluster and wait until the master answers and the worker has registered.
+
+    The registration is read from the worker's log since this start only: a container keeps
+    its log across a stop and a start, and an earlier start's line would read as ready.
+    """
+    begun = int(time.time()) - 1
+    if not _cluster_containers("start"):
+        return False
+    import docker
+
+    deadline = time.perf_counter() + 120
+    worker = docker.from_env(timeout=60).containers.get(WORKER_CONTAINER)
+    while time.perf_counter() < deadline:
+        registered = b"Successfully registered with master" in worker.logs(since=begun)
+        if _cluster_reachable() and registered:
+            return True
+        time.sleep(2)
+    return False
+
+
+def _stop_cluster() -> None:
+    _cluster_containers("stop")
 
 
 def _cluster_reachable() -> bool:
@@ -489,7 +545,10 @@ def _arm(
             trial.record("spark_log_kept", seen.get("log_kept"))
             trial.record("spark_loss_lines", seen.get("loss_lines"),
                          note="driver log lines naming a lost executor or a lost task")
-            trial.record("spark_lost_task_lines", seen.get("lost_task_lines"))
+            trial.record("spark_lost_task_lines", seen.get("lost_task_lines"),
+                         note="over every attempt of the stage")
+            trial.record("spark_absorbed_in_the_same_job", seen.get("absorbed"),
+                         note="the job that lost a task still succeeded")
             trial.observations["spark_loss_examples"] = seen.get("examples") or []
 
         # The stage's own record of how many attempts it took and what it changed between them.
@@ -655,13 +714,19 @@ def run() -> Experiment:
         _arm(exp, "skewed_one_customer_20pct", skewed, features=True)
 
         # --- arm 5: an executor of a cluster job is killed --------------------------
+        # The cluster runs only for these two arms: started here and stopped as soon as they
+        # end, so the local arms above share the VM with nothing they did not start themselves.
         cluster = {"spark_master": CLUSTER_MASTER}
-        cluster_up = _cluster_reachable()
+        cluster_up = _start_cluster()
         cluster_reference: dict[str, Any] = {}
-        if cluster_up:
-            cluster_reference = _arm(exp, "cluster_baseline", shared, config_overrides=cluster)
-            _arm(exp, "executor_killed_on_cluster", shared, config_overrides=cluster,
-                 kill_executor=True)
+        try:
+            if cluster_up:
+                cluster_reference = _arm(exp, "cluster_baseline", shared,
+                                         config_overrides=cluster)
+                _arm(exp, "executor_killed_on_cluster", shared, config_overrides=cluster,
+                     kill_executor=True)
+        finally:
+            _stop_cluster()
 
         # --- read it -------------------------------------------------------------
         by_name = {t.condition: t for t in exp.trials}
@@ -687,12 +752,18 @@ def run() -> Experiment:
         if executor_kill is not None and cbase is not None:
             cluster_hash = cluster_reference.get("content_hash")
             cbase.record("identical_to_clean_run",
-                         bool(reference_hash) and cluster_hash == reference_hash,
+                         (cluster_hash == reference_hash) if cluster_hash and reference_hash
+                         else None,
                          note="the cluster's clean output against local mode's, same data")
+            # Against the clean cluster run, or local mode's if that one produced nothing; with
+            # neither, nothing was compared, which is not a difference.
+            compared_with = cluster_hash or reference_hash
+            killed_hash = _value(executor_kill, "content_hash")
             executor_kill.record(
                 "identical_to_clean_run",
-                bool(cluster_hash) and _value(executor_kill, "content_hash") == cluster_hash,
-                note="against the clean run on the same cluster")
+                (killed_hash == compared_with) if compared_with and killed_hash else None,
+                note="against the clean run on the cluster" if cluster_hash
+                else "against the clean run in local mode")
 
         # Each arm counts only if its fault landed (module docstring); a claim whose fault did
         # not land is untested (None), never refuted.
@@ -707,14 +778,18 @@ def run() -> Experiment:
         ) if oom_landed else None
         kill_ok = (kill.ok and _value(kill, "identical_to_clean_run") is True
                    if kill_landed else None)
-        # Spark's own retries absorbed it only if the executor died under the running job, the
-        # platform did not have to resubmit, and the driver's log shows the tasks it lost.
+        # The fault landed if an executor died under the running job and a driver's log names a
+        # task it lost; Spark absorbed it if that same job still succeeded, with no platform
+        # resubmission for it, and the output matched. An unmade comparison leaves it untested.
         spark_landed = (executor_kill is not None
                         and bool(_value(executor_kill, "executor_killed"))
                         and bool(_value(executor_kill, "spark_lost_task_lines")))
-        spark_ok = (bool(executor_kill.ok) and _value(executor_kill, "attempts") == 1
-                    and _value(executor_kill, "identical_to_clean_run") is True
-                    if spark_landed else None)
+        spark_ok = None
+        if spark_landed:
+            identical = _value(executor_kill, "identical_to_clean_run")
+            absorbed = bool(_value(executor_kill, "spark_absorbed_in_the_same_job"))
+            spark_ok = (False if not absorbed or identical is False
+                        else None if identical is None else True)
         # At this size no partition approaches AQE's skew thresholds (256 MB), so completing
         # says nothing about skew handling; the measured task skew is reported instead.
         skew_ok = None

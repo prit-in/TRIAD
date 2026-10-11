@@ -300,7 +300,11 @@ def load_history(exp_id: str, root: Path | None = None) -> list[dict[str, Any]]:
             except (OSError, json.JSONDecodeError):
                 entry["status"] = "unreadable"
         if note.exists():
-            entry["note"] = note.read_text(encoding="utf-8")[:4000]
+            entry["note"] = note.read_text(encoding="utf-8", errors="replace")[:4000]
+        if len(entry) == 1 and (folder / "config.json").exists():
+            # Started - the harness writes its config first - and never finished: a run that
+            # was killed before it could write a result.
+            entry["status"] = "incomplete"
         if len(entry) > 1:
             runs.append(entry)
     return runs

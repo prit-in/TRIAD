@@ -549,18 +549,22 @@ class MonitoringService:
             return None
 
         # A retrain trains on the data as it is now - the drift that fired it is the difference
-        # between that and what the champion saw - so each input is the latest registered
-        # version, and the source run's own URI only where a dataset has none. Copying the
-        # source's inputs retrained on the stale snapshot, and a source that recorded none
-        # (the early demo runs) produced a run the pipeline rejected for want of transactions.
+        # between that and what the champion saw - so each input is the latest version of the
+        # dataset the source run read it from, found through the version it recorded. Only an
+        # input recorded by a URI no version holds, or not recorded at all (the early demo runs
+        # recorded none), falls back to the dataset named after it. Looking every input up by
+        # its name instead retrained an EXP-7 champion, whose datasets carry the experiment's
+        # tag, on whatever other run had last registered `transactions` (DEC-48); copying the
+        # source's URIs retrained on the stale snapshot.
         from dataeng.ingest import DatasetRegistry
 
-        inputs = {
-            **dict(source.input_versions or {}),
-            **DatasetRegistry(self.session, self.storage).latest_uris(
-                {*(source.input_versions or {}), *(self.config.get("inputs") or {})}
-            ),
-        }
+        registry = DatasetRegistry(self.session, self.storage)
+        recorded = dict(source.input_versions or {})
+        by_dataset = registry.latest_of_versions(recorded)
+        by_name = registry.latest_uris(
+            {*recorded, *(self.config.get("inputs") or {})} - set(by_dataset)
+        )
+        inputs = {**recorded, **by_name, **by_dataset}
         config: dict[str, Any] = {"retraining": decision.to_dict(),
                                   "parent_run": source.run_key}
         # A retrain replaces its parent's model, so it trains under the same registered name;

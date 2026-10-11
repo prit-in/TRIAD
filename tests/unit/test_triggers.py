@@ -243,3 +243,43 @@ def test_a_retired_model_is_no_longer_watched(db_session, config) -> None:
     assert _runs_started_from(db_session, source) == []
     assert db_session.execute(select(AuditLog).where(
         AuditLog.action == "model.retired", AuditLog.resource_id == str(model.id))).first()
+
+
+def test_a_retrain_reads_the_newest_version_of_the_dataset_its_parent_read(db_session,
+                                                                        config) -> None:
+    """Not the dataset that shares the input's name: an EXP-7 champion read datasets carrying
+    the experiment's tag, and its retrain was given whatever another run had last registered
+    as `transactions` (DEC-48)."""
+    from sqlalchemy import func
+
+    from triad_core.models import Dataset, DatasetVersion
+
+    def add_version(name: str) -> str:
+        dataset = db_session.execute(
+            select(Dataset).where(Dataset.name == name)).scalar_one_or_none()
+        if dataset is None:
+            dataset = Dataset(name=name, entity_type="transaction", source_type="parquet")
+            db_session.add(dataset)
+            db_session.flush()
+        number = 1 + (db_session.execute(
+            select(func.max(DatasetVersion.version_no))
+            .where(DatasetVersion.dataset_id == dataset.id)).scalar() or 0)
+        uri = f"file:///data/triad/raw/{name}/v={number}/part-00000.parquet"
+        db_session.add(DatasetVersion(dataset_id=dataset.id, version_no=number, storage_uri=uri,
+                                      checksum_sha256=uuid.uuid4().hex * 2, size_bytes=1))
+        db_session.flush()
+        return uri
+
+    tagged = f"transactions__trig{uuid.uuid4().hex[:6]}"
+    read = add_version(tagged)
+    arrived = add_version(tagged)
+    elsewhere = add_version("transactions")
+    source, _ = _champion(db_session, trained_days_ago=40,
+                          pipeline=f"churn-own-{uuid.uuid4().hex[:6]}")
+    source.input_versions = {"transactions": read}
+    db_session.flush()
+
+    Scheduler(config).tick(db_session)
+
+    [run] = _runs_started_from(db_session, source)
+    assert run.input_versions["transactions"] == arrived != elsewhere

@@ -241,7 +241,11 @@ def _end_to_end(exp: Experiment) -> Any:
         """File and decide the run's promotion the way the policy routes it; return the publish
         task, claimed. None when the candidate is neither proposed nor eligible."""
         governance = GovernanceService(session, PolicyEngine(settings().governance_policy_path))
-        state = churn.read_state(store, run)
+        state = _state(store, run)
+        if not state:
+            trial.record(f"{who}_promotion_path", None,
+                         note=f"{run.state}: the run stopped before selection")
+            return None
         outcome = state.get("selection_outcome")
         if outcome == "PROPOSE_PROMOTION":
             path = "model.promote"
@@ -297,13 +301,19 @@ def _end_to_end(exp: Experiment) -> Any:
                                                    or {}).get("failed_rules") or [])
             task = decide_promotion(session, run_a, "champion")
         if task is None:
-            trial.ok = False
-            trial.detail = (f"the first model could not be promoted ({prepared.state}: "
-                            f"{prepared.reason[:200]}), so there was no champion to test against")
-            return trial
+            return _conclude_chain(trial, parts=dict.fromkeys(CHAIN_PARTS), why=(
+                f"the first model could not be promoted ({prepared.state}: "
+                f"{prepared.reason[:200]}), so there was no champion to test against"))
         worker.handle(task)
         champion_version = champion_now()
         trial.record("champion_after_publish", champion_version)
+        if champion_version is None:
+            return _conclude_chain(trial, parts=dict.fromkeys(CHAIN_PARTS), why=(
+                "the first model's promotion was approved but its publish set no champion "
+                "alias, so there was no champion to test against"))
+        # It waited if no champion alias existed while its approval was pending - this is the
+        # model's first promotion - and one exists now that it has been decided.
+        champion_waited = _maybe(trial, "champion_champion_while_pending") is None
 
         with session_scope() as session:
             model = session.execute(select(Model).where(Model.name == model_name)).scalar_one()
@@ -327,6 +337,8 @@ def _end_to_end(exp: Experiment) -> Any:
             trial.record("publish_retraining_outcome",
                          publish_eval.outcome if publish_eval is not None else None,
                          note="publish's own evaluation, with the configured 7-day cooldown")
+        flagged = bool(_maybe(trial, "drift_flagged_features")
+                       or _maybe(trial, "drift_score_flagged"))
 
         # --- 2. new data arrives, and the scheduler evaluates the champion --------------------
         generate(E2E_MONTHS + E2E_NEW_MONTHS, root / "latest")
@@ -347,12 +359,22 @@ def _end_to_end(exp: Experiment) -> Any:
             retrain_id = queued.id if queued is not None else None
             if queued is not None:
                 trial.record("retraining_trigger_type", queued.trigger_type)
+                trial.record("retraining_read_the_arrived_data",
+                             all((queued.input_versions or {}).get(t) == uri
+                                 for t, uri in arrived.items()),
+                             note="every input is the version that arrived (DEC-48)")
                 trial.record("retraining_trains_the_same_model",
                              (queued.config_json or {}).get("model_name") == model_name)
         if retrain_task is None:
-            trial.ok = False
-            trial.detail = "the drift on the champion's latest cutoff did not start a retrain"
-            return trial
+            # Drift that fired and started nothing refutes the second step; no drift leaves it
+            # untested, since nothing should have started.
+            return _conclude_chain(trial, parts={
+                "drift_flagged": flagged,
+                "retraining_started": False if flagged else None,
+                "challenger_compared": None,
+                "promotion_waited": champion_waited,
+            }, why=("drift was flagged on the champion's latest cutoff and no retrain started"
+                    if flagged else "no drift was flagged on the champion's latest cutoff"))
 
         # --- 3. the retrain runs, meets the champion, and waits --------------------------------
         t0 = time.perf_counter()
@@ -360,7 +382,10 @@ def _end_to_end(exp: Experiment) -> Any:
         trial.record("retraining_prepare_s", round(time.perf_counter() - t0, 1), "s")
         with session_scope() as session:
             run_c = session.get(PipelineRun, retrain_id)
-            state = churn.read_state(store, run_c)
+            state = _state(store, run_c)
+            # A retrain that stopped before selection never met the champion: the comparison is
+            # then untested, and its state says where it stopped.
+            challenger_reached = bool(state)
             selection = state.get("selection") or {}
             delta = selection.get("champion_delta") or {}
             trial.record("challenger_state", run_c.state)
@@ -375,31 +400,28 @@ def _end_to_end(exp: Experiment) -> Any:
             worker.handle(publish_task)
             trial.record("champion_after_challenger_publish", champion_now())
 
-        flagged = bool(_maybe(trial, "drift_flagged_features")
-                       or _maybe(trial, "drift_score_flagged"))
-        champion_waited = _maybe(trial, "champion_champion_while_pending") is None and \
-            champion_version is not None
-        challenger_waited = (_maybe(trial, "challenger_promotion_path") is None
-                             or (_maybe(trial, "challenger_champion_while_pending")
-                                 == champion_version
-                                 and _maybe(trial, "champion_after_challenger_publish")
-                                 not in (None, champion_version)))
-        trial.ok = bool(flagged and _maybe(trial, "retraining_should_start")
-                        and _maybe(trial, "challenger_compared_with_champion")
-                        and champion_waited and challenger_waited)
-        trial.detail = (
-            f"drift flagged on the champion's latest cutoff: {flagged}; the scheduler's "
-            f"evaluation fired {trial.get('retraining_rules_fired')} and queued "
-            f"{trial.get('retraining_run')}; the challenger was compared with champion "
-            f"v{champion_version}: {trial.get('challenger_compared_with_champion')} "
-            f"({trial.get('challenger_selection')}); the champion's own promotion waited with "
-            f"no alias until approved: {champion_waited}; the challenger's: "
-            + ("nothing to decide" if _maybe(trial, "challenger_promotion_path") is None
-               else f"alias held at v{_maybe(trial, 'challenger_champion_while_pending')} "
-                    f"while pending, v{_maybe(trial, 'champion_after_challenger_publish')} "
-                    "after approval")
-        )
-        return trial
+        challenger_pending = _maybe(trial, "challenger_promotion_path") is not None
+        if challenger_pending:
+            trial.record("challenger_promoted_after_approval",
+                         _maybe(trial, "champion_after_challenger_publish")
+                         not in (None, champion_version))
+        return _conclude_chain(trial, parts={
+            "drift_flagged": flagged,
+            # Started, and on the data that arrived: a retrain of the wrong data is not the
+            # retraining the hypothesis means (DEC-48).
+            "retraining_started": bool(_maybe(trial, "retraining_should_start")
+                                       and _maybe(trial, "retraining_read_the_arrived_data")),
+            "challenger_compared": (_maybe(trial, "challenger_compared_with_champion")
+                                    if challenger_reached else None),
+            "promotion_waited": champion_waited and (
+                _maybe(trial, "challenger_champion_while_pending") == champion_version
+                if challenger_pending else True),
+        }, why=(f"the scheduler's evaluation fired {_maybe(trial, 'retraining_rules_fired')} and "
+                f"queued {_maybe(trial, 'retraining_run')}, which read "
+                f"{_maybe(trial, 'retraining_read_the_arrived_data')} the data that had "
+                f"arrived; the challenger reached selection: {challenger_reached} "
+                f"({_maybe(trial, 'challenger_selection')}), against champion "
+                f"v{champion_version}"))
     finally:
         trial.record("elapsed_s", round(time.perf_counter() - started, 1), "s")
         worker.close()
@@ -416,6 +438,32 @@ def _end_to_end(exp: Experiment) -> Any:
                 # which withdraws an approval nobody will now decide.
                 if run.state not in TERMINAL_STATES | {"PUBLISHED", "MONITORING"}:
                     q.set_state(session, run, "CANCELLED", actor=tag)
+
+
+CHAIN_PARTS = ("drift_flagged", "retraining_started", "challenger_compared", "promotion_waited")
+
+
+def _state(store: Any, run: Any) -> dict[str, Any]:
+    """A run's prepare state, or {} when its prepare stopped before selection wrote one."""
+    from agents.graph import churn
+
+    try:
+        return churn.read_state(store, run)
+    except FileNotFoundError:
+        return {}
+
+
+def _conclude_chain(trial: Any, *, parts: dict[str, bool | None], why: str) -> Any:
+    """The end-to-end arm's verdict from its four parts: False if a tested part failed, None if
+    a part was never tested because the chain did not reach it, True only if all four held. A
+    step the chain never reached is untested, not refuted."""
+    verdict = (False if any(v is False for v in parts.values())
+               else None if any(v is None for v in parts.values()) else True)
+    trial.observations["parts"] = parts
+    trial.observations["verdict"] = verdict
+    trial.ok = verdict is True
+    trial.detail = why + ". Parts: " + ", ".join(f"{k}={v}" for k, v in parts.items())
+    return trial
 
 
 def _maybe(trial: Any, name: str) -> Any:
@@ -653,10 +701,16 @@ def run() -> Experiment:
             "what the independent variable requires."
         )
 
+        # The detector arms are tested in full; the chain may not reach a part (untested, None),
+        # in which case the experiment is partial and its verdict is not a refutation.
+        detectors = bool(covariate_flagged and concept_dropped and all_retrain and stable.ok)
+        chain_verdict = chain.observations.get("verdict")
+        if chain_verdict is None:
+            exp.limitation(f"The end-to-end arm did not test every part: {chain.detail}.")
         exp.conclude(
-            status="completed" if chain.ok else "partial",
-            hypothesis_held=(covariate_flagged and concept_dropped and all_retrain and stable.ok
-                             and chain.ok),
+            status="partial" if chain_verdict is None else "completed",
+            hypothesis_held=(False if not detectors or chain_verdict is False
+                             else None if chain_verdict is None else True),
             conclusion=(
                 f"False alarms: {false_alarms} of {STABLE_MONTHS} undrifted months flagged, "
                 f"highest PSI {max(stable_psis):.5f} against a "

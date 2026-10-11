@@ -50,6 +50,8 @@ from triad_core.storage import Storage, StorageError, storage
 
 SCALA_ROOT = settings().repo_root / "scala_spark"
 LOG_TAIL_CHARS = 2_000_000   # what a job log keeps: its last 2 MB
+# What the compose worker offers its executors is 1800 MiB (SPARK_WORKER_MEMORY).
+CLUSTER_EXECUTOR_MEMORY_MAX = "1536m"
 
 
 class ReplayUnavailable(RuntimeError):
@@ -1049,6 +1051,14 @@ class ChurnPipeline:
         return self.result
 
 
+def _memory_mb(value: str) -> int:
+    """A Spark memory size ("1536m", "2g") in MiB."""
+    match = re.fullmatch(r"(\d+)([mMgG])", str(value).strip())
+    if match is None:
+        raise ValueError(f"not a Spark memory size: {value!r}")
+    return int(match.group(1)) * (1024 if match.group(2).lower() == "g" else 1)
+
+
 def job_resources(
     config: dict[str, Any], stage_inputs: dict[str, Any], routing: dict[str, Any]
 ) -> dict[str, Any]:
@@ -1065,6 +1075,13 @@ def job_resources(
     local = master.startswith("local")
     memory = stage_inputs.get("executor_memory")
     driver = config.get("spark", {}).get("driver_memory", "1g")
+    if memory and not local:
+        # No bigger than a worker can host: an executor no worker offers the memory for is never
+        # scheduled, and the job waits for its hard timeout instead of failing (DEC-48).
+        cap = str(config.get("spark", {}).get("cluster_executor_memory_max",
+                                              CLUSTER_EXECUTOR_MEMORY_MAX))
+        if _memory_mb(memory) > _memory_mb(cap):
+            memory = cap
     return {
         # PRD 22.4 assigns "small" to dry runs and tests and "medium" to a Spark client; the
         # full execution ran as "small", whose 10-minute timeout a full job at a larger tier

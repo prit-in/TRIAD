@@ -532,7 +532,10 @@ def run_executions(run_ref: str, session: DbSession) -> list[ExecutionView]:
             exit_code=e.exit_code, duration_ms=e.duration_ms, started_at=e.started_at,
             finished_at=e.finished_at, spark_app_id=e.spark_app_id,
             spark=(e.metrics_json or {}).get("spark"),
-            master=(e.resources_json or {}).get("master"),
+            # Recorded before DEC-46, `master` held the router's recommendation, not where the
+            # job ran; those rows carry no `routed_deploy_mode`, and their master is unknown.
+            master=((e.resources_json or {}).get("master")
+                    if "routed_deploy_mode" in (e.resources_json or {}) else None),
             routed_deploy_mode=(e.resources_json or {}).get("routed_deploy_mode"),
             log_kept=bool(e.log_uri),
         )
@@ -554,9 +557,10 @@ def run_logs(
 ) -> list[LogLine]:
     """The timeline the platform recorded, not a raw stdout capture.
 
-    Raw job output is kept under the run's reports folder, out of reach of later sandboxed
-    jobs, and referenced by `executions.log_uri` (DEC-46); it is not served here because it is
-    the one place customer values can appear verbatim. What this
+    Raw job output is kept under the run's reports folder and referenced by
+    `executions.log_uri` (DEC-46). A local-mode job's sandbox cannot see it; on the compose
+    cluster the executors run in the shared worker, which mounts the whole data volume. It is
+    not served here because it is the one place customer values can appear verbatim. What this
     returns is what the platform itself recorded, passed through the same redaction the LLM
     adapter uses, so an identifier cannot leak through a log line.
     """

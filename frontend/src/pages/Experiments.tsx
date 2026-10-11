@@ -24,6 +24,7 @@ const STATUS_TONE: Record<string, string> = {
   partial: "waiting",
   not_run: "busy",
   failed: "bad",
+  incomplete: "bad",
 };
 
 /** A measurement as recorded: numbers and text as they are, lists joined, nothing as a dash. */
@@ -92,14 +93,12 @@ export function Experiments() {
               <th>Experiment</th>
               <th>Status</th>
               <th>Verdict</th>
-              <th>Trials as expected</th>
               <th>Last run</th>
             </tr>
           </thead>
           <tbody>
             {all.map((e) => {
               const outcome = verdict(e.hypothesis_held);
-              const trials = e.trials ?? [];
               return (
                 <tr key={e.exp_id}>
                   <td>
@@ -112,9 +111,6 @@ export function Experiments() {
                   </td>
                   <td>
                     <span className={`pill ${outcome.tone}`}>{outcome.text}</span>
-                  </td>
-                  <td>
-                    {trials.filter((trial) => trial.ok).length} of {trials.length}
                   </td>
                   <td>{e.started_at ? when(e.started_at) : "—"}</td>
                 </tr>
@@ -209,8 +205,11 @@ function ExperimentCard({ experiment }: { experiment: ExperimentResult }) {
                         <tr key={trial.condition}>
                           <td className="mono">{trial.condition}</td>
                           <td>
-                            <span className={`pill ${trial.ok ? "good" : "bad"}`}>
-                              {trial.ok ? "as expected" : "not as expected"}
+                            {/* Each experiment decides what its trials' flag means; the
+                                detail beside it says what happened. */}
+                            <span className={`pill ${trial.ok ? "good" : "bad"}`}
+                                  title="The experiment's own flag for this condition">
+                              {trial.ok ? "ok" : "not ok"}
                             </span>
                           </td>
                           <td>

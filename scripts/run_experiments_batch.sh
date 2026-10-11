@@ -15,8 +15,9 @@ for exp in $ORDER; do
   extra=""
   if [ "$exp" = "EXP-6" ]; then
     extra="-v /var/run/docker.sock:/var/run/docker.sock"
-    # Its cluster arm needs the compose Spark cluster, started for EXP-6 alone and stopped after.
-    MSYS_NO_PATHCONV=1 docker compose -f docker/compose.yaml --profile spark up -d       spark-master spark-worker > "$LOG/$exp.cluster.log" 2>&1
+    # Its cluster arms need the compose Spark cluster. Created here, not started: EXP-6 starts
+    # it for those two arms only and stops it after them, and the stop below is a backstop.
+    MSYS_NO_PATHCONV=1 docker compose -f docker/compose.yaml --profile spark create       spark-master spark-worker > "$LOG/$exp.cluster.log" 2>&1
   fi
   # EXP-2 measures where memory runs out. `--no-deps` keeps `compose run` from starting anything
   # beside it; its configuration P needs postgres, mlflow and sandbox-runner already up (DEC-44).

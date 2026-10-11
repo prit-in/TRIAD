@@ -464,4 +464,7 @@ def gate9_execute(result: dict[str, Any], contract_result: Any) -> GateResult:
         result.get("detail", "full run completed and the contract passed again"
                    if ok else "full run failed"),
         error_class=None if ok else ErrorClass.CONTRACT_VIOLATION,
+        # The full run's own time. Left at the default, every gate 9 recorded 0 ms, and
+        # anything reading a run's time off its gates read the work as taking none (DEC-48).
+        duration_ms=int(result.get("duration_ms") or 0),
     )

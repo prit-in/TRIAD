@@ -268,6 +268,24 @@ class DatasetRegistry:
             .limit(1)
         ).scalar_one_or_none()
 
+    def latest_of_versions(self, uris: dict[str, str]) -> dict[str, str]:
+        """For each input, the latest version of the dataset its recorded URI belongs to.
+
+        A run records the versions it read, keyed by the input they fed; the dataset a version
+        belongs to is the one to follow, whatever its name. Inputs whose URI is not a
+        registered version are left out.
+        """
+        out: dict[str, str] = {}
+        for key, uri in uris.items():
+            version = self.session.execute(
+                select(DatasetVersion).where(DatasetVersion.storage_uri == uri)
+            ).scalars().first()
+            dataset = self.session.get(Dataset, version.dataset_id) if version else None
+            latest = self.latest_version(dataset) if dataset is not None else None
+            if latest is not None and latest.storage_uri:
+                out[key] = latest.storage_uri
+        return out
+
     def latest_uris(self, names: Iterable[str]) -> dict[str, str]:
         """Storage URI of the latest version of each named dataset; unregistered names are left out."""
         uris: dict[str, str] = {}

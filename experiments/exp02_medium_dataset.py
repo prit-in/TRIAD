@@ -327,6 +327,9 @@ def run() -> Experiment:
                 p_trial.ok = False
                 p_trial.detail = f"P's process ended without returning: {exc}"
                 p_trial.record("wall_clock_s", round(exc.elapsed_s, 1), "s")
+            except RuntimeError as exc:   # P raised: a failure of P, not of the experiment
+                p_trial.ok = False
+                p_trial.detail = f"P raised before it finished: {str(exc)[:400]}"
             p_finished = bool(p_trial.ok)
             b3_s = _value(rung, "b3_wall_clock_s")
             p_s = _value(p_trial, "wall_clock_s")
@@ -350,9 +353,14 @@ def run() -> Experiment:
                 p_sentence = f" P at {target} did not finish: {p_trial.detail[:200]}."
 
         # --- what 10 GB would take, from this run's own largest rung ---------------------
-        if rungs:
-            last = rungs[-1]
-            per_customer = (_value(last, "bytes_on_disk") or 0) / max(1, _value(last, "customers") or 1)
+        # The last rung whose data was generated: a rung whose generation failed has no size.
+        sized = [t for t in rungs if _value(t, "bytes_on_disk")]
+        if not sized:
+            exp.limitation("The PRD's 10 GB tier was not run, and no rung's data was generated "
+                           "to extrapolate the generator from.")
+        else:
+            last = sized[-1]
+            per_customer = _value(last, "bytes_on_disk") / max(1, _value(last, "customers") or 1)
             gen_rate = (_value(last, "generate_s") or 0) / max(1, _value(last, "customers") or 1)
             if per_customer:
                 needed = TEN_GB / per_customer
@@ -367,7 +375,15 @@ def run() -> Experiment:
                     "asserts, and P beside B3 where it happens."
                 )
 
-        held = crossover is not None and p_finished and ratio is not None and ratio <= 1.2
+        # Each part is judged only where the ladder reached it. With a crossover, P has to
+        # finish there and stay within 20% of B3; B3 giving out while B2 finishes refutes the
+        # shape; both failing together, or neither failing on this ladder, tests nothing.
+        if crossover is not None:
+            held = bool(p_finished and ratio is not None and ratio <= 1.2)
+        elif b3_failed_at is not None and not b2_failed_there:
+            held = False
+        else:
+            held = None
         exp.conclude(
             status="partial",
             hypothesis_held=held,

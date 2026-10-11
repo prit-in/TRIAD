@@ -397,14 +397,14 @@ def test_a_job_runs_where_spark_master_says_and_its_memory_remedy_feeds_the_righ
     from agents.graph.pipeline import job_resources
 
     routed = {"deploy_mode": "cluster"}
-    raised = {"executor_memory": "2048m"}
+    raised = {"executor_memory": "1280m"}   # under the cluster cap, which is tested below
     local = job_resources({"spark": {"driver_memory": "1g"}}, raised, routed)
     assert (local["master"], local["routed_deploy_mode"]) == ("local[2]", "cluster")
-    assert local["driver_memory"] == "2048m" and "executor_memory" not in local
+    assert local["driver_memory"] == "1280m" and "executor_memory" not in local
 
     cluster = job_resources({"spark_master": "spark://spark-master:7077",
                              "spark": {"driver_memory": "1g"}}, raised, routed)
-    assert cluster["driver_memory"] == "1g" and cluster["executor_memory"] == "2048m"
+    assert cluster["driver_memory"] == "1g" and cluster["executor_memory"] == "1280m"
     assert job_resources({}, {}, {})["driver_memory"] == "1g", "no remedy: the configured heap"
 
 
@@ -422,3 +422,17 @@ def test_a_jobs_log_is_kept_with_its_execution(db_session, storage) -> None:
 
     assert kept.endswith("Lost executor 0") and len(kept) == LOG_TAIL_CHARS
     assert pipeline._keep_log("clean", "") is None
+
+
+def test_a_cluster_executor_is_never_asked_for_more_than_a_worker_offers() -> None:
+    """Doubled past what any worker hosts, the executor is never scheduled and the job waits
+    for its hard timeout; so the remedy stops at the cap (the compose worker offers 1800 MiB)."""
+    from agents.graph.pipeline import CLUSTER_EXECUTOR_MEMORY_MAX, job_resources
+
+    cluster = {"spark_master": "spark://spark-master:7077"}
+    raised = job_resources(cluster, {"executor_memory": "4096m"}, {})
+    assert raised["executor_memory"] == CLUSTER_EXECUTOR_MEMORY_MAX
+    smaller = job_resources({**cluster, "spark": {"cluster_executor_memory_max": "1g"}},
+                            {"executor_memory": "2g"}, {})
+    assert smaller["executor_memory"] == "1g"
+    assert job_resources(cluster, {"executor_memory": "1024m"}, {})["executor_memory"] == "1024m"

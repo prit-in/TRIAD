@@ -105,16 +105,22 @@ def _summary(session: DbSession, model: Model) -> ModelSummary:
         target_definition=model.target_definition,
         champion=_version_view(session, champion) if champion else None,
         challenger=_version_view(session, challenger) if challenger else None,
-        experiment=_experiment(session, versions),
+        experiment=_experiment(session, model, versions),
     )
 
 
-def _experiment(session: DbSession, versions: list[ModelVersion]) -> str | None:
-    """The experiment whose run trained a version of this model, if any (its run config)."""
+def _experiment(session: DbSession, model: Model, versions: list[ModelVersion]) -> str | None:
+    """The experiment that trained this model under a name of its own (EXP-7), if one did.
+
+    Only a run that named the model counts: EXP-1, EXP-5 and others train the platform's own
+    model and say so in their run config, and counting any experiment run labelled - and hid -
+    the platform's champion as an experiment's.
+    """
     for version in versions:
         run = session.get(PipelineRun, version.run_id) if version.run_id else None
-        if run is not None and (run.config_json or {}).get("experiment"):
-            return str(run.config_json["experiment"])
+        config = (run.config_json or {}) if run is not None else {}
+        if config.get("experiment") and config.get("model_name") == model.name:
+            return str(config["experiment"])
     return None
 
 

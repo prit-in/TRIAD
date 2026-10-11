@@ -65,9 +65,9 @@ def _run_triad(exp: Experiment, source: Path) -> dict[str, Any]:
     try:
         p = run_isolated("experiments.configuration_p:run_p", source=str(source),
                          prefix="exp01", experiment="EXP-1", seed=SEED)
-    except IsolatedProcessKilled as exc:
+    except (IsolatedProcessKilled, RuntimeError) as exc:   # killed, or P raised
         trial.ok = False
-        trial.detail = f"P's process ended without returning: {exc}"
+        trial.detail = f"P ended without a result: {str(exc)[:400]}"
         trial.record("test_pr_auc", None, note="not measured")
         return {}
     record_p(trial, p)
@@ -203,13 +203,29 @@ def run() -> Experiment:
             and p_wall > b2_result.wall_clock_s
         )
         no_manual_step = p_trial.get("human_actions_excluding_approval") == 0
+        # The hypothesis's second half, measured the way B3 exists to measure it: B3 does the
+        # same Spark work and modelling with no agents, so P's time beyond B3's is the cost of
+        # the agentic loop. "Slower than B2" is the expected observation, not the hypothesis,
+        # and used to stand in for this half of the verdict.
+        overhead_share = (
+            round((p_wall - b3_result.wall_clock_s) / p_wall, 3)
+            if b3_result.ok and isinstance(p_wall, (int, float)) and p_wall > 0 else None
+        )
+        p_trial.record("agentic_overhead_share", overhead_share,
+                       note="(P - B3) / P: P's time beyond the same work done without agents; "
+                            "none of it is LLM time, as no provider is configured")
+        overhead_dominates = None if overhead_share is None else overhead_share > 0.5
 
         exp.conclude(
             status="partial",
-            hypothesis_held=bool(p_trial.ok and no_manual_step and slower_than_b2),
+            hypothesis_held=(False if not (p_trial.ok and no_manual_step)
+                             else overhead_dominates),
             conclusion=(
                 f"Wall-clock: P {p_wall}s, B3 {round(b3_result.wall_clock_s, 1)}s, "
                 f"B2 {round(b2_result.wall_clock_s, 1)}s, B1 not measured. "
+                f"P's time beyond B3's - the agentic loop's cost, with no LLM time in it - is "
+                f"{overhead_share} of P's wall clock, so overhead dominates P's time at this "
+                f"size: {overhead_dominates}. "
                 f"P is slower than B2: {slower_than_b2}, which is the expected observation at "
                 f"this size and the argument for local-mode routing (LR-07). "
                 + (

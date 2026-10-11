@@ -257,14 +257,10 @@ class StageRunner:
     def _record_execution_gates(
         self, outcome: StageOutcome, execution: dict[str, Any], contract_result: Any
     ) -> None:
-        """Append gates 7 and 9 to this stage's gate reports.
+        """Append gates 7 and 9, the two that need the execution, to this stage's gate reports.
 
-        Gates 5 and 6 are deliberately **not** recorded here, because they do not run: gate 5
-        is the Scala fixture suite, which gate 4's compile already shares a toolchain with and
-        which would add minutes to every stage, and gate 6 is a sandbox dry run on a sample,
-        which this pipeline does not perform - it runs the job once, on the whole input. Both
-        absences are stated in the documentation rather than papered over with a gate that
-        reports `True` for something nobody checked.
+        Gates 1 to 6 and 8 run before the job and are recorded by the stage's validation
+        (`ChurnPipeline._validate_scala`); gate 9 carries the full run's own duration.
         """
         from agents.codegen import gates as G
 

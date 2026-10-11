@@ -92,20 +92,9 @@ def run_p(source: str | Path, *, prefix: str, experiment: str, seed: int = SEED)
     The run is cancelled afterwards (which withdraws any approval it asked for): an experiment
     measures the run up to the decision, and nobody is going to make it.
     """
-    from sqlalchemy import select
-
-    from agents.graph import churn
     from agents.graph import queue as q
-    from experiments.baselines import jvm_peak_rss_mb, peak_rss_mb
     from triad_core.db import session_scope
-    from triad_core.models import (
-        AuditLog,
-        CodeArtifact,
-        DecisionRecord,
-        Execution,
-        LlmInvocation,
-        PipelineRun,
-    )
+    from triad_core.models import PipelineRun
     from triad_core.storage import storage
 
     source = Path(source)
@@ -130,6 +119,38 @@ def run_p(source: str | Path, *, prefix: str, experiment: str, seed: int = SEED)
     # transaction spanning the whole run holds that lock for its duration and every
     # `auth.login` blocks behind it (observed in EXP-1: idle for 377 s with a login queued).
     out: dict[str, Any] = {"pipeline_name": pipeline_name, "ingest_s": ingest_s}
+    try:
+        return _prepare_and_read(out, run_id, registered, store, prefix, seed, started)
+    except BaseException:
+        # P raised: close its run, so nothing waits on it, and let the caller record the
+        # failure. The session that raised has rolled back, hence a new one.
+        with session_scope() as session:
+            run = session.get(PipelineRun, run_id)
+            if run is not None and run.state != "CANCELLED":
+                q.set_state(session, run, "CANCELLED", actor=prefix)
+        raise
+
+
+def _prepare_and_read(
+    out: dict[str, Any], run_id: Any, registered: dict[str, str], store: Any, prefix: str,
+    seed: int, started: float,
+) -> dict[str, Any]:
+    """`run_p`'s second half: the pipeline, then what it did, read off the platform's records."""
+    from sqlalchemy import select
+
+    from agents.graph import churn
+    from agents.graph import queue as q
+    from experiments.baselines import jvm_peak_rss_mb, peak_rss_mb
+    from triad_core.db import session_scope
+    from triad_core.models import (
+        AuditLog,
+        CodeArtifact,
+        DecisionRecord,
+        Execution,
+        LlmInvocation,
+        PipelineRun,
+    )
+
     with session_scope() as session:
         run = session.get(PipelineRun, run_id)
         if run is None:
