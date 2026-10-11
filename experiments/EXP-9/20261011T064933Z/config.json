@@ -1,0 +1,41 @@
+{
+  "exp_id": "EXP-9",
+  "title": "Leakage sentinel",
+  "hypothesis": "Static checks and the leakage alarm block both a post-cutoff feature and a lifetime total computed over the whole dataset.",
+  "independent_variable": "leak type",
+  "dependent_measures": [
+    "blocked_by_static_check",
+    "blocked_by_sentinel_test",
+    "blocked_by_leakage_alarm",
+    "held_out_pr_auc",
+    "held_out_roc_auc",
+    "inflation_vs_control"
+  ],
+  "started_at": "2026-10-11T06:49:33.341222+00:00",
+  "config": {
+    "seed": 42,
+    "customers": 1200,
+    "cutoff": "2025-06-01",
+    "horizon_days": 90,
+    "conditions": [
+      "control_point_in_time",
+      "leak_lifetime_total",
+      "leak_post_cutoff_feature"
+    ],
+    "model": "RandomForestClassifier(n_estimators=120, min_samples_leaf=5)",
+    "acceptance_policy": {
+      "AP1_min_pr_auc_over_churn_rate": 0.1,
+      "AP2_parsimony_margin": 0.01,
+      "AP3_min_roc_auc": 0.7,
+      "AP4_min_brier_skill": 0.1,
+      "AP5_max_ece_after_calibration": 0.05,
+      "AP6_max_segment_recall_gap": 0.1,
+      "AP7_max_train_minutes_per_family": 30,
+      "AP7_max_model_size_mb": 200,
+      "AP7_max_scoring_minutes_per_million": 5,
+      "AP8_promotion_requires_positive_lower_bound": true,
+      "leakage_alarm_roc_auc": 0.98,
+      "min_positive_examples": 200
+    }
+  }
+}

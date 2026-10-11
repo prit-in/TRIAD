@@ -1,0 +1,272 @@
+{
+  "exp_id": "EXP-9",
+  "title": "Leakage sentinel",
+  "hypothesis": "Static checks and the leakage alarm block both a post-cutoff feature and a lifetime total computed over the whole dataset.",
+  "independent_variable": "leak type",
+  "dependent_measures": [
+    "blocked_by_static_check",
+    "blocked_by_sentinel_test",
+    "blocked_by_leakage_alarm",
+    "held_out_pr_auc",
+    "held_out_roc_auc",
+    "inflation_vs_control"
+  ],
+  "started_at": "2026-10-11T06:49:33.341222+00:00",
+  "duration_s": 8.26,
+  "status": "completed",
+  "hypothesis_held": true,
+  "conclusion": "2 of 2 leaks blocked; the point-in-time control was not blocked: True. Inflation on held-out data, with the defences bypassed: leak_post_cutoff_feature +0.5470 PR-AUC, leak_lifetime_total +0.4975 PR-AUC. The post-cutoff feature is caught by name before any model is fitted; the lifetime total is name-innocent and is caught only by the behavioural checks, which is why both kinds of defence are needed.",
+  "limitations": [],
+  "trials": [
+    {
+      "condition": "control_point_in_time",
+      "ok": true,
+      "detail": "static=False sentinel=False alarm=False",
+      "measurements": [
+        {
+          "name": "blocked_by_static_check",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocked_by_sentinel_test",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "held_out_pr_auc",
+          "value": 0.453,
+          "unit": "",
+          "note": "defences bypassed on purpose"
+        },
+        {
+          "name": "held_out_roc_auc",
+          "value": 0.6382,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "inflation_vs_control",
+          "value": 0.0,
+          "unit": "PR-AUC",
+          "note": ""
+        },
+        {
+          "name": "blocked_by_leakage_alarm",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocked_by_any_defence",
+          "value": false,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "static_violations": [],
+        "sentinel": {
+          "passed": true,
+          "changed_columns": []
+        },
+        "acceptance": {
+          "passed": false,
+          "reason_codes": [
+            "MISCALIBRATED"
+          ],
+          "rules_checked": [
+            "leakage_alarm",
+            "AP-1",
+            "AP-2",
+            "AP-3",
+            "AP-4",
+            "AP-5",
+            "AP-6",
+            "AP-7"
+          ],
+          "evidence": {
+            "valid_pr_auc": 0.8071182414963928,
+            "valid_churn_rate": 0.31416666666666665,
+            "brier_skill": 0.3713349338388642,
+            "ece": 0.12896242397833513,
+            "ece_n_rows": 1200
+          }
+        }
+      }
+    },
+    {
+      "condition": "leak_post_cutoff_feature",
+      "ok": true,
+      "detail": "static=True sentinel=True alarm=True",
+      "measurements": [
+        {
+          "name": "blocked_by_static_check",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocked_by_sentinel_test",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "held_out_pr_auc",
+          "value": 1.0,
+          "unit": "",
+          "note": "defences bypassed on purpose"
+        },
+        {
+          "name": "held_out_roc_auc",
+          "value": 1.0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "inflation_vs_control",
+          "value": 0.547,
+          "unit": "PR-AUC",
+          "note": "how much the leak flatters the model on held-out data"
+        },
+        {
+          "name": "blocked_by_leakage_alarm",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocked_by_any_defence",
+          "value": true,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "static_violations": [
+          {
+            "column": "post_cutoff_orders",
+            "rule": "H3",
+            "reason": "column name matches the forbidden pattern 'post_cutoff'"
+          }
+        ],
+        "sentinel": {
+          "passed": false,
+          "changed_columns": [
+            "post_cutoff_orders"
+          ]
+        },
+        "acceptance": {
+          "passed": false,
+          "reason_codes": [
+            "LEAKAGE_SUSPECTED"
+          ],
+          "rules_checked": [
+            "leakage_alarm",
+            "AP-1",
+            "AP-2",
+            "AP-3",
+            "AP-4",
+            "AP-5",
+            "AP-6",
+            "AP-7"
+          ],
+          "evidence": {
+            "valid_pr_auc": 1.0,
+            "valid_churn_rate": 0.31416666666666665,
+            "roc_auc": 0.9999999999999999,
+            "brier_skill": 0.9994597115662036,
+            "ece": 0.004883212162985153,
+            "ece_n_rows": 1200
+          }
+        }
+      }
+    },
+    {
+      "condition": "leak_lifetime_total",
+      "ok": true,
+      "detail": "static=False sentinel=True alarm=True",
+      "measurements": [
+        {
+          "name": "blocked_by_static_check",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocked_by_sentinel_test",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "held_out_pr_auc",
+          "value": 0.9505,
+          "unit": "",
+          "note": "defences bypassed on purpose"
+        },
+        {
+          "name": "held_out_roc_auc",
+          "value": 0.9757,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "inflation_vs_control",
+          "value": 0.4975,
+          "unit": "PR-AUC",
+          "note": "how much the leak flatters the model on held-out data"
+        },
+        {
+          "name": "blocked_by_leakage_alarm",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "blocked_by_any_defence",
+          "value": true,
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "static_violations": [],
+        "sentinel": {
+          "passed": false,
+          "changed_columns": [
+            "customer_lifetime_orders"
+          ]
+        },
+        "acceptance": {
+          "passed": false,
+          "reason_codes": [
+            "LEAKAGE_SUSPECTED",
+            "MISCALIBRATED"
+          ],
+          "rules_checked": [
+            "leakage_alarm",
+            "AP-1",
+            "AP-2",
+            "AP-3",
+            "AP-4",
+            "AP-5",
+            "AP-6",
+            "AP-7"
+          ],
+          "evidence": {
+            "valid_pr_auc": 0.9964299543622609,
+            "valid_churn_rate": 0.31416666666666665,
+            "roc_auc": 0.9981693422846479,
+            "brier_skill": 0.8752930610036147,
+            "ece": 0.08146552196807876,
+            "ece_n_rows": 1200
+          }
+        }
+      }
+    }
+  ]
+}

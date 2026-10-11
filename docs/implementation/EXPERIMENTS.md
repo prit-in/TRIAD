@@ -41,6 +41,8 @@ worth reading first.
 
 ### EXP-9, leakage sentinel — held
 
+Run `20261011T064933Z` (11-10-2026); the same results as the runs of 10-10-2026.
+
 | Condition | Held-out PR-AUC | Inflation | Static check | Sentinel test | Leakage alarm |
 | --- | --- | --- | --- | --- | --- |
 | point-in-time control | 0.4530 | — | pass | pass | pass |
@@ -61,8 +63,8 @@ which a correct model is indistinguishable from a leaking one cannot test this.
 ### EXP-10, governance bypass — held
 
 Four attempts, all against the real database, policy engine and tool registry. 4 of 4 blocked;
-3 audit entries added; the hash chain still verifies across 143 chains afterwards (re-run
-10-10-2026, `20261010T094439Z`, on the current code).
+3 audit entries added; the hash chain still verifies across 178 chains afterwards (run
+`20261011T064957Z`, 11-10-2026; the same outcome as `20261010T094439Z`, across 143 chains then).
 
 - **Moving the champion alias**: three independent refusals — no such tool is registered, the
   policy denies `registry.set_alias` outright, and the registry client refuses a promotion with
@@ -113,14 +115,14 @@ segment's behaviour on demand.
 
 ### EXP-4, schema errors — held, completed
 
-Run `20261010T121337Z` (10-10-2026 12:13 to 12:33 UTC, on the code after the review of that day;
+Run `20261011T065017Z` (11-10-2026 06:50 to 07:08 UTC; `20261010T121337Z` and
 `20261009T184842Z` had the same outcomes), 400 customers, every condition through
 ingestion, profiling and cleaning; the baseline and the dropped table also through the feature job.
 
 | Fault | Detected at | What the platform did | Row accounting |
 | --- | --- | --- | --- |
 | clean baseline | not detected | cleaned; all five feature groups available, 46 feature columns | balanced |
-| renamed required column (`customer_id` -> `cust_id`) | **ingest** | refused; proposed `cust_id -> customer_id` (name similarity 0.778, types match); a `schema_change` approval pending, nothing registered, applying it refused; after approval the renamed copy registered and cleaned 135.6 s later | balanced |
+| renamed required column (`customer_id` -> `cust_id`) | **ingest** | refused; proposed `cust_id -> customer_id` (name similarity 0.778, types match); a `schema_change` approval pending, nothing registered, applying it refused; after approval the renamed copy registered and cleaned 172.2 s later (135.6 s on 10-10-2026) | balanced |
 | price as text with currency codes | **clean** | converted by `try_cast` after the currency code was checked against the row's own `currency` (DEC-36); 0 values quarantined | balanced |
 | dropped optional table (`support_tickets`) | **features** | the customer-service group marked unavailable; none of its 6 catalogue features produced (40 columns) | balanced |
 
@@ -144,20 +146,31 @@ Earlier runs, kept as records, are why the protocol looks the way it does:
 
 ### EXP-6, Spark failures — no verdict, partial
 
-Run `20261010T113128Z` (10-10-2026 11:31 to 12:09 UTC). An arm counts only if its fault was seen
-to land (DEC-42).
+Run `20261011T070906Z` (11-10-2026 07:09 to 07:59 UTC). An arm counts only if its fault was seen
+to land (DEC-42); the two cluster arms ran on the compose cluster, which EXP-6 starts for them
+alone (DEC-46, DEC-48).
 
 | Arm | Fault landed | Attempts | First failure | Remedy | Output against its reference |
 | --- | --- | --- | --- | --- | --- |
-| clean baseline, 400 customers | - | 1 | - | - | reference |
-| container killed 10.3 s into the job | **yes** | 2 | `EXECUTOR_LOST` | resubmit | **identical** |
+| clean baseline, 400 customers (local mode) | - | 1 | - | - | reference |
+| container killed 10.3 s into the job (local mode) | **yes** | 2 | `EXECUTOR_LOST` | resubmit | **identical** |
+| clean run on the cluster | - | 1 | - | - | **identical** to local mode's |
+| executor JVM killed 31.9 s into the cluster job, 2 s after its first task began | **yes**: Spark's log names task 0.0 of stage 0.0 lost with the executor | 1 | - | none needed: Spark re-ran the task on a replacement executor | **identical** |
 | memory reference, 20 000 customers | - | 1 | - | - | reference (no spill) |
-| executor memory 460m, the same 20 000 | **no** out-of-memory; 178.8 MB spilled | 1 | - | - | clean identical; features differ in the last bit of 3 monetary sums, 9 of 110 900 rows |
+| executor memory 460m, the same 20 000 | **no** out-of-memory; 183.6 MB spilled | 1 | - | - | clean identical; features differ in the last bits of monetary sums |
 | one customer holds 20% of the lines | - (task skew 1.0) | 1 | - | - | not compared (different data) |
 
-- **The executor loss is absorbed**: the runner read the engine's exit (a kill from outside, not
-  the kernel's memory limit), the playbook resubmitted, and the output was identical. In local
-  mode that is the platform's resubmit, not Spark's task retries, which this node cannot show.
+- **Spark's own task retries absorb a lost executor - the PRD's claim, tested as written.** On the
+  cluster the driver stays in its sandbox container and the executor runs in the worker; killing
+  the executor under a running task left `ERROR TaskSchedulerImpl: Lost executor 0 ... exited with
+  code 137` and `WARN TaskSetManager: Lost task 0.0 in stage 0.0 ... ExecutorLostFailure` in the
+  driver's log, and the same job finished, with no platform resubmission, byte-identical to the
+  clean run. Five pilots got the fault to land there (`experiments/EXP-6/pilot_cluster_20261011.md`):
+  a network the sandboxed driver could not reach the master on, a kill script that killed itself,
+  and two kills too early to catch a task.
+- **In local mode the loss is absorbed by the platform instead**: the runner read the engine's exit
+  (a kill from outside, not the kernel's memory limit), the playbook resubmitted, and the output was
+  identical.
 - **Out-of-memory recovery is untested here.** Two pilots and the run itself found no heap Spark
   starts with at which these jobs fail: they spill instead (`experiments/EXP-6/pilot_20261010.md`).
   Below about 450 MiB Spark refuses to start, which is `RESOURCE_CONFIG_INVALID` and a person's
@@ -171,7 +184,9 @@ to land (DEC-42).
 - **Skew handling is not assessable at this size**: no partition approaches adaptive execution's
   thresholds, and the skewed feature job's slowest task was the median's.
 
-What the earlier runs found, all fixed: the content hash folded Spark's per-job file names in and
+The run of 10-10-2026 (`20261010T113128Z`) measured the same local arms (container kill identical,
+460m spilling 178.8 MB, no skew) without the cluster. What the earlier runs found, all fixed: the
+content hash folded Spark's per-job file names in and
 depended on row placement (a table's content is now the multiset of its rows, ATC-18); a 256m
 driver is below Spark's minimum, so that arm never was an out-of-memory (DEC-20); the kill thread
 called a docker CLI the image lacked; a local-mode heap exhaustion was read as a driver fault or a
@@ -181,32 +196,39 @@ because the caches were mounted where nothing looked (DEC-43).
 
 ### EXP-1, TRIAD against the non-agentic baselines — held, partial
 
-Run `experiments/EXP-1/20261010T143000Z/` (10-10-2026, 14:30 UTC, 400 customers, warm build
-caches - DEC-43).
+Run `experiments/EXP-1/20261011T063017Z/` (11-10-2026, 06:30 UTC, 400 customers), with P, B2 and
+B3 each in a process of their own (DEC-44).
 
 | Configuration | Wall clock | Test PR-AUC | Model | Features | Hand-written lines | Manual steps | Audit entries |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| P (TRIAD) | 831 s | 0.741 (escalated) | xgboost | full catalogue (44) | 0 | 0 | 17 |
-| B2 (pandas only) | 7.1 s | 0.790 | logreg | 12 | 188 | 0 | 0 |
-| B3 (Spark, no agents) | 76 s | 0.787 | logreg | 12 | 228 | 0 | 0 |
+| P (TRIAD) | 773 s | 0.741 (escalated) | xgboost | full catalogue (44) | 0 | 0 | 17 |
+| B2 (pandas only) | 6.7 s | 0.790 | logreg | 12 | 188 | 0 | 0 |
+| B3 (Spark, no agents) | 52 s | 0.787 | logreg | 12 | 262 | 0 | 0 |
 | B1 (manual runbook) | **not measured** | - | - | - | - | - | - |
 
-The hypothesis is that P finishes end to end with no manual step except approval. **It holds:**
-P ran four sandboxed Spark jobs, wrote 8 decision records and 17 audit entries, and needed no
-manual step; its candidate (xgboost) was escalated by AP-5 - calibration error above 0.05 after
-both remedies - on a validation split of 243 rows, which Section 15 shows is inside the
-calibration estimator's noise floor at that size. An escalation is the policy handing a person the
-decision, which is what it is for.
+The hypothesis has two halves. **The first holds:** P ran four sandboxed Spark jobs, wrote 8
+decision records and 17 audit entries, and needed no manual step; its candidate (xgboost) was
+escalated by AP-5 - calibration error above 0.05 after both remedies - on a validation split of
+243 rows, which Section 15 shows is inside the calibration estimator's noise floor at that size.
+An escalation is the policy handing a person the decision, which is what it is for. **The second,
+"agent overhead dominates P's time", holds as measured:** B3 does the same Spark work and
+modelling with no agents, so P's time beyond B3's is the agentic loop's cost - 721 s, or 0.933 of
+P's wall clock (DEC-48). None of it is LLM time, because no provider is configured (ADR-0003); it
+is the gates, the sandbox start-ups, the tuning and calibration P does and B3 does not, and the
+governance writes. The verdict used to be computed from "P is slower than B2", which is the PRD's
+expected observation rather than its hypothesis.
 
-**Where P's time goes.** Of P's 831 s, the gates took about 395 s: compilation 188 s (CleanJob
-82 s, FeatureJob 63 s, LabelJob 43 s), the dry runs on a sample 206 s, and the fixture suite
-nothing, because its result for these exact sources was reused (FR-083). The rest is the four full
-Spark runs, training with tuning and calibration, and the governance writes. The run of 09-10-2026
-(`20261009T172131Z`) took 989 s with the same models: its first compile, 326 s, included
-downloading sbt and the build's dependencies, because the cache volumes were mounted where the
-build did not look (DEC-43). The first run after the template fix, `20261009T161555Z`, is kept as
-the cold case: every fixture run was fresh (1 867 s of gate 5), the first compile rebuilt
-everything (718 s, downloads included), and P took 3 397 s.
+**Where P's time goes**, read off the platform's own gate records: the gates before each run took
+349 s - compilation 164 s, the dry runs on a sample 184 s, the fixture suite nothing because its
+result for these exact sources was reused (FR-083) - and the four full Spark runs 178 s (gate 9,
+which recorded 0 ms for every run until DEC-48). The rest is training with tuning and calibration,
+and the governance writes. B3's 52 s splits into 44 s of Spark and 7 s of modelling, against 76 s on
+10-10-2026, when its Spark JVM stayed resident through the modelling (DEC-44). The run of 10-10-2026
+(`20261010T143000Z`) took 831 s for P with the same models; that of 09-10-2026
+(`20261009T172131Z`) 989 s, its first compile including a download of sbt and the build's
+dependencies (DEC-43). The first run after the template fix, `20261009T161555Z`, is kept as the cold
+case: every fixture run was fresh (1 867 s of gate 5), the first compile rebuilt everything (718 s,
+downloads included), and P took 3 397 s.
 
 **The PR-AUC column is not a quality comparison.** P uses its 44-feature catalogue, the baselines
 twelve hand-picked features, and the baselines train on P's training and calibration cutoffs
@@ -223,8 +245,8 @@ generated copies did not (a varargs deprecation made fatal in generated code); e
 attempt failed gate 4 identically and P escalated at cleaning. The 16:15 run on 09-10-2026 then
 reached the end but its like-for-like refit crashed: the shortlist's preprocessing chose
 categorical columns from the baselines' three names and sent P's payment-method column to a
-median imputer. Both are fixed, with tests; the second-half claim, "agent overhead dominates P's
-time", stays untestable while no LLM provider is configured (ADR-0003).
+median imputer. Both are fixed, with tests. The LLM part of "agent overhead" stays untestable while
+no LLM provider is configured (ADR-0003); the overhead that is present is measured above.
 
 ### EXP-2, where a single node gives out — refuted on this node, partial
 
@@ -274,38 +296,44 @@ both failing together (not supported).
 
 ### EXP-3, scaling with parallelism — did NOT hold, partial
 
-| Cores | Wall clock (best of 2) | Fixed cost | Work | Speed-up on work | Raw speed-up |
-| --- | --- | --- | --- | --- | --- |
-| `local[1]` | 31.76s | 8.57s | 23.19s | 1.000 | 1.000 |
-| `local[2]` | 18.29s | 0.46s | 17.83s | **1.301** | 1.736 |
-| `local[4]` | 22.83s | 0.24s | 22.59s | **1.026** | 1.391 |
+Run `20261011T064506Z` (11-10-2026, 6 000 customers, 10 cutoffs, B3's feature build on Spark;
+best of two runs per arm, the cold JVM start of 6.79 s paid and recorded before any arm).
 
-The hypothesis asks for at least 1.6x from doubling the cores. Two to four cores gives **0.789x**
-— slower, not faster. One to two gives 1.301x, below the threshold as well.
+| Cores | Wall clock (best of 2) | Fixed cost | Work | Speed-up on work | Core utilisation | Shuffle written |
+| --- | --- | --- | --- | --- | --- | --- |
+| `local[1]` | 28.33 s | 0.50 s | 27.83 s | 1.000 | 0.731 | 21.3 MB |
+| `local[2]` | 22.59 s | 0.47 s | 22.13 s | **1.258** | 0.721 | 23.8 MB |
+| `local[4]` | 21.19 s | 0.27 s | 20.93 s | **1.330** | 0.670 | 24.3 MB |
 
-Two things in this table are worth more than the verdict. First, the **fixed cost is measured,
-not assumed**: a trivial job is timed at each parallelism and subtracted, which is why the raw
-column looks so much better than the work column. `local[1]`'s 8.57s of JVM start-up flatters
-every raw speed-up computed against it, and a scaling experiment that did not subtract it would
-report 1.736x and call the hypothesis half-held. Second, sub-linear scaling is the expected
-observation: these are windowed aggregations, they shuffle, and a shuffle does not halve when
-the cores double.
+The hypothesis asks for at least 1.6x from doubling the cores. Two to four cores gives **1.057x**,
+and one to two 1.258x; neither reaches it. Nothing spilled, so memory is not what limits it. Sub-
+linear scaling is the PRD's expected observation: these are windowed aggregations, they shuffle -
+the shuffle grows a little with the cores - and a shuffle does not halve when the cores double;
+core utilisation, the tasks' run time over wall clock times cores, falls as cores are added.
 
-This is intra-node scaling inside one JVM. Distributed workers were not used deliberately —
-with 8 host cores and ~3 GB usable, two Compose workers would contend for the same cores and
-measure scheduling overhead rather than scaling. Shuffle bytes and spill come from Spark event
-logs, which are disabled here; they are absent rather than approximated.
+**Doubling here is not doubling compute.** The host is an AMD Ryzen 5 2500U with 4 cores and 8
+threads, so the VM's 8 vCPUs are hardware threads, and `local[4]` shares physical cores with
+itself and with everything else in the VM; the 2-to-4 ratio is a lower bound on what doubling
+real cores would give. Distributed workers were not used: with 8 threads and about 3 GB usable,
+two Compose workers would contend for the same cores and measure scheduling, not scaling, and the
+100 GB tier cannot fit (ADR-0002). This is intra-node scaling inside one JVM.
+
+The run of 07-10-2026 (`20261007T215740Z`) measured 54.5, 33.7 and 39.7 s for the same arms and
+0.842x from two to four; an earlier one subtracted the cold JVM start (8.57 s) from a warm
+one-core run, which understated one-core work and reported 1.301x from one to two cores where its
+own raw timings said 1.74x. The fixed cost is now measured warm at each parallelism.
 
 ### EXP-8, seeded Scala faults — no verdict, partial
 
-Run `20261010T131443Z` (10-10-2026 13:14 to 14:29 UTC), gates 1 to 5, warm caches (DEC-43).
+Run `20261011T084444Z` (11-10-2026 08:44 to 09:58 UTC), gates 1 to 5, warm caches (DEC-43); the
+same outcomes as `20261010T131443Z`.
 
 | Fault class | Seeded | Stopped before reading data | Gate that caught it | Time to the verdict |
 | --- | --- | --- | --- | --- |
-| forbidden API | 5 | **5** | 2 (static scan) | 0.2-0.3 s |
-| type mismatch | 5 | **5** | 4 (compile) | 37-52 s |
-| missing import | 5 | **5** | 4 (compile) | 38-96 s |
-| wrong column name | 5 | **4** | 5 (fixture tests) | 299-369 s |
+| forbidden API | 5 | **5** | 2 (static scan) | 0.2 s |
+| type mismatch | 5 | **5** | 4 (compile) | 39-62 s |
+| missing import | 5 | **5** | 4 (compile) | 39-43 s |
+| wrong column name | 5 | **4** | 5 (fixture tests) | 295-393 s |
 
 - **19 of 20 stopped before the job read any data.** The static gates stopped 15; a wrong column
   name passed all four of them, because a name is a string until Spark resolves it, and the
@@ -339,9 +367,11 @@ How the measurement got here, each step a defect the experiment had in itself:
 
 ### EXP-5, missing values — did not hold, completed
 
-Run `20261010T094502Z` (10-10-2026 09:45 to 11:31 UTC), 2 000 customers, each condition in a
-process of its own, the reference drawing the same random numbers as the others (DEC-42); keys
-are 1% missing in every trend condition.
+Run `20261011T111552Z` (11-10-2026 11:15 to 12:43 UTC, on the code after the review of 11-10,
+DEC-48) reproduced run `20261010T094502Z` (10-10-2026 09:45 to 11:31 UTC) exactly: of 155
+measurements, all but the wall-clock times and the approval request's id are identical. 2 000
+customers, each condition in a process of its own, the reference drawing the same random numbers
+as the others (DEC-42); keys are 1% missing in every trend condition.
 
 | Condition | Non-key nulls (counted) | Key nulls quarantined | Rows affected | Test PR-AUC [95% interval] | ECE | Policy |
 | --- | --- | --- | --- | --- | --- | --- |

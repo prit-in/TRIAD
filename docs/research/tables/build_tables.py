@@ -22,7 +22,8 @@ VERDICT = {True: "held", False: "did not hold", None: "no verdict"}
 def load(exp: str) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     data = json.loads((ROOT / "experiments" / exp / "latest.json").read_text(encoding="utf-8"))
     trials = {t["condition"]: {m["name"]: m["value"] for m in t.get("measurements", [])}
-              | {"_ok": t.get("ok")} for t in data.get("trials", [])}
+              | {"_ok": t.get("ok"), "_verdict": (t.get("observations") or {}).get("verdict")}
+              for t in data.get("trials", [])}
     return data, trials
 
 
@@ -56,14 +57,21 @@ def key_result(exp: str, trials: dict[str, dict[str, Any]]) -> str:
         p = t.get("P_triad", {})
         b2, b3 = t.get("B2_pandas_only", {}), t.get("B3_spark_no_agents", {})
         return (f"wall clock P {secs(p.get('wall_clock_s'))}, B3 {secs(b3.get('wall_clock_s'))}, "
-                f"B2 {secs(b2.get('wall_clock_s'))}; test PR-AUC P {num(p.get('test_pr_auc'))}; "
-                f"manual steps {num(p.get('human_actions_excluding_approval'))}")
+                f"B2 {secs(b2.get('wall_clock_s'))}; P's time beyond B3's "
+                f"{num(p.get('agentic_overhead_share'))} of it; test PR-AUC P "
+                f"{num(p.get('test_pr_auc'))}; manual steps "
+                f"{num(p.get('human_actions_excluding_approval'))}")
     if exp == "EXP-2":
         rungs = sorted((v["customers"], v) for k, v in t.items() if k.startswith("customers_"))
         failed = next(((n, v) for n, v in rungs
                        if not v.get("b2_completed") and v.get("b3_completed")), None)
+        p = next((v for k, v in t.items() if k.startswith("P_at_")), None)
+        p_text = ("" if p is None else
+                  f"; P {'finished' if p.get('_ok') else 'did not finish'} there"
+                  + (f", {num(p.get('p_to_b3_time_ratio'))} x B3's time"
+                     if p.get("p_to_b3_time_ratio") is not None else ""))
         if failed:
-            return f"B2 failed and B3 completed at {failed[0]:,} customers"
+            return f"B2 failed and B3 completed at {failed[0]:,} customers" + p_text
         b3_first = next((n for n, v in rungs
                          if v.get("b2_completed") and v.get("b3_completed") is False), None)
         if b3_first:
@@ -88,22 +96,30 @@ def key_result(exp: str, trials: dict[str, dict[str, Any]]) -> str:
         rates = [(n, v.get("test_pr_auc"), v.get("quarantined_rows")) for n, v in t.items()]
         return "; ".join(f"{n}: PR-AUC {num(pr)}, quarantined {num(q)}" for n, pr, q in rates)
     if exp == "EXP-6":
-        # Only an arm whose fault landed counts (DEC-42): a kill read as a lost executor, or an
-        # out-of-memory. The memory arm's spill is reported in Section 15.4, not here.
+        # Only an arm whose fault landed counts (DEC-42): a local kill read as a lost executor,
+        # a cluster executor killed under a running task, or an out-of-memory. The memory
+        # arm's spill is reported in Section 15.4, not here.
         def landed(n):
             v = t[n]
             return bool((v.get("container_killed") and v.get("first_error_class") == "EXECUTOR_LOST")
+                        or (v.get("executor_killed") and v.get("spark_lost_task_lines"))
                         or "EXECUTOR_OOM" in (v.get("first_error_class"),
                                               v.get("feature_first_error_class")))
-        return (f"faults that landed and recovered {share(t, landed, lambda v: v.get('recovered'))}"
+
+        def recovered(v):
+            absorbed = v.get("spark_absorbed_in_the_same_job")
+            return v.get("recovered") and (absorbed if v.get("executor_killed") else True)
+        return (f"faults that landed and recovered {share(t, landed, recovered)}"
                 f"; identical to the clean run "
                 f"{share(t, landed, lambda v: v.get('identical_to_clean_run'))}")
     if exp == "EXP-7":
         stable = t.get("stable_no_drift", {})
         caught = share(t, lambda n: n.startswith(("covariate", "concept")),
                        lambda v: v.get("retraining_should_start"))
+        chain = t.get("end_to_end_drift_to_approval", {})
         return (f"drift caught {caught}; false-alarm rate {num(stable.get('false_alarm_rate'))} "
-                f"over {num(stable.get('months_replayed'))} stable months")
+                f"over {num(stable.get('months_replayed'))} stable months; end to end on the "
+                f"platform: {VERDICT[chain.get('_verdict')] if chain else 'not run'}")
     if exp == "EXP-8":
         def seeded(n):
             return not n.startswith("control") and not t[n].get("toolchain_failure")

@@ -345,13 +345,19 @@ def fig24() -> None:
 
 
 def spark_faults_landed(e6: dict[str, dict]) -> dict[str, dict]:
-    """EXP-6's arms whose fault landed: a kill read as a lost executor, or an out-of-memory."""
+    """EXP-6's arms whose fault landed: a local-mode kill read as a lost executor, a cluster
+    executor killed under a running task (Spark's own log names the task it lost), or an
+    out-of-memory. Each carries `_recovered`: the job's output came back, and for the cluster
+    arm the very job that lost the task absorbed it (DEC-46, DEC-48)."""
     out = {}
     for name, v in e6.items():
         kill = v.get("container_killed") and v.get("first_error_class") == "EXECUTOR_LOST"
+        cluster = v.get("executor_killed") and v.get("spark_lost_task_lines")
         oom = "EXECUTOR_OOM" in (v.get("first_error_class"), v.get("feature_first_error_class"))
-        if kill or oom:
-            out[name] = v
+        if kill or cluster or oom:
+            recovered = v.get("recovered") and (
+                v.get("spark_absorbed_in_the_same_job") if cluster else True)
+            out[name] = {**v, "_recovered": bool(recovered)}
     return out
 
 
@@ -368,7 +374,7 @@ def fig25() -> None:
     landed = spark_faults_landed(e6)
     if landed:
         rows.append(("Spark faults that landed, recovered (EXP-6)",
-                     sum(1 for v in landed.values() if v.get("recovered")), len(landed)))
+                     sum(1 for v in landed.values() if v.get("_recovered")), len(landed)))
     e8 = load("EXP-8", "Fig 25")["trials"]
     seeded = {k: v for k, v in e8.items()
               if not k.startswith("control") and not v.get("toolchain_failure")}

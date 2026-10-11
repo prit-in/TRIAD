@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/workspace/experiments/exp02_medium_dataset.py", line 266, in run
+    b3 = _measured("experiments.baseline_b3:run_with_own_session", "B3",
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/experiments/exp02_medium_dataset.py", line 184, in _measured
+    return run_isolated(target, timeout_s=BASELINE_CEILING_S, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/experiments/baselines.py", line 312, in run_isolated
+    raise RuntimeError(f"{target} raised {value}")
+RuntimeError: experiments.baseline_b3:run_with_own_session raised ConnectionRefusedError: [Errno 111] Connection refused

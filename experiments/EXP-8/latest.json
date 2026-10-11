@@ -14,11 +14,11 @@
     "attempts_to_escalation",
     "repair_rate"
   ],
-  "started_at": "2026-10-10T13:14:43.654203+00:00",
-  "duration_s": 4502.31,
+  "started_at": "2026-10-11T08:44:44.015005+00:00",
+  "duration_s": 4437.21,
   "status": "partial",
   "hypothesis_held": null,
-  "conclusion": "15 of 20 seeded faults were stopped by the static gates (1 to 4), and 19 of 20 before the job read any data once the fixture tests (gate 5) are counted. Forbidden APIs: 5 of 5 refused by gate 2, the static scan, before any compile. Per class: type_mismatch 5/5 stopped (gates [4]); missing_import 5/5 stopped (gates [4]); wrong_column 4/5 stopped (gates [5, None]); forbidden_api 5/5 stopped (gates [2]). Of the 5 faults the static gates let through, the fixture tests stopped 4, in 257 to 318 s each; reached execution: ['WC-2_wrong_column']. Escalation, from two real attempts through the stage runner's classifier and circuit breaker: 19 of 19 recoverable detections tripped the breaker on the second identical failure, and 0 were escalated at once as non-recoverable. Repair rate is not measured - see the limitations. Clauses: repaired_within_3=None, repeated_fingerprints_escalate=True, forbidden_apis_never_run=True.",
+  "conclusion": "15 of 20 seeded faults were stopped by the static gates (1 to 4), and 19 of 20 before the job read any data once the fixture tests (gate 5) are counted. Forbidden APIs: 5 of 5 refused by gate 2, the static scan, before any compile. Per class: type_mismatch 5/5 stopped (gates [4]); missing_import 5/5 stopped (gates [4]); wrong_column 4/5 stopped (gates [5, None]); forbidden_api 5/5 stopped (gates [2]). Of the 5 faults the static gates let through, the fixture tests stopped 4, in 252 to 336 s each; reached execution: ['WC-2_wrong_column']. Escalation, from two real attempts through the stage runner's classifier and circuit breaker: 19 of 19 recoverable detections tripped the breaker on the second identical failure, and 0 were escalated at once as non-recoverable. Repair rate is not measured - see the limitations. Clauses: repaired_within_3=None, repeated_fingerprints_escalate=True, forbidden_apis_never_run=True.",
   "limitations": [
     "Repair rate is not measured. Rewriting a generated slot requires an LLM provider and none is configured (ADR-0003); `StageRunner._apply_fix` adjusts infrastructure inputs only, so `generate` returns identical code on every attempt. A measured 0% would describe the missing provider, not the repair loop, so it is recorded as not measured rather than reported as a number.",
     "`reached_execution` means gates 1 to 5 passed and a real run would have submitted the job to the dry run on a sample (gate 6) and then to the full input. Gate 6 is not performed here, so for a fault the fixtures did not stop, what the dry run would report is not measured."
@@ -49,7 +49,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 616.2,
+          "value": 472.9,
           "unit": "s",
           "note": ""
         }
@@ -71,7 +71,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 51.6,
+          "value": 61.6,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -143,7 +143,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 98.2,
+          "value": 114.3,
           "unit": "s",
           "note": ""
         }
@@ -156,13 +156,13 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "d   : Seq[String]\n[error]  required: Int\n[error]       .filter(normalised.columns.contains)\n[error]              ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:45:79: type mismatch;\n[error]  found   : Int\n[error]  required: Seq[String]\n[error]     val (dedupedWithRaw, removedDuplicates) = CleaningRules.deduplicate(kept, dedupKeys, dedupOrder)\n[error]                                                                               ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:48:34: value drop is not a member of Any\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")).toIndexedSeq: _*)\n[error]                                  ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:48:54: value columns is not a member of Any\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")).toIndexedSeq: _*)\n[error]                                                      ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:57:27: type mismatch;\n[error]  found   : Any\n[error]  required: Long\n[error]       removedDuplicates = removedDuplicates,\n[error]                           ^\n[error] 5 errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 19 s, completed Oct 10, 2026, 1:25:53 PM\n",
+        "gate_detail": "d   : Seq[String]\n[error]  required: Int\n[error]       .filter(normalised.columns.contains)\n[error]              ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:45:79: type mismatch;\n[error]  found   : Int\n[error]  required: Seq[String]\n[error]     val (dedupedWithRaw, removedDuplicates) = CleaningRules.deduplicate(kept, dedupKeys, dedupOrder)\n[error]                                                                               ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:48:34: value drop is not a member of Any\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")).toIndexedSeq: _*)\n[error]                                  ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:48:54: value columns is not a member of Any\n[error]     val deduped = dedupedWithRaw.drop(dedupedWithRaw.columns.filter(_.endsWith(\"__raw\")).toIndexedSeq: _*)\n[error]                                                      ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm1.scala:57:27: type mismatch;\n[error]  found   : Any\n[error]  required: Long\n[error]       removedDuplicates = removedDuplicates,\n[error]                           ^\n[error] 5 errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 17 s, completed Oct 11, 2026, 8:53:38 AM\n",
         "violations": [],
         "escalation": {
           "error_class": "SCALA_COMPILE_ERROR",
           "fingerprints": [
-            "621f89828f94817e68ada85377964fe3",
-            "621f89828f94817e68ada85377964fe3"
+            "f05a1f4dd8bd6882c50b9b8f708f1d44",
+            "f05a1f4dd8bd6882c50b9b8f708f1d44"
           ],
           "escalation": "circuit_breaker",
           "attempts_to_escalation": 2
@@ -182,7 +182,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 37.8,
+          "value": 40.8,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -254,7 +254,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 78.5,
+          "value": 80.0,
           "unit": "s",
           "note": ""
         }
@@ -267,13 +267,13 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:27:04 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm2.scala:35:83: type mismatch;\n[error]  found   : Int(1)\n[error]  required: String\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised) + 1\n[error]                                                                                   ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:27:18 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 11, 2026, 8:54:55 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm2.scala:35:83: type mismatch;\n[error]  found   : Int(1)\n[error]  required: String\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised) + 1\n[error]                                                                                   ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 17 s, completed Oct 11, 2026, 8:55:12 AM\n",
         "violations": [],
         "escalation": {
           "error_class": "SCALA_COMPILE_ERROR",
           "fingerprints": [
-            "5307c2ebfb5fa20335cceb55fad5c196",
-            "5307c2ebfb5fa20335cceb55fad5c196"
+            "2724940de10f180ad00efd7f63b98030",
+            "2724940de10f180ad00efd7f63b98030"
           ],
           "escalation": "circuit_breaker",
           "attempts_to_escalation": 2
@@ -293,7 +293,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 39.6,
+          "value": 38.9,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -365,7 +365,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 79.3,
+          "value": 78.2,
           "unit": "s",
           "note": ""
         }
@@ -378,13 +378,13 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 7 s, completed Oct 10, 2026, 1:28:24 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm3.scala:33:7: type mismatch;\n[error]  found   : String(\"country\")\n[error]  required: Seq[String]\n[error]       \"country\"\n[error]       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:28:38 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 11, 2026, 8:56:16 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm3.scala:33:7: type mismatch;\n[error]  found   : String(\"country\")\n[error]  required: Seq[String]\n[error]       \"country\"\n[error]       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 11, 2026, 8:56:30 AM\n",
         "violations": [],
         "escalation": {
           "error_class": "SCALA_COMPILE_ERROR",
           "fingerprints": [
-            "b1aab6128277db4c5f76421e9964de96",
-            "b1aab6128277db4c5f76421e9964de96"
+            "9988e2809fb0d71316d26694563b9b81",
+            "9988e2809fb0d71316d26694563b9b81"
           ],
           "escalation": "circuit_breaker",
           "attempts_to_escalation": 2
@@ -404,7 +404,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 38.7,
+          "value": 40.6,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -476,7 +476,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 76.0,
+          "value": 79.6,
           "unit": "s",
           "note": ""
         }
@@ -489,13 +489,13 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "                         ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:53:20: type mismatch;\n[error]  found   : Any\n[error]  required: org.apache.spark.sql.DataFrame\n[error]     (which expands to)  org.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\n[error]       quarantine = quarantined,\n[error]                    ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:57:27: type mismatch;\n[error]  found   : Any\n[error]  required: Long\n[error]       removedDuplicates = removedDuplicates,\n[error]                           ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:58:17: type mismatch;\n[error]  found   : Any\n[error]  required: Map[String,Long]\n[error]       perRule = perRule\n[error]                 ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:35:27: a type was inferred to be `Any`; this may indicate a programming error.\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=lint-infer-any, site=triad.jobs.generated.CleanJob_exp08tm4.transform.rules\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised).mkString(\",\")\n[error]                           ^\n[error] 9 errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:29:56 PM\n",
+        "gate_detail": "                         ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:53:20: type mismatch;\n[error]  found   : Any\n[error]  required: org.apache.spark.sql.DataFrame\n[error]     (which expands to)  org.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\n[error]       quarantine = quarantined,\n[error]                    ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:57:27: type mismatch;\n[error]  found   : Any\n[error]  required: Long\n[error]       removedDuplicates = removedDuplicates,\n[error]                           ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:58:17: type mismatch;\n[error]  found   : Any\n[error]  required: Map[String,Long]\n[error]       perRule = perRule\n[error]                 ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm4.scala:35:27: a type was inferred to be `Any`; this may indicate a programming error.\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=lint-infer-any, site=triad.jobs.generated.CleanJob_exp08tm4.transform.rules\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised).mkString(\",\")\n[error]                           ^\n[error] 9 errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 15 s, completed Oct 11, 2026, 8:57:50 AM\n",
         "violations": [],
         "escalation": {
           "error_class": "SCALA_COMPILE_ERROR",
           "fingerprints": [
-            "d4ad6642c7987609d34cee7c44ea1ec7",
-            "d4ad6642c7987609d34cee7c44ea1ec7"
+            "2253bb84e42ad5d2f549108ec1cb84e2",
+            "2253bb84e42ad5d2f549108ec1cb84e2"
           ],
           "escalation": "circuit_breaker",
           "attempts_to_escalation": 2
@@ -515,7 +515,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 37.4,
+          "value": 40.1,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -587,7 +587,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 76.5,
+          "value": 78.6,
           "unit": "s",
           "note": ""
         }
@@ -600,13 +600,13 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:30:57 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm5.scala:32:7: type mismatch;\n[error]  found   : Any\n[error]  required: org.apache.spark.sql.DataFrame\n[error]     (which expands to)  org.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\n[error]       domainHandled,\n[error]       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:31:11 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 11, 2026, 8:58:53 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08tm5.scala:32:7: type mismatch;\n[error]  found   : Any\n[error]  required: org.apache.spark.sql.DataFrame\n[error]     (which expands to)  org.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\n[error]       domainHandled,\n[error]       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 16 s, completed Oct 11, 2026, 8:59:09 AM\n",
         "violations": [],
         "escalation": {
           "error_class": "SCALA_COMPILE_ERROR",
           "fingerprints": [
-            "f62edc7a80398259e7ef2c33b1663e2a",
-            "f62edc7a80398259e7ef2c33b1663e2a"
+            "6a284997d0618b99c09f84505aae7ac1",
+            "6a284997d0618b99c09f84505aae7ac1"
           ],
           "escalation": "circuit_breaker",
           "attempts_to_escalation": 2
@@ -615,6 +615,117 @@
     },
     {
       "condition": "MI-1_missing_import",
+      "ok": true,
+      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
+      "measurements": [
+        {
+          "name": "mutation_applied",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "verdict_s",
+          "value": 41.3,
+          "unit": "s",
+          "note": "from the fault's start to the first gate verdict"
+        },
+        {
+          "name": "first_failed_gate",
+          "value": 4,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "error_class",
+          "value": "SCALA_COMPILE_ERROR",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "toolchain_failure",
+          "value": false,
+          "unit": "",
+          "note": "a gate failed for a reason other than the fault; not counted"
+        },
+        {
+          "name": "detected",
+          "value": true,
+          "unit": "",
+          "note": "stopped by a static gate, 1 to 4"
+        },
+        {
+          "name": "compiled",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "caught_by_expected_gate",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "detected_before_data",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "reached_execution",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalation",
+          "value": "circuit_breaker",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts_to_escalation",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "fingerprints_identical",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 84.5,
+          "unit": "s",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "fault": {
+          "id": "MI-1",
+          "class": "missing_import",
+          "description": "use `col` without importing functions",
+          "expected_gate": 4,
+          "note": ""
+        },
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 7 s, completed Oct 11, 2026, 9:00:13 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi1.scala:35:87: not found: value col\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised.filter(col(\"x\") > 0))\n[error]                                                                                       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 15 s, completed Oct 11, 2026, 9:00:28 AM\n",
+        "violations": [],
+        "escalation": {
+          "error_class": "SCALA_COMPILE_ERROR",
+          "fingerprints": [
+            "f32123e939b37e84f248a2bb94ed020e",
+            "f32123e939b37e84f248a2bb94ed020e"
+          ],
+          "escalation": "circuit_breaker",
+          "attempts_to_escalation": 2
+        }
+      }
+    },
+    {
+      "condition": "MI-2_missing_import",
       "ok": true,
       "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
       "measurements": [
@@ -698,118 +809,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 82.8,
-          "unit": "s",
-          "note": ""
-        }
-      ],
-      "observations": {
-        "fault": {
-          "id": "MI-1",
-          "class": "missing_import",
-          "description": "use `col` without importing functions",
-          "expected_gate": 4,
-          "note": ""
-        },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:32:15 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi1.scala:35:87: not found: value col\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised.filter(col(\"x\") > 0))\n[error]                                                                                       ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 18 s, completed Oct 10, 2026, 1:32:33 PM\n",
-        "violations": [],
-        "escalation": {
-          "error_class": "SCALA_COMPILE_ERROR",
-          "fingerprints": [
-            "3e5fd773c40edd8da0888f8c907dc3cc",
-            "3e5fd773c40edd8da0888f8c907dc3cc"
-          ],
-          "escalation": "circuit_breaker",
-          "attempts_to_escalation": 2
-        }
-      }
-    },
-    {
-      "condition": "MI-2_missing_import",
-      "ok": true,
-      "detail": "stopped at gate 4 (SCALA_COMPILE_ERROR), expected 4; escalation circuit_breaker",
-      "measurements": [
-        {
-          "name": "mutation_applied",
-          "value": true,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "verdict_s",
-          "value": 38.2,
-          "unit": "s",
-          "note": "from the fault's start to the first gate verdict"
-        },
-        {
-          "name": "first_failed_gate",
-          "value": 4,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "error_class",
-          "value": "SCALA_COMPILE_ERROR",
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "toolchain_failure",
-          "value": false,
-          "unit": "",
-          "note": "a gate failed for a reason other than the fault; not counted"
-        },
-        {
-          "name": "detected",
-          "value": true,
-          "unit": "",
-          "note": "stopped by a static gate, 1 to 4"
-        },
-        {
-          "name": "compiled",
-          "value": false,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "caught_by_expected_gate",
-          "value": true,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "detected_before_data",
-          "value": true,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "reached_execution",
-          "value": false,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "escalation",
-          "value": "circuit_breaker",
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "attempts_to_escalation",
-          "value": 2,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "fingerprints_identical",
-          "value": true,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "wall_clock_s",
-          "value": 76.6,
+          "value": 93.3,
           "unit": "s",
           "note": ""
         }
@@ -822,13 +822,13 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:33:38 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi2.scala:35:96: not found: value lit\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised.withColumn(\"z\", lit(1)))\n[error]                                                                                                ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:33:51 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 11, 2026, 9:01:39 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi2.scala:35:96: not found: value lit\n[error]     val rules = castRules ++ CleaningRules.standardTransactionRules(normalised.withColumn(\"z\", lit(1)))\n[error]                                                                                                ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 16 s, completed Oct 11, 2026, 9:01:55 AM\n",
         "violations": [],
         "escalation": {
           "error_class": "SCALA_COMPILE_ERROR",
           "fingerprints": [
-            "5e3784cd234d519ed2e83aa0bb926695",
-            "5e3784cd234d519ed2e83aa0bb926695"
+            "c2b2a4e626914d6c3d44e3c05f73f8be",
+            "c2b2a4e626914d6c3d44e3c05f73f8be"
           ],
           "escalation": "circuit_breaker",
           "attempts_to_escalation": 2
@@ -848,7 +848,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 38.4,
+          "value": 42.9,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -920,7 +920,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 77.1,
+          "value": 83.5,
           "unit": "s",
           "note": ""
         }
@@ -933,13 +933,13 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:34:53 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi3.scala:36:17: not found: type StructType\n[error]     val schema: StructType = null; val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]                 ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi3.scala:36:9: local val schema in method transform is never used\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=unused-locals, site=triad.jobs.generated.CleanJob_exp08mi3.transform.schema\n[error]     val schema: StructType = null; val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]         ^\n[error] two errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 15 s, completed Oct 10, 2026, 1:35:08 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 11, 2026, 9:03:12 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi3.scala:36:17: not found: type StructType\n[error]     val schema: StructType = null; val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]                 ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi3.scala:36:9: local val schema in method transform is never used\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=unused-locals, site=triad.jobs.generated.CleanJob_exp08mi3.transform.schema\n[error]     val schema: StructType = null; val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]         ^\n[error] two errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 16 s, completed Oct 11, 2026, 9:03:28 AM\n",
         "violations": [],
         "escalation": {
           "error_class": "SCALA_COMPILE_ERROR",
           "fingerprints": [
-            "467503c4c452dccce23b16f6d3a230e7",
-            "467503c4c452dccce23b16f6d3a230e7"
+            "39b1cd877411c72ab8710e0ebdd7deaa",
+            "39b1cd877411c72ab8710e0ebdd7deaa"
           ],
           "escalation": "circuit_breaker",
           "attempts_to_escalation": 2
@@ -959,7 +959,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 38.8,
+          "value": 39.7,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -1031,7 +1031,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 76.4,
+          "value": 76.9,
           "unit": "s",
           "note": ""
         }
@@ -1044,13 +1044,13 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 10, 2026, 1:36:11 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi4.scala:36:16: not found: value Instant\n[error]     val when = Instant.now(); val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]                ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi4.scala:36:9: local val when in method transform is never used\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=unused-locals, site=triad.jobs.generated.CleanJob_exp08mi4.transform.when\n[error]     val when = Instant.now(); val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]         ^\n[error] two errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 10, 2026, 1:36:25 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 8 s, completed Oct 11, 2026, 9:04:34 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi4.scala:36:16: not found: value Instant\n[error]     val when = Instant.now(); val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]                ^\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi4.scala:36:9: local val when in method transform is never used\n[error] Applicable -Wconf / @nowarn filters for this fatal warning: msg=<part of the message>, cat=unused-locals, site=triad.jobs.generated.CleanJob_exp08mi4.transform.when\n[error]     val when = Instant.now(); val dedupKeys = cfg.paramStr(\"dedup_keys\", \"order_id,line_id\")\n[error]         ^\n[error] two errors found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 11, 2026, 9:04:48 AM\n",
         "violations": [],
         "escalation": {
           "error_class": "SCALA_COMPILE_ERROR",
           "fingerprints": [
-            "1c4b72740818325631c65e0bef9092c2",
-            "1c4b72740818325631c65e0bef9092c2"
+            "ba180201396b485deb6f23890e3e3da3",
+            "ba180201396b485deb6f23890e3e3da3"
           ],
           "escalation": "circuit_breaker",
           "attempts_to_escalation": 2
@@ -1070,7 +1070,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 95.5,
+          "value": 38.6,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -1142,7 +1142,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 158.1,
+          "value": 77.5,
           "unit": "s",
           "note": ""
         }
@@ -1155,13 +1155,13 @@
           "expected_gate": 4,
           "note": ""
         },
-        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 30 s, completed Oct 10, 2026, 1:38:05 PM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi5.scala:35:30: not found: value QuarantineHelper\n[error]     val rules = castRules ++ QuarantineHelper.rulesFor(normalised)\n[error]                              ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 33 s, completed Oct 10, 2026, 1:38:38 PM\n",
+        "gate_detail": "[info] welcome to sbt 1.13.0 (Eclipse Adoptium Java 17.0.20.1)\n[info] loading project definition from /workspace/scala_spark/project\n[info] loading settings for project root from build.sbt...\n[info] set current project to triad-spark (in build file:/workspace/scala_spark/)\n[success] Total time: 6 s, completed Oct 11, 2026, 9:05:50 AM\n[info] compiling 1 Scala source to /workspace/scala_spark/jobs/target/scala-2.13/classes ...\n[error] /workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated/CleanJob_exp08mi5.scala:35:30: not found: value QuarantineHelper\n[error]     val rules = castRules ++ QuarantineHelper.rulesFor(normalised)\n[error]                              ^\n[error] one error found\n[error] (jobs / Compile / compileIncremental) Compilation failed\n[error] Total time: 14 s, completed Oct 11, 2026, 9:06:04 AM\n",
         "violations": [],
         "escalation": {
           "error_class": "SCALA_COMPILE_ERROR",
           "fingerprints": [
-            "91d661e05efdba741368edb86bca85a9",
-            "91d661e05efdba741368edb86bca85a9"
+            "c266daed9d61d406e438de4812762182",
+            "c266daed9d61d406e438de4812762182"
           ],
           "escalation": "circuit_breaker",
           "attempts_to_escalation": 2
@@ -1181,7 +1181,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 368.7,
+          "value": 366.2,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -1229,7 +1229,7 @@
         },
         {
           "name": "fixture_gate_s",
-          "value": 318.5,
+          "value": 322.1,
           "unit": "s",
           "note": ""
         },
@@ -1265,7 +1265,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 699.8,
+          "value": 706.6,
           "unit": "s",
           "note": ""
         }
@@ -1278,8 +1278,8 @@
           "expected_gate": 5,
           "note": "compiles; de-duplicates on line_id alone, merging different orders"
         },
-        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 13:42:48 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 13:42:48 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 13:42:48 INFO Executor: Java version 17.0.20.1+1\n26/10/10 13:42:49 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 13:42:49 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@55c09857 for default.\n26/10/10 13:42:49 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 42235.\n26/10/10 13:42:49 INFO NettyBlockTransferService: Server created on localhost:42235\n26/10/10 13:42:49 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 13:42:50 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManagerMasterEndpoint: Registering block manager localhost:42235 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 42235, None)\n",
-        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 13:42:48 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 13:42:48 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 13:42:48 INFO Executor: Java version 17.0.20.1+1\n26/10/10 13:42:49 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 13:42:49 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@55c09857 for default.\n26/10/10 13:42:49 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 42235.\n26/10/10 13:42:49 INFO NettyBlockTransferService: Server created on localhost:42235\n26/10/10 13:42:49 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 13:42:50 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManagerMasterEndpoint: Registering block manager localhost:42235 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 42235, None)\n26/10/10 13:42:50 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 42235, None)\n",
+        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/11 09:09:46 INFO Executor: Starting executor ID driver on host 2d3b160a6e00\n26/10/11 09:09:46 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/11 09:09:46 INFO Executor: Java version 17.0.20.1+1\n26/10/11 09:09:46 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/11 09:09:46 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@28df03a3 for default.\n26/10/11 09:09:46 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 40501.\n26/10/11 09:09:47 INFO NettyBlockTransferService: Server created on localhost:40501\n26/10/11 09:09:47 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/11 09:09:47 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 40501, None)\n26/10/11 09:09:47 INFO BlockManagerMasterEndpoint: Registering block manager localhost:40501 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 40501, None)\n26/10/11 09:09:48 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 40501, None)\n26/10/11 09:09:48 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 40501, None)\n",
+        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/11 09:09:46 INFO Executor: Starting executor ID driver on host 2d3b160a6e00\n26/10/11 09:09:46 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/11 09:09:46 INFO Executor: Java version 17.0.20.1+1\n26/10/11 09:09:46 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/11 09:09:46 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@28df03a3 for default.\n26/10/11 09:09:46 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 40501.\n26/10/11 09:09:47 INFO NettyBlockTransferService: Server created on localhost:40501\n26/10/11 09:09:47 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/11 09:09:47 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 40501, None)\n26/10/11 09:09:47 INFO BlockManagerMasterEndpoint: Registering block manager localhost:40501 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 40501, None)\n26/10/11 09:09:48 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 40501, None)\n26/10/11 09:09:48 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 40501, None)\n",
         "violations": [],
         "escalation": {
           "error_class": "CONTRACT_VIOLATION",
@@ -1305,7 +1305,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 353.1,
+          "value": 370.4,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -1353,7 +1353,7 @@
         },
         {
           "name": "fixture_gate_s",
-          "value": 312.5,
+          "value": 324.1,
           "unit": "s",
           "note": ""
         },
@@ -1371,7 +1371,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 353.1,
+          "value": 370.4,
           "unit": "s",
           "note": ""
         }
@@ -1402,7 +1402,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 354.3,
+          "value": 362.0,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -1450,7 +1450,7 @@
         },
         {
           "name": "fixture_gate_s",
-          "value": 311.1,
+          "value": 318.2,
           "unit": "s",
           "note": ""
         },
@@ -1486,7 +1486,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 689.0,
+          "value": 725.6,
           "unit": "s",
           "note": ""
         }
@@ -1499,8 +1499,8 @@
           "expected_gate": 5,
           "note": "compiles; cancellations are no longer turned into returns"
         },
-        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:00:13 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:00:13 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:00:13 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:00:13 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:00:13 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@55c09857 for default.\n26/10/10 14:00:13 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 33573.\n26/10/10 14:00:13 INFO NettyBlockTransferService: Server created on localhost:33573\n26/10/10 14:00:13 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:00:14 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManagerMasterEndpoint: Registering block manager localhost:33573 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 33573, None)\n",
-        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:00:13 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:00:13 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:00:13 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:00:13 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:00:13 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@55c09857 for default.\n26/10/10 14:00:13 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 33573.\n26/10/10 14:00:13 INFO NettyBlockTransferService: Server created on localhost:33573\n26/10/10 14:00:13 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:00:14 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManagerMasterEndpoint: Registering block manager localhost:33573 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 33573, None)\n26/10/10 14:00:14 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 33573, None)\n",
+        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/11 09:27:41 INFO Executor: Starting executor ID driver on host 2d3b160a6e00\n26/10/11 09:27:41 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/11 09:27:41 INFO Executor: Java version 17.0.20.1+1\n26/10/11 09:27:42 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/11 09:27:42 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@680f66a0 for default.\n26/10/11 09:27:43 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 34931.\n26/10/11 09:27:43 INFO NettyBlockTransferService: Server created on localhost:34931\n26/10/11 09:27:43 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/11 09:27:44 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 34931, None)\n26/10/11 09:27:44 INFO BlockManagerMasterEndpoint: Registering block manager localhost:34931 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 34931, None)\n26/10/11 09:27:44 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 34931, None)\n26/10/11 09:27:44 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 34931, None)\n",
+        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/11 09:27:41 INFO Executor: Starting executor ID driver on host 2d3b160a6e00\n26/10/11 09:27:41 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/11 09:27:41 INFO Executor: Java version 17.0.20.1+1\n26/10/11 09:27:42 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/11 09:27:42 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@680f66a0 for default.\n26/10/11 09:27:43 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 34931.\n26/10/11 09:27:43 INFO NettyBlockTransferService: Server created on localhost:34931\n26/10/11 09:27:43 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/11 09:27:44 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 34931, None)\n26/10/11 09:27:44 INFO BlockManagerMasterEndpoint: Registering block manager localhost:34931 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 34931, None)\n26/10/11 09:27:44 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 34931, None)\n26/10/11 09:27:44 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 34931, None)\n",
         "violations": [],
         "escalation": {
           "error_class": "CONTRACT_VIOLATION",
@@ -1526,7 +1526,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 348.7,
+          "value": 392.7,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -1574,7 +1574,7 @@
         },
         {
           "name": "fixture_gate_s",
-          "value": 306.8,
+          "value": 336.2,
           "unit": "s",
           "note": ""
         },
@@ -1610,7 +1610,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 685.5,
+          "value": 730.4,
           "unit": "s",
           "note": ""
         }
@@ -1623,8 +1623,8 @@
           "expected_gate": 5,
           "note": "compiles; every order id fails the cast and every row is quarantined"
         },
-        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:11:38 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:11:38 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:11:38 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:11:38 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:11:38 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@1a4a06e0 for default.\n26/10/10 14:11:39 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 43411.\n26/10/10 14:11:39 INFO NettyBlockTransferService: Server created on localhost:43411\n26/10/10 14:11:39 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:11:40 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManagerMasterEndpoint: Registering block manager localhost:43411 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 43411, None)\n",
-        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:11:38 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:11:38 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:11:38 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:11:38 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:11:38 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@1a4a06e0 for default.\n26/10/10 14:11:39 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 43411.\n26/10/10 14:11:39 INFO NettyBlockTransferService: Server created on localhost:43411\n26/10/10 14:11:39 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:11:40 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManagerMasterEndpoint: Registering block manager localhost:43411 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 43411, None)\n26/10/10 14:11:40 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 43411, None)\n",
+        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/11 09:40:26 INFO Executor: Starting executor ID driver on host 2d3b160a6e00\n26/10/11 09:40:26 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/11 09:40:26 INFO Executor: Java version 17.0.20.1+1\n26/10/11 09:40:26 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/11 09:40:26 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@28df03a3 for default.\n26/10/11 09:40:26 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 34137.\n26/10/11 09:40:26 INFO NettyBlockTransferService: Server created on localhost:34137\n26/10/11 09:40:26 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/11 09:40:27 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 34137, None)\n26/10/11 09:40:27 INFO BlockManagerMasterEndpoint: Registering block manager localhost:34137 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 34137, None)\n26/10/11 09:40:28 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 34137, None)\n26/10/11 09:40:28 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 34137, None)\n",
+        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/11 09:40:26 INFO Executor: Starting executor ID driver on host 2d3b160a6e00\n26/10/11 09:40:26 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/11 09:40:26 INFO Executor: Java version 17.0.20.1+1\n26/10/11 09:40:26 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/11 09:40:26 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@28df03a3 for default.\n26/10/11 09:40:26 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 34137.\n26/10/11 09:40:26 INFO NettyBlockTransferService: Server created on localhost:34137\n26/10/11 09:40:26 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/11 09:40:27 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 34137, None)\n26/10/11 09:40:27 INFO BlockManagerMasterEndpoint: Registering block manager localhost:34137 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 34137, None)\n26/10/11 09:40:28 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 34137, None)\n26/10/11 09:40:28 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 34137, None)\n",
         "violations": [],
         "escalation": {
           "error_class": "CONTRACT_VIOLATION",
@@ -1650,7 +1650,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 299.4,
+          "value": 294.9,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -1698,7 +1698,7 @@
         },
         {
           "name": "fixture_gate_s",
-          "value": 257.0,
+          "value": 252.2,
           "unit": "s",
           "note": ""
         },
@@ -1734,7 +1734,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 577.5,
+          "value": 583.5,
           "unit": "s",
           "note": ""
         }
@@ -1747,8 +1747,8 @@
           "expected_gate": 5,
           "note": "compiles; fails when Spark resolves the name"
         },
-        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:23:08 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:23:08 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:23:08 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:23:09 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:23:09 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@46e9cc4c for default.\n26/10/10 14:23:09 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 38193.\n26/10/10 14:23:09 INFO NettyBlockTransferService: Server created on localhost:38193\n26/10/10 14:23:09 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:23:10 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:10 INFO BlockManagerMasterEndpoint: Registering block manager localhost:38193 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:10 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:11 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 38193, None)\n",
-        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/10 14:23:08 INFO Executor: Starting executor ID driver on host b40e8b65b6a1\n26/10/10 14:23:08 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/10 14:23:08 INFO Executor: Java version 17.0.20.1+1\n26/10/10 14:23:09 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/10 14:23:09 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@46e9cc4c for default.\n26/10/10 14:23:09 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 38193.\n26/10/10 14:23:09 INFO NettyBlockTransferService: Server created on localhost:38193\n26/10/10 14:23:09 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/10 14:23:10 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:10 INFO BlockManagerMasterEndpoint: Registering block manager localhost:38193 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:10 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 38193, None)\n26/10/10 14:23:11 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 38193, None)\n",
+        "fixture_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/11 09:51:51 INFO Executor: Starting executor ID driver on host 2d3b160a6e00\n26/10/11 09:51:51 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/11 09:51:51 INFO Executor: Java version 17.0.20.1+1\n26/10/11 09:51:51 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/11 09:51:51 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@680f66a0 for default.\n26/10/11 09:51:52 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 44339.\n26/10/11 09:51:52 INFO NettyBlockTransferService: Server created on localhost:44339\n26/10/11 09:51:52 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/11 09:51:53 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 44339, None)\n26/10/11 09:51:53 INFO BlockManagerMasterEndpoint: Registering block manager localhost:44339 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 44339, None)\n26/10/11 09:51:53 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 44339, None)\n26/10/11 09:51:53 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 44339, None)\n",
+        "gate_detail": "abled; ui acls disabled; users with view permissions: root groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY; RPC SSL disabled\n26/10/11 09:51:51 INFO Executor: Starting executor ID driver on host 2d3b160a6e00\n26/10/11 09:51:51 INFO Executor: OS info Linux, 6.18.33.2-microsoft-standard-WSL2, amd64\n26/10/11 09:51:51 INFO Executor: Java version 17.0.20.1+1\n26/10/11 09:51:51 INFO Executor: Starting executor with user classpath (userClassPathFirst = false): ''\n26/10/11 09:51:51 INFO Executor: Created or updated repl class loader org.apache.spark.util.MutableURLClassLoader@680f66a0 for default.\n26/10/11 09:51:52 INFO Utils: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 44339.\n26/10/11 09:51:52 INFO NettyBlockTransferService: Server created on localhost:44339\n26/10/11 09:51:52 INFO BlockManager: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy\n26/10/11 09:51:53 INFO BlockManagerMaster: Registering BlockManager BlockManagerId(driver, localhost, 44339, None)\n26/10/11 09:51:53 INFO BlockManagerMasterEndpoint: Registering block manager localhost:44339 with 240.0 MiB RAM, BlockManagerId(driver, localhost, 44339, None)\n26/10/11 09:51:53 INFO BlockManagerMaster: Registered BlockManager BlockManagerId(driver, localhost, 44339, None)\n26/10/11 09:51:53 INFO BlockManager: Initialized BlockManager: BlockManagerId(driver, localhost, 44339, None)\n",
         "violations": [],
         "escalation": {
           "error_class": "CONTRACT_VIOLATION",
@@ -1774,7 +1774,7 @@
         },
         {
           "name": "verdict_s",
-          "value": 0.3,
+          "value": 0.2,
           "unit": "s",
           "note": "from the fault's start to the first gate verdict"
         },
@@ -1846,7 +1846,7 @@
         },
         {
           "name": "wall_clock_s",
-          "value": 0.4,
+          "value": 0.3,
           "unit": "s",
           "note": ""
         }
@@ -2327,5 +2327,5 @@
       }
     }
   ],
-  "run_dir": "20261010T131443Z"
+  "run_dir": "20261011T084444Z"
 }

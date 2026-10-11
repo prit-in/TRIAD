@@ -1,0 +1,1091 @@
+{
+  "exp_id": "EXP-6",
+  "title": "Spark failures and recovery",
+  "hypothesis": "An executor loss is absorbed by retrying; the playbook fixes out-of-memory within 2 retries; adaptive execution handles skew; recovered outputs are identical to the clean run.",
+  "independent_variable": "fault type",
+  "dependent_measures": [
+    "recovered",
+    "first_error_class",
+    "attempts",
+    "retries",
+    "wall_clock_s",
+    "content_hash",
+    "remedies_applied",
+    "identical_to_clean_run",
+    "feature_max_task_skew"
+  ],
+  "started_at": "2026-10-11T07:09:06.106449+00:00",
+  "duration_s": 2995.22,
+  "status": "partial",
+  "hypothesis_held": null,
+  "conclusion": "Reference clean run: 8078 rows, content hash 5399c7fd5344af2a, job 49.5 s. low_executor_memory: recovered=True in 1 attempt(s), first failure None, remedies [], output identical to the clean run: True. sandbox_container_killed: recovered=True in 2 attempt(s), first failure EXECUTOR_LOST, remedies ['resubmit'], output identical to the clean run: True. skewed_one_customer_20pct: recovered=True in 1 attempt(s), first failure None, remedies [], output identical to the clean run: None. Memory at 460m on 20000 customers: out-of-memory landed False (first failures (None, None)); feature-job spill 183563593 bytes against 0 at the configured memory; feature job 185.0 s against 321.7 s; outputs identical to the reference: clean True, features False; fixed within 2 retries: None. The kill landed 10.3 s into the job as a lost executor: True; recovered identically: True. On the cluster the executor was killed 31.9 s into the job (executor pid(s) 726 in triad-spark-worker-1); Spark's log named 1 lost task(s); the job finished in 1 platform attempt(s), output identical to the clean cluster run: True (the clean cluster run against local mode: True). Feature job task skew (slowest over median task): baseline 1.0, skewed 1.0; the skewed feature job completed: True in 1 attempt(s); skew handling not assessable at this size. Clauses: baseline_ran=True, oom_fixed=None, spark_retries_absorbed_executor_loss=True, platform_resubmission_absorbed_container_loss=True, skew_handled=None.",
+  "limitations": [
+    "The cluster is the compose one: a master and one worker on the same 5.27 GB VM, so an executor loss is recovered by the same worker launching a new executor, not by a different machine taking the tasks (ADR-0002).",
+    "At 400 customers one account's 20% of the lines is a small partition, so the skew arm shows whether the feature job completes and how uneven its tasks were, not how skew handling behaves at the sizes where it decides the run time.",
+    "The memory fault did not land as an out-of-memory: at 460m on 20000 customers the first failures were (None, None) (None means no failure). The feature job spilled 183563593 bytes to disk against 0 at the configured memory: Spark degraded rather than failed, so the playbook's out-of-memory remedy was not exercised and that claim is untested here. The pilots behind the setting are in experiments/EXP-6/pilot_20261010.md.",
+    "The memory remedy is held against the spark.config_change allowlist like any Spark setting (DEC-20, DEC-41): in local mode the heap is spark.driver.memory, which the allowlist leaves to a person, so the permitted part of the out-of-memory remedy here is the shuffle-partition raise."
+  ],
+  "trials": [
+    {
+      "condition": "clean_baseline",
+      "ok": true,
+      "detail": "recovered=True after 1 attempt(s); first failure None; remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "stage_wall_clock_s",
+          "value": 142.0,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 421.1,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_error_class",
+          "value": null,
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
+        },
+        {
+          "name": "remedies_applied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 49.5,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": "5399c7fd5344af2a61143ba47ca3a3b69087aaa923b41422729403fc6b93f547",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "features_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_job_duration_s",
+          "value": 69.2,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "feature_max_task_skew",
+          "value": 1.0,
+          "unit": "",
+          "note": "the worst stage's slowest task over its median task"
+        },
+        {
+          "name": "feature_disk_spill_bytes",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_rows",
+          "value": 2097,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_first_error_class",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_content_hash",
+          "value": "ee47d4f64e43204e4192e985dd49f06cb479551e1752f89b0c5dd51f09763436",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "diagnoses": [],
+        "applied_fixes": [],
+        "feature_diagnoses": [],
+        "feature_applied_fixes": []
+      }
+    },
+    {
+      "condition": "memory_reference",
+      "ok": true,
+      "detail": "recovered=True after 1 attempt(s); first failure None; remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 394306,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "stage_wall_clock_s",
+          "value": 208.6,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 727.3,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_error_class",
+          "value": null,
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
+        },
+        {
+          "name": "remedies_applied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 85.8,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
+        },
+        {
+          "name": "clean_rows",
+          "value": 394306,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": "230a9395246f7cbde41723cc2f7491f711e5ed9c3c632a4e25b872f554aec9e4",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "features_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_job_duration_s",
+          "value": 321.7,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "feature_max_task_skew",
+          "value": 1.053,
+          "unit": "",
+          "note": "the worst stage's slowest task over its median task"
+        },
+        {
+          "name": "feature_disk_spill_bytes",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_rows",
+          "value": 110900,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_first_error_class",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_content_hash",
+          "value": "56d21bec2e828fc6483efbb86ec8f5e00fb6c03fb0d001b096b0027c309a65dd",
+          "unit": "",
+          "note": ""
+        }
+      ],
+      "observations": {
+        "diagnoses": [],
+        "applied_fixes": [],
+        "feature_diagnoses": [],
+        "feature_applied_fixes": []
+      }
+    },
+    {
+      "condition": "low_executor_memory",
+      "ok": true,
+      "detail": "recovered=True after 1 attempt(s); first failure None; remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 394306,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "stage_wall_clock_s",
+          "value": 206.0,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 570.1,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_error_class",
+          "value": null,
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
+        },
+        {
+          "name": "remedies_applied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 83.3,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
+        },
+        {
+          "name": "clean_rows",
+          "value": 394306,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": "230a9395246f7cbde41723cc2f7491f711e5ed9c3c632a4e25b872f554aec9e4",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "features_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_job_duration_s",
+          "value": 185.0,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "feature_max_task_skew",
+          "value": 1.434,
+          "unit": "",
+          "note": "the worst stage's slowest task over its median task"
+        },
+        {
+          "name": "feature_disk_spill_bytes",
+          "value": 183563593,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_rows",
+          "value": 110900,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_first_error_class",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_content_hash",
+          "value": "3c5a800e61b34c6c466f8397696a943a1845ba3bbb59f24179f7f0226416dbd2",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "identical_to_clean_run",
+          "value": true,
+          "unit": "",
+          "note": "against the same data at the configured memory"
+        },
+        {
+          "name": "features_identical_to_clean_run",
+          "value": false,
+          "unit": "",
+          "note": "against the same data at the configured memory"
+        }
+      ],
+      "observations": {
+        "config_overrides": {
+          "spark.driver_memory": "460m"
+        },
+        "diagnoses": [],
+        "applied_fixes": [],
+        "feature_diagnoses": [],
+        "feature_applied_fixes": []
+      }
+    },
+    {
+      "condition": "sandbox_container_killed",
+      "ok": true,
+      "detail": "recovered=True after 2 attempt(s); first failure EXECUTOR_LOST; remedies ['resubmit']",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "stage_wall_clock_s",
+          "value": 251.7,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 273.0,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "container_killed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "killed_container",
+          "value": "triad-sbx-run-2026-10-11-017-clean-30f152",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "killed_seconds_into_job",
+          "value": 10.3,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 2,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_error_class",
+          "value": "EXECUTOR_LOST",
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
+        },
+        {
+          "name": "remedies_applied",
+          "value": [
+            "resubmit"
+          ],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 51.3,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": "5399c7fd5344af2a61143ba47ca3a3b69087aaa923b41422729403fc6b93f547",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "identical_to_clean_run",
+          "value": true,
+          "unit": "",
+          "note": "the committed output's content hash against the clean run's"
+        }
+      ],
+      "observations": {
+        "diagnoses": [
+          {
+            "error_class": "EXECUTOR_LOST",
+            "fingerprint": "4921747412e8bb8fbbd9827e12a0642e",
+            "message": "Lost executor: the sandbox container was killed from outside (exit 137)\nWARNING: Using incubator modules: jdk.incubator.vector\n26/10/11 07:41:40 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable\n",
+            "remedy": "resubmit",
+            "recoverable": true,
+            "retry_limit": 2,
+            "needs_approval": false,
+            "matched_by": "taxonomy",
+            "details": {}
+          }
+        ],
+        "applied_fixes": [
+          {
+            "remedy": "resubmit",
+            "error_class": "EXECUTOR_LOST",
+            "applied": true,
+            "note": ""
+          }
+        ]
+      }
+    },
+    {
+      "condition": "skewed_one_customer_20pct",
+      "ok": true,
+      "detail": "recovered=True after 1 attempt(s); first failure None; remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 8687,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "stage_wall_clock_s",
+          "value": 138.7,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 361.5,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_error_class",
+          "value": null,
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
+        },
+        {
+          "name": "remedies_applied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 51.1,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
+        },
+        {
+          "name": "clean_rows",
+          "value": 8687,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": "d0e993a5ca75abc5c1794f78593d262aac9e4b78a625e88a366467b98e42d0b6",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "features_succeeded",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_job_duration_s",
+          "value": 73.6,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "feature_max_task_skew",
+          "value": 1.0,
+          "unit": "",
+          "note": "the worst stage's slowest task over its median task"
+        },
+        {
+          "name": "feature_disk_spill_bytes",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_rows",
+          "value": 2118,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_first_error_class",
+          "value": null,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "feature_content_hash",
+          "value": "41da7a64cda1069e4fde120a422cadeab8444f11434f2ce39e687a31741dbe22",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "identical_to_clean_run",
+          "value": null,
+          "unit": "",
+          "note": "not compared: the skewed arm reads different source data by design"
+        }
+      ],
+      "observations": {
+        "diagnoses": [],
+        "applied_fixes": [],
+        "feature_diagnoses": [],
+        "feature_applied_fixes": []
+      }
+    },
+    {
+      "condition": "cluster_baseline",
+      "ok": true,
+      "detail": "recovered=True after 1 attempt(s); first failure None; remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "stage_wall_clock_s",
+          "value": 219.6,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 241.8,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_error_class",
+          "value": null,
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
+        },
+        {
+          "name": "remedies_applied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 99.9,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": "5399c7fd5344af2a61143ba47ca3a3b69087aaa923b41422729403fc6b93f547",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "identical_to_clean_run",
+          "value": true,
+          "unit": "",
+          "note": "the cluster's clean output against local mode's, same data"
+        }
+      ],
+      "observations": {
+        "config_overrides": {
+          "spark_master": "spark://spark-master:7077"
+        },
+        "diagnoses": [],
+        "applied_fixes": []
+      }
+    },
+    {
+      "condition": "executor_killed_on_cluster",
+      "ok": true,
+      "detail": "recovered=True after 1 attempt(s); first failure None; remedies []",
+      "measurements": [
+        {
+          "name": "input_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "stage_wall_clock_s",
+          "value": 241.2,
+          "unit": "s",
+          "note": "the cleaning stage, gates and every attempt included"
+        },
+        {
+          "name": "wall_clock_s",
+          "value": 261.7,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "recovered",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "executor_killed",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "killed_container",
+          "value": "executor pid(s) 726 in triad-spark-worker-1",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "killed_seconds_into_job",
+          "value": 31.9,
+          "unit": "s",
+          "note": ""
+        },
+        {
+          "name": "spark_log_kept",
+          "value": true,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "spark_loss_lines",
+          "value": 2,
+          "unit": "",
+          "note": "driver log lines naming a lost executor or a lost task"
+        },
+        {
+          "name": "spark_lost_task_lines",
+          "value": 1,
+          "unit": "",
+          "note": "over every attempt of the stage"
+        },
+        {
+          "name": "spark_absorbed_in_the_same_job",
+          "value": true,
+          "unit": "",
+          "note": "the job that lost a task still succeeded"
+        },
+        {
+          "name": "attempts",
+          "value": 1,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "retries",
+          "value": 0,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "escalated",
+          "value": false,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "first_error_class",
+          "value": null,
+          "unit": "",
+          "note": "how the first failed attempt was classified; None if none failed"
+        },
+        {
+          "name": "remedies_applied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "remedies_unapplied",
+          "value": [],
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "job_duration_s",
+          "value": 121.7,
+          "unit": "s",
+          "note": "the successful attempt's sandboxed job alone"
+        },
+        {
+          "name": "clean_rows",
+          "value": 8078,
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "row_accounting_balanced",
+          "value": "true",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "content_hash",
+          "value": "5399c7fd5344af2a61143ba47ca3a3b69087aaa923b41422729403fc6b93f547",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "schema_hash",
+          "value": "ac1eb8fa827af68a5d1a1c84f63111385e4215e1ed175c29fa1609fa66f2cb6d",
+          "unit": "",
+          "note": ""
+        },
+        {
+          "name": "identical_to_clean_run",
+          "value": true,
+          "unit": "",
+          "note": "against the clean run on the cluster"
+        }
+      ],
+      "observations": {
+        "config_overrides": {
+          "spark_master": "spark://spark-master:7077"
+        },
+        "spark_loss_examples": [
+          "26/10/11 07:57:23 ERROR TaskSchedulerImpl: Lost executor 0 on 172.20.0.4: Command exited with code 137",
+          "26/10/11 07:57:23 WARN TaskSetManager: Lost task 0.0 in stage 0.0 (TID 0) (172.20.0.4 executor 0): ExecutorLostFailure (executor 0 exited caused by one of the running tasks) Reason: Command exited with code 137"
+        ],
+        "diagnoses": [],
+        "applied_fixes": []
+      }
+    }
+  ]
+}

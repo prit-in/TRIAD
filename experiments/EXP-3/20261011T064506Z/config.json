@@ -1,0 +1,35 @@
+{
+  "exp_id": "EXP-3",
+  "title": "Scaling with parallelism",
+  "hypothesis": "Doubling the cores available to Spark gives at least 1.6 times speed-up.",
+  "independent_variable": "Spark parallelism (local[N])",
+  "dependent_measures": [
+    "wall_clock_s",
+    "fixed_cost_s",
+    "work_s",
+    "speed_up_vs_1_core",
+    "rows_built",
+    "shuffle_read_bytes",
+    "shuffle_write_bytes",
+    "spill_bytes",
+    "max_task_skew",
+    "executor_run_time_s",
+    "core_utilisation"
+  ],
+  "started_at": "2026-10-11T06:45:06.611905+00:00",
+  "config": {
+    "customers": 6000,
+    "months": 24,
+    "seed": 42,
+    "parallelism": [
+      1,
+      2,
+      4
+    ],
+    "repeats": 2,
+    "shuffle_partitions": 16,
+    "workload": "the B3 PySpark feature build: window aggregations over four tables",
+    "prd_tier_not_run": "100 GB on 2/4/8 distributed workers",
+    "what_is_varied": "cores inside one JVM, not distributed workers"
+  }
+}
