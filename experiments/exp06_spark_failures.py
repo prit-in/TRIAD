@@ -50,6 +50,7 @@ lost - and its output is compared with a clean run on the same cluster.
 
 from __future__ import annotations
 
+import textwrap
 import threading
 import time
 import uuid
@@ -81,22 +82,65 @@ WORKER_CONTAINER = "triad-spark-worker-1"
 # Spark's own account of an executor loss, in the driver's log (TaskSchedulerImpl and
 # TaskSetManager at Spark's default INFO level).
 SPARK_LOSS_MARKERS = ("Lost executor", "Lost task", "ExecutorLostFailure")
-# Run inside the worker: SIGKILL every executor JVM there, and print their pids.
-KILL_EXECUTORS = (
-    "import os, signal\n"
-    "pids = []\n"
-    "for p in os.listdir('/proc'):\n"
-    "    if not p.isdigit():\n"
-    "        continue\n"
-    "    try:\n"
-    "        cmd = open('/proc/' + p + '/cmdline', 'rb').read()\n"
-    "    except OSError:\n"
-    "        continue\n"
-    "    if b'CoarseGrainedExecutorBackend' in cmd:\n"
-    "        os.kill(int(p), signal.SIGKILL)\n"
-    "        pids.append(p)\n"
-    "print(','.join(pids))\n"
-)
+# A cluster job's executor starts well after its driver's container - the driver's JVM, the
+# application's registration and the executor's own JVM come first - and runs no task until it
+# has registered with the driver. So the cluster arm does not kill at a fixed time: it waits in
+# the worker until the job's executor has started a task, by its own log, and kills it this
+# long after. Two pilots that did not wait for that found, at 10 s after the container, no
+# executor yet, and at 5 s after the executor's start, one not yet registered - a loss Spark
+# recovered from with no task lost (experiments/EXP-6/pilot_cluster_20261011.md).
+EXECUTOR_KILL_INTO_S = 2.0
+EXECUTOR_WAIT_S = 180.0
+
+
+def kill_executors_script(wait_s: float, into_s: float) -> str:
+    """Python to run inside the worker: wait for a new executor to start a task, then kill it.
+
+    New means not running when the script started, so the executor of a sample run on its way
+    out is left alone. An executor has started a task when its log - `stderr` in its working
+    directory, which the worker sets per executor - says "Running task". The script skips its
+    own pid: its command line holds the marker too, and the first pilot's version killed itself
+    before reaching the executor (/proc is not listed in pid order). It prints the pid it killed,
+    or nothing.
+    """
+    return textwrap.dedent(f"""        import os, signal, time
+        me = str(os.getpid())
+
+        def executors():
+            found = []
+            for p in os.listdir('/proc'):
+                if not p.isdigit() or p == me:
+                    continue
+                try:
+                    cmd = open('/proc/' + p + '/cmdline', 'rb').read()
+                except OSError:
+                    continue
+                if b'CoarseGrainedExecutorBackend' in cmd:
+                    found.append(p)
+            return set(found)
+
+        def working(p):
+            try:
+                log = os.path.join(os.readlink('/proc/' + p + '/cwd'), 'stderr')
+                return b'Running task' in open(log, 'rb').read()
+            except OSError:
+                return False
+
+        before = executors()
+        deadline = time.time() + {float(wait_s)}
+        target = None
+        while target is None and time.time() < deadline:
+            target = next((p for p in sorted(executors() - before) if working(p)), None)
+            if target is None:
+                time.sleep(0.25)
+        if target is not None:
+            time.sleep({float(into_s)})
+            try:
+                os.kill(int(target), signal.SIGKILL)
+            except ProcessLookupError:
+                target = None
+        print(target or '')
+        """)
 
 
 def _spark(app: str):
@@ -221,12 +265,12 @@ class _ContainerKiller:
 
 
 class _ExecutorKiller(_ContainerKiller):
-    """Kills the executor JVMs in the cluster's worker, once, a set time into the arm's job.
+    """Kills the arm's executor JVM in the cluster's worker, once, while it works.
 
     The job's container is the driver here, and it is left alone: the fault is the executor
-    dying under it, which is the PRD's "kill an executor mid-stage". Only the arm's job runs on
-    the cluster at that moment - its dry run on a sample has finished, and nothing else in this
-    environment submits to the cluster - so every executor in the worker is the job's.
+    dying under it, which is the PRD's "kill an executor mid-stage". The kill starts when the
+    job's container appears (`into_job` 0) and waits in the worker for the job's own executor
+    (`kill_executors_script`), since nothing else in this environment submits to the cluster.
     """
 
     def __init__(self, into_job: float, prefix: str, worker: str) -> None:
@@ -234,12 +278,14 @@ class _ExecutorKiller(_ContainerKiller):
         self.worker = worker
 
     def _kill(self, client: Any, target: Any) -> None:
-        result = client.containers.get(self.worker).exec_run(["python3", "-c", KILL_EXECUTORS])
+        script = kill_executors_script(EXECUTOR_WAIT_S, EXECUTOR_KILL_INTO_S)
+        result = client.containers.get(self.worker).exec_run(["python3", "-c", script])
         output = (result.output or b"").decode("utf-8", "replace").strip()
         if result.exit_code != 0:
             self.error = f"the kill inside {self.worker} failed: {output[:300]}"
         elif not output:
-            self.error = f"no executor was running in {self.worker} at the kill"
+            self.error = (f"no new executor started a task in {self.worker} within "
+                          f"{EXECUTOR_WAIT_S:.0f} s of the job's container")
         else:
             self.killed = f"executor pid(s) {output} in {self.worker}"
 
@@ -319,6 +365,7 @@ def _arm(
     from agents.graph.pipeline import ChurnPipeline
     from dataeng.ingest import DatasetRegistry
     from triad_core.db import session_scope
+    from triad_core.models import PipelineRun
     from triad_core.storage import storage
 
     trial = exp.trial(name)
@@ -355,6 +402,13 @@ def _arm(
             trial.record("recovered", False)
             q.set_state(session, run, "CANCELLED", actor="exp06")
             return out
+        run_id = run.id
+
+    # Committed before the stages run, as EXP-1 and configuration P do: the registration writes
+    # land in the audit's system chain, whose lock a transaction spanning the arm held for all
+    # of it, and an arm stopped part-way lost its run and datasets with it.
+    with session_scope() as session:
+        run = session.get(PipelineRun, run_id)
 
         config_path = None
         if config_overrides:
@@ -366,7 +420,7 @@ def _arm(
         pipeline = ChurnPipeline(session, run, store=store, config_path=config_path)
         output_dir = store.clean_dir("transactions", 1)
         prefix = f"triad-sbx-{run.run_key}-clean-"
-        killer = (_ExecutorKiller(KILL_INTO_JOB_SECONDS, prefix, WORKER_CONTAINER)
+        killer = (_ExecutorKiller(0.0, prefix, WORKER_CONTAINER)
                   if kill_executor
                   else _ContainerKiller(KILL_INTO_JOB_SECONDS, prefix) if kill_container
                   else None)
@@ -543,6 +597,7 @@ def run() -> Experiment:
             "oom_driver_memory": OOM_DRIVER_MEMORY,
             "memory_arm_customers": MEMORY_CUSTOMERS,
             "kill_into_job_seconds": KILL_INTO_JOB_SECONDS,
+            "executor_kill_into_s": EXECUTOR_KILL_INTO_S,
             "arms": {
                 "clean_baseline": "no fault; the reference output checksum, and the reference "
                                   "feature-job skew",
@@ -556,9 +611,9 @@ def run() -> Experiment:
                                              "cleaning and the feature job",
                 "cluster_baseline": f"the shared data on the compose cluster ({CLUSTER_MASTER}), "
                                     "no fault",
-                "executor_killed_on_cluster": "the same, with the executor JVM in the worker "
-                                              f"killed {KILL_INTO_JOB_SECONDS:.0f} s into the "
-                                              "job",
+                "executor_killed_on_cluster": "the same, with the job's executor JVM in the "
+                                              f"worker killed {EXECUTOR_KILL_INTO_S:.0f} s after "
+                                              "it began its first task",
             },
             "shared_source_note": (
                 "the clean baseline and the killed arm read byte-identical source data, and so do "

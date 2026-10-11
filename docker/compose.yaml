@@ -197,15 +197,17 @@ services:
     environment:
       <<: *common-env
       SPARK_NO_DAEMONIZE: "true"
-    ports:
-      - "${TRIAD_SPARK_UI_PORT:-8090}:8080"
-      - "7077:7077"
     volumes:
       - triad-data:/data/triad
     deploy:
       resources:
         limits: {memory: 700M}
-    networks: [triad-net, triad-sandbox-net]
+    # The sandbox network only, with the worker: a cluster job's driver runs in a sandbox
+    # container, which has no other network. On two networks the master bound the address its
+    # name resolved to on one of them, and the driver, asking on the other, was refused (EXP-6
+    # pilot, 10-10-2026). Nothing outside the sandbox needs the cluster, and an internal network
+    # publishes no ports, so the web UI is reached with `docker exec`, not from the host.
+    networks: [triad-sandbox-net]
 
   spark-worker:
     <<: *triad-image
@@ -221,7 +223,7 @@ services:
     deploy:
       resources:
         limits: {memory: 2400M}
-    networks: [triad-net, triad-sandbox-net]
+    networks: [triad-sandbox-net]
 
   dev:
     <<: *triad-image
