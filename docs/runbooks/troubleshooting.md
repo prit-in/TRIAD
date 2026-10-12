@@ -7,7 +7,7 @@ is known to produce.
 ## How a failure is classified
 
 A failing stage produces a `TRIAD_JOB_ERROR` with a structured payload — never a stack trace for
-someone to parse. The payload is classified into one of 27 error classes, and the **class**
+someone to parse. The payload is classified into one of 28 error classes, and the **class**
 selects the remedy from a fixed playbook. Nothing in that path reads free text.
 
 Each failure also gets a **fingerprint**. A fingerprint that repeats trips the circuit breaker
@@ -44,6 +44,7 @@ spending the whole attempt budget re-running the same failure.
 | `LEAKAGE_SUSPECTED` | none | 0 | **no** | no |
 | `DEPENDENCY_RESOLUTION` | resubmit | 1 | yes | no |
 | `RESOURCE_CONFIG_INVALID` | none | 0 | **no** | no |
+| `SANDBOX_UNAVAILABLE` | resubmit | 1 | yes | no |
 | `UNKNOWN` | none | 1 | yes | no |
 
 The four with no remedy and no retry are the ones where a retry would be dishonest.
@@ -51,7 +52,9 @@ The four with no remedy and no retry are the ones where a retry would be dishone
 `LEAKAGE_SUSPECTED` means the model may have seen the future. Neither is something re-running
 fixes, and both stop the run.
 
-The last two were added after EXP-6 measured them going wrong (DEC-20). A dependency the build could not download used to be classified as a Scala compile error, which prescribes regenerating code that was never the problem; it is now resubmitted once. A job Spark refuses to start because a memory setting is below Spark's own minimum used to be `UNKNOWN`. It is now named, and handed to a person rather than fixed, because `spark.driver.memory` is not on the agent's `spark.config_change` allowlist - the escalation says which setting and the minimum Spark asked for.
+`DEPENDENCY_RESOLUTION` and `RESOURCE_CONFIG_INVALID` were added after EXP-6 measured them going wrong (DEC-20). A dependency the build could not download used to be classified as a Scala compile error, which prescribes regenerating code that was never the problem; it is now resubmitted once. A job Spark refuses to start because a memory setting is below Spark's own minimum used to be `UNKNOWN`. It is now named, and handed to a person rather than fixed, because `spark.driver.memory` is not on the agent's `spark.config_change` allowlist - the escalation says which setting and the minimum Spark asked for.
+
+`SANDBOX_UNAVAILABLE` was added after EXP-2 (DEC-52). When the sandbox service cannot be reached, or the container engine behind it stops answering, the job has not failed - the machinery around it has - so the same code is resubmitted once and never regenerated; a repeat escalates through the circuit breaker. Before that, the service outlasts a stalled engine itself: each call to the engine is retried with exponential backoff, at most three attempts (NFR-REL-01), and a running job is waited on until its own deadline. If one escalates, check the Docker VM's memory and the sandbox-runner's log before resuming the run.
 
 ## Handling an escalation
 

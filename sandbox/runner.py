@@ -24,7 +24,9 @@ Three runners, one chosen by `get_runner`:
 
 from __future__ import annotations
 
+import contextlib
 import json
+import logging
 import os
 import subprocess
 import time
@@ -36,6 +38,8 @@ from pathlib import Path
 from typing import Any
 
 from triad_core.ids import utcnow
+
+log = logging.getLogger(__name__)
 
 # PRD 22.4, whose values are marked (EX). The process limits are doubled from it (DEC-25): a
 # Spark driver's threads count against the cgroup's pids limit, and the feature job peaked at
@@ -63,8 +67,50 @@ DATA_ROOT = os.environ.get("TRIAD_DATA_ROOT", "/data/triad")
 SHAREABLE_ROOTS = (DATA_ROOT, "/workspace")
 
 
+# A call to the engine that fails transiently is retried with exponential backoff, at most
+# three attempts in all (NFR-REL-01): 10 s, then 20 s, each call itself bounded by the SDK's
+# 60 s, so an engine stalled for about three and a half minutes is outlasted. Under memory
+# pressure it stalls for minutes while the containers it runs carry on (EXP-2, 11-10-2026,
+# DEC-52). ENGINE_RETRY_PAUSE_S spaces the waits on a job that is still running.
+ENGINE_ATTEMPTS = 3
+ENGINE_BACKOFF_S = 10.0
+ENGINE_RETRY_PAUSE_S = 5.0
+
+
 SANDBOX_NETWORK_SUFFIX = "triad-sandbox-net"
 """The compose network declared `internal: true`; the project prefix varies, the name does not."""
+
+
+def _transient(exc: BaseException) -> bool:
+    """A failure of the conversation with the engine, not of the job or of the request: a
+    dropped, broken or timed-out connection, or the engine's own server error.
+
+    The SDK's `APIError` is a `requests` HTTP error too, so it is told apart first: a 404 or a
+    409 is the engine's answer, and asking again would get the same one.
+    """
+    import requests
+    from docker.errors import APIError
+
+    if isinstance(exc, APIError):
+        return bool(exc.is_server_error())
+    return isinstance(exc, requests.exceptions.RequestException)
+
+
+def _engine(call: Any, *args: Any, **kwargs: Any) -> Any:
+    """`call(*args, **kwargs)` against the engine, retried while it fails transiently - with
+    exponential backoff, at most ENGINE_ATTEMPTS attempts - and then EngineUnavailable."""
+    for attempt in range(1, ENGINE_ATTEMPTS + 1):
+        try:
+            return call(*args, **kwargs)
+        except Exception as exc:
+            if not _transient(exc):
+                raise
+            if attempt == ENGINE_ATTEMPTS:
+                raise EngineUnavailable(
+                    f"the container engine did not answer in {ENGINE_ATTEMPTS} attempts: "
+                    f"{type(exc).__name__}: {exc}") from exc
+            time.sleep(ENGINE_BACKOFF_S * 2 ** (attempt - 1))
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 class SandboxError(Exception):
@@ -165,6 +211,11 @@ def _scrubbed_env(extra: dict[str, str]) -> dict[str, str]:
     return base
 
 
+class EngineUnavailable(SandboxError):
+    """The container engine stopped answering. The job is not known to have failed - it may
+    still be running - so this is never the job's error, and the service reports it as 503."""
+
+
 class DockerRunner:
     """Starts one container per execution with the PRD's controls, through the Docker SDK.
 
@@ -210,8 +261,6 @@ class DockerRunner:
         raise SandboxError(f"{path} is on no volume or bind mount this runner shares")
 
     def run(self, request: SandboxRequest) -> SandboxResult:
-        import requests
-
         request.validate()
         profile = RESOURCE_PROFILES[request.profile]
         cpus = min(float(profile["cpus"]), HOST_LIMITS["cpus"])
@@ -223,43 +272,60 @@ class DockerRunner:
             mounts.append(self.mount(source, target, read_only=False))
 
         name = f"triad-sbx-{request.run_key}-{request.stage}-{uuid.uuid4().hex[:6]}"[:60]
+        # Labelled with the stage it runs, so a resubmission of the stage can find and end any
+        # copy an earlier submission left behind: two copies of one job write the same staging
+        # and report paths, and compete for the same memory (DEC-52).
+        labels = {"triad.run_key": request.run_key, "triad.stage": request.stage}
+        self._reap(labels)
         started = time.perf_counter()
-        container = self.client.containers.run(
-            request.image, request.command, name=name, detach=True,
-            user=f"{SANDBOX_USER[0]}:{SANDBOX_USER[1]}",
-            cap_drop=["ALL"], security_opt=["no-new-privileges"],
-            read_only=True, tmpfs={"/tmp": f"rw,size={profile['scratch']},exec"},
-            nano_cpus=int(cpus * 1e9), pids_limit=int(profile["pids"]),
-            # Memory and memory-plus-swap set to the same value: no swap. Docker's default lets a
-            # container swap as much again as its memory limit, so the 3 GB clamp was really 6,
-            # and a job that outgrew it ground through the VM's shared swap - starving every
-            # other container - instead of being stopped at the limit (EXP-2, 08-10-2026).
-            mem_limit=f"{mem_gb}g", memswap_limit=f"{mem_gb}g",
-            network_mode=request.network, working_dir=request.workdir,
-            # With no network the container's generated hostname resolves to nothing, and the
-            # JVM's logging asks for it on every logger it creates.
-            hostname="localhost" if request.network == "none" else None,
-            mounts=mounts, environment=_scrubbed_env(request.env),
-        )
-        timed_out = False
         try:
-            try:
-                code = int(container.wait(timeout=profile["timeout_s"])["StatusCode"])
-            except requests.exceptions.RequestException:
-                # The wait's read timeout is the hard timeout; a failure before it is not.
-                if time.perf_counter() - started < profile["timeout_s"]:
-                    raise
+            container = self._start(
+                request, name, labels=labels,
+                user=f"{SANDBOX_USER[0]}:{SANDBOX_USER[1]}",
+                cap_drop=["ALL"], security_opt=["no-new-privileges"],
+                read_only=True, tmpfs={"/tmp": f"rw,size={profile['scratch']},exec"},
+                nano_cpus=int(cpus * 1e9), pids_limit=int(profile["pids"]),
+                # Memory and memory-plus-swap set to the same value: no swap. Docker's default
+                # lets a container swap as much again as its memory limit, so the 3 GB clamp was
+                # really 6, and a job that outgrew it ground through the VM's shared swap -
+                # starving every other container - instead of being stopped at the limit (EXP-2,
+                # 08-10-2026).
+                mem_limit=f"{mem_gb}g", memswap_limit=f"{mem_gb}g",
+                network_mode=request.network, working_dir=request.workdir,
+                # With no network the container's generated hostname resolves to nothing, and
+                # the JVM's logging asks for it on every logger it creates.
+                hostname="localhost" if request.network == "none" else None,
+                mounts=mounts, environment=_scrubbed_env(request.env),
+            )
+        except Exception:
+            # Starting failed, but the container may exist: removed here if the engine answers,
+            # and otherwise by the next submission of the stage (_reap).
+            with contextlib.suppress(Exception):
+                self.client.containers.get(name).remove(force=True)
+            raise
+        timed_out = removed = False
+        try:
+            code = self._wait(container, started + profile["timeout_s"])
+            if code is None:
                 timed_out, code = True, 124
-                container.kill()
+                # It may have stopped on its own since, and a stopped container refuses a kill.
+                with contextlib.suppress(Exception):
+                    _engine(container.kill)
             # Exit 137 is a SIGKILL, and only the engine knows whose: the kernel's, because the
             # container outgrew its memory limit, or someone else's. The two need different
             # remedies, and the job's own log - cut off mid-line - says neither.
-            container.reload()
+            _engine(container.reload)
             oom_killed = bool(container.attrs.get("State", {}).get("OOMKilled"))
-            out = container.logs(stdout=True, stderr=False).decode("utf-8", "replace")
-            err = container.logs(stdout=False, stderr=True).decode("utf-8", "replace")
+            out = _engine(container.logs, stdout=True, stderr=False).decode("utf-8", "replace")
+            err = _engine(container.logs, stdout=False, stderr=True).decode("utf-8", "replace")
         finally:
-            container.remove(force=True)
+            # Never at the cost of the result, or of the error that ended the job: on 11-10-2026
+            # a remove that timed out against a stalled engine replaced both (DEC-52).
+            try:
+                _engine(container.remove, force=True)
+                removed = True
+            except Exception:
+                log.warning("sandbox container %s could not be removed", name, exc_info=True)
 
         return SandboxResult(
             ok=(code == 0 and not timed_out),
@@ -274,14 +340,97 @@ class DockerRunner:
                     "timeout_s": profile["timeout_s"], "network": request.network,
                     "read_only_root": True, "user": f"{SANDBOX_USER[0]}:{SANDBOX_USER[1]}"},
             timed_out=timed_out,
-            detail=(
+            detail="; ".join(part for part in (
                 "hard timeout reached" if timed_out
                 else "Container killed by the kernel: it exceeded its memory limit (OOMKilled)"
                 if oom_killed
                 else "Lost executor: the sandbox container was killed from outside (exit 137)"
-                if code == 137 else ""
-            ),
+                if code == 137 else "",
+                "" if removed else f"container {name} could not be removed",
+            ) if part),
         )
+
+    def _reap(self, labels: dict[str, str]) -> None:
+        """End and remove every container an earlier submission of this stage left behind.
+
+        One is left when the engine stops answering while it runs, or when the orchestrator
+        gives up on the service and resubmits - and it may still be running.
+        """
+        stale = _engine(self.client.containers.list, all=True,
+                        filters={"label": [f"{key}={value}" for key, value in labels.items()]})
+        for container in stale:
+            log.warning("removing %s, left behind by an earlier submission of %s/%s",
+                        container.name, labels["triad.run_key"], labels["triad.stage"])
+            try:
+                _engine(container.remove, force=True)
+            except EngineUnavailable:
+                raise
+            except Exception:  # already gone, or going
+                continue
+
+    def _start(self, request: SandboxRequest, name: str, **spec: Any) -> Any:
+        """Create and start the job's container, retried like any call to the engine.
+
+        The engine can act and lose its reply. Before each new attempt the runner looks for the
+        container by its name: one only created is started, one already running is taken, and
+        one is created only if there is none - never a second.
+        """
+        from docker.errors import NotFound
+
+        for attempt in range(1, ENGINE_ATTEMPTS + 1):
+            try:
+                if attempt > 1:
+                    try:
+                        container = self.client.containers.get(name)
+                    except NotFound:
+                        container = None
+                    if container is not None:
+                        if container.status == "created":
+                            container.start()
+                        return container
+                return self.client.containers.run(request.image, request.command, name=name,
+                                                  detach=True, **spec)
+            except Exception as exc:
+                if not _transient(exc):
+                    raise
+                if attempt == ENGINE_ATTEMPTS:
+                    raise EngineUnavailable(
+                        f"the container engine did not start the job in {ENGINE_ATTEMPTS} "
+                        f"attempts: {type(exc).__name__}: {exc}") from exc
+                time.sleep(ENGINE_BACKOFF_S * 2 ** (attempt - 1))
+        raise AssertionError("unreachable")  # pragma: no cover
+
+    def _wait(self, container: Any, deadline: float) -> int | None:
+        """The job's exit code, or None once the hard deadline has passed.
+
+        A wait whose connection broke or timed out early says nothing about the job. The runner
+        used to read it as the job failing, and its clean-up then removed - killed - a container
+        that was still working: twice in one run, a 24-minute feature job each time (EXP-2,
+        11-10-2026, DEC-52). Now it asks the engine where the job is, and waits again.
+        """
+        while True:
+            remaining = deadline - time.perf_counter()
+            if remaining <= 0:
+                return None
+            try:
+                return int(container.wait(timeout=max(1, int(remaining)))["StatusCode"])
+            except Exception as exc:
+                if not _transient(exc):
+                    raise
+            # Not a retry of failed work - the job is not known to have failed - but a question
+            # to the engine. A job needs no engine to run, so an engine that stops answering is
+            # waited out until the job's own deadline, and only then given up: giving up sooner
+            # killed, or orphaned, a job that was still working (review of 12-10-2026, DEC-52).
+            try:
+                _engine(container.reload)
+            except EngineUnavailable:
+                if time.perf_counter() >= deadline:
+                    raise
+            else:
+                state = container.attrs.get("State", {})
+                if state.get("Status") in ("exited", "dead"):
+                    return int(state.get("ExitCode", -1))
+            time.sleep(min(ENGINE_RETRY_PAUSE_S, max(0.0, deadline - time.perf_counter())))
 
 
 def _hand_to_sandbox_user(path: str) -> None:
@@ -329,8 +478,9 @@ class RemoteRunner:
             f"{self.url}/run", data=json.dumps(asdict(request)).encode(), method="POST",
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"},
         )
-        # The job's own hard timeout is enforced by the service; this one only bounds the wait.
-        timeout = RESOURCE_PROFILES[request.profile]["timeout_s"] + 120
+        # The job's own hard timeout is enforced by the service; this one only bounds the wait,
+        # and leaves room for the service's own retries against a stalled engine (DEC-52).
+        timeout = RESOURCE_PROFILES[request.profile]["timeout_s"] + 600
         try:
             with urllib.request.urlopen(call, timeout=timeout) as response:
                 return SandboxResult(**json.loads(response.read()))

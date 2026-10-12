@@ -46,6 +46,11 @@ def _round(value: Any, places: int = 4) -> Any:
         return value
 
 
+def _seconds(duration_ms: Any) -> float | None:
+    """A recorded duration in seconds; None where none was recorded, which is not 0 s (DEC-51)."""
+    return None if duration_ms is None else round(float(duration_ms) / 1000.0, 2)
+
+
 def gate_seconds(artifacts: list[Any]) -> dict[int, float]:
     """Seconds per gate number, summed over every generated job of the run."""
     totals: dict[int, float] = {}
@@ -178,10 +183,9 @@ def _prepare_and_read(
         ).scalars().all()
         stages = prepared.details.get("stages")
         out["per_stage_s"] = (
-            {s.get("stage"): round(float(s.get("duration_ms") or 0) / 1000.0, 2) for s in stages}
+            {s.get("stage"): _seconds(s.get("duration_ms")) for s in stages}
             if isinstance(stages, list) else
-            {f"{e.engine}:{e.id.hex[:6]}": round(float(e.duration_ms or 0) / 1000.0, 2)
-             for e in executions}
+            {f"{e.engine}:{e.id.hex[:6]}": _seconds(e.duration_ms) for e in executions}
         )
         gates = gate_seconds(session.execute(
             select(CodeArtifact).where(CodeArtifact.run_id == run.id)

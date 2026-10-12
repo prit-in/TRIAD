@@ -305,7 +305,8 @@ def _execution_metric(session: Any, run_id: Any, stage: str) -> dict[str, Any]:
     if row is None:
         return {}
     totals = ((row.metrics_json or {}).get("spark") or {}).get("totals") or {}
-    return {"duration_s": round((row.duration_ms or 0) / 1000, 1),
+    return {"duration_s": (None if row.duration_ms is None   # not recorded is not 0 s
+                           else round(row.duration_ms / 1000, 1)),
             "max_task_skew": totals.get("max_task_skew"),
             "disk_spill_bytes": totals.get("disk_spill_bytes")}
 

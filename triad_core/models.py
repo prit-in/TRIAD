@@ -28,6 +28,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from triad_core.ids import utcnow
+
 
 class Base(DeclarativeBase):
     pass
@@ -38,7 +40,12 @@ def _uuid_pk() -> Mapped[uuid.UUID]:
 
 
 def _now() -> Mapped[dt.datetime]:
-    return mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    # Postgres's now() is the transaction's start, and a stage writes every execution and
+    # decision of all its attempts in one transaction: a feature stage of 11-10-2026 recorded
+    # two 24-minute attempts, three diagnoses and an escalation at one instant (DEC-52). The
+    # time the row is written is set here; the server default stays for rows written in SQL.
+    return mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now(),
+                         nullable=False)
 
 
 # --- M01 Authentication -------------------------------------------------------

@@ -336,6 +336,23 @@ class TestTheProfileReachesTheVersionItDescribes:
         assert version.quality_score == pytest.approx(0.91)
         assert version.profile_uri == "file:///data/triad/profiles/test_tx.json"
 
+    @pytest.mark.spark
+    def test_the_profile_stage_reports_its_own_duration(self, spark, tmp_path: Path) -> None:
+        """Profiling runs in the worker's own Spark session, not in the sandbox, so nothing
+        timed it: its execution recorded no duration, which EXP-1 read as 0 s (DEC-51)."""
+        from sqlalchemy import select
+
+        from triad_core.models import Execution
+
+        result = self._register("tx_profile_timed", tmp_path)
+        pipeline = self._pipeline()
+        pipeline.stage_profile(spark, "transactions", result.storage_uri)
+        [execution] = self.session.execute(
+            select(Execution).where(Execution.run_id == pipeline.run.id,
+                                    Execution.stage == "profile")).scalars().all()
+        assert execution.status == "succeeded"
+        assert execution.duration_ms is not None and execution.duration_ms > 0
+
     def test_profiling_a_path_that_is_not_a_registered_version_changes_nothing(
         self, tmp_path: Path
     ) -> None:

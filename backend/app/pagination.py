@@ -4,11 +4,12 @@ The cursor is a base64 of the last row's sort key **and its id**. It is opaque t
 purpose: an offset would skip or repeat rows whenever something is inserted between two pages,
 and a raw key in the URL invites clients to build their own.
 
-The id is in there because the sort key alone is not unique. `started_at` defaults to
-`server_default=func.now()`, and PostgreSQL's `now()` is the *transaction* timestamp, so every
-row a single transaction inserts carries the identical value. Seeking on `started_at < cursor`
-alone therefore dropped every row whose timestamp equalled the last row of the previous page -
-silently, because a page that is missing rows looks exactly like a page.
+The id is in there because the sort key alone is not unique. `started_at` used to come only
+from PostgreSQL's `now()`, the *transaction* timestamp, so every row a single transaction
+inserted carried the identical value; ORM rows now carry their own time (DEC-52), but a row
+written in SQL still takes that default, and two rows can share a clock tick. Seeking on
+`started_at < cursor` alone dropped every row whose timestamp equalled the last row of the
+previous page - silently, because a page that is missing rows looks exactly like a page.
 """
 
 from __future__ import annotations

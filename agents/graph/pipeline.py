@@ -14,6 +14,7 @@ import json
 import math
 import re
 import shutil
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -405,6 +406,10 @@ class ChurnPipeline:
             return {"uri": inputs["uri"], "fmt": inputs.get("fmt", "parquet")}
 
         def execute(artifact):
+            # Profiling runs in this process's own Spark session, not in the sandbox, so
+            # nothing else times it; its execution recorded no duration, which EXP-1 read as
+            # 0 s (DEC-51).
+            started = time.perf_counter()
             df = read_for_profiling(spark, artifact["uri"], artifact["fmt"])
             profile = profile_dataframe(
                 df,
@@ -424,6 +429,7 @@ class ChurnPipeline:
                             "blocking_issues": len(profile.blocking_issues),
                             "row_count": profile.row_count},
                 "metrics": {"quality_score": profile.quality_score},
+                "duration_ms": int((time.perf_counter() - started) * 1000),
             }
 
         outcome = self.runner.run_stage(

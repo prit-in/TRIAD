@@ -329,7 +329,7 @@ def list_runs(
     if before:
         # Row-wise comparison on the same pair the ORDER BY uses. Seeking on `started_at`
         # alone skipped every row sharing a timestamp with the previous page's last row, and
-        # `now()` gives every row inserted in one transaction the same timestamp.
+        # timestamps tie (see backend.app.pagination).
         stmt = stmt.where(
             tuple_(PipelineRun.started_at, PipelineRun.id) < tuple_(*before)
         )

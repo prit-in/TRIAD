@@ -778,8 +778,8 @@ def test_a_cursor_decodes_to_a_datetime_not_a_string() -> None:
     when, tiebreak = decoded
     assert isinstance(when, dt.datetime)
     assert when == moment
-    # The id travels with it, because the timestamp alone is not unique: `now()` is the
-    # transaction timestamp, so two runs created in one transaction share it exactly.
+    # The id travels with it, because the timestamp alone is not unique: a row written in SQL
+    # takes the transaction's `now()`, and two rows can share a clock tick.
     assert tiebreak == row_id
 
 
@@ -883,22 +883,23 @@ def test_both_policy_files_are_read_the_way_their_own_engine_reads_them(client, 
 def test_paging_does_not_skip_runs_that_share_a_timestamp(client, users, db_session) -> None:
     """The cursor seeks on (started_at, id), because started_at alone is not unique.
 
-    `started_at` is `server_default=func.now()` and PostgreSQL's `now()` is the transaction
-    timestamp, so every row one transaction inserts carries the identical value. With the
-    cursor encoding only the timestamp and the query filtering `started_at < cursor`, every
-    row tied with the previous page's last row was dropped - and a page missing rows looks
-    exactly like a page.
+    `started_at` used to come from PostgreSQL's `now()`, the transaction timestamp, so every
+    row one transaction inserted carried the identical value. With the cursor encoding only the
+    timestamp and the query filtering `started_at < cursor`, every row tied with the previous
+    page's last row was dropped - and a page missing rows looks exactly like a page. ORM rows
+    now carry their own time (DEC-52), but a row written in SQL still takes the server default,
+    and two rows can share a clock tick, so the tie is made here rather than left to chance.
 
-    Six runs are created in one transaction, so all six share a timestamp, then walked two at
-    a time. All six must appear exactly once.
+    Six runs share one timestamp, then are walked two at a time. All six must appear once.
     """
+    from triad_core.ids import utcnow
     from triad_core.models import PipelineRun
 
-    made = []
+    made, tie = [], utcnow()
     for i in range(6):
         run = PipelineRun(
             run_key=f"run-tie-{i:03d}", pipeline_name="churn",
-            state="SUCCEEDED", trigger_type="manual", mode="full",
+            state="SUCCEEDED", trigger_type="manual", mode="full", started_at=tie,
         )
         db_session.add(run)
         made.append(run)

@@ -63,6 +63,31 @@ class TestStageRunner:
         assert outcome.outputs["uri"] == "file:///features"
         assert outcome.escalated is False
 
+    def test_a_stage_records_the_time_it_reports_and_never_invents_one(self) -> None:
+        """A stage's execution records the duration the stage reports - a sandboxed job's own,
+        the in-process profile's own (DEC-51) - and one that reports none, as a job the sandbox
+        never ran does, records none rather than a measured-looking time (DEC-52)."""
+        import time
+
+        from sqlalchemy import select
+
+        from triad_core.models import Execution
+
+        def never_ran(artifact):
+            time.sleep(0.01)
+            return {"ok": False, "error": "tool_exception: SandboxError: sandbox-runner "
+                                          "refused the job (503): engine down"}
+
+        self._runner().run_stage(self._request(stage="clean", execute=never_ran, max_attempts=1))
+        self._runner().run_stage(self._request(
+            stage="features", execute=lambda a: {"ok": True, "outputs": {}, "duration_ms": 1234}))
+        executions = list(self.session.execute(
+            select(Execution).where(Execution.run_id == self.run.id)).scalars())
+        assert {e.stage: e.duration_ms for e in executions} == {"clean": None, "features": 1234}
+        # Written in one transaction, a moment apart: each carries its own time, not the
+        # transaction's start, which every row of a stage used to share (DEC-52).
+        assert len({e.started_at for e in executions}) == 2
+
     def test_memoisation_reuses_an_identical_stage(self) -> None:
         """TC-083 / FR-083: unchanged input, code and config means the stage is skipped."""
         memo: dict = {}

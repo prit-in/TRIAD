@@ -44,6 +44,9 @@ class ErrorClass(str, Enum):
     # wrong remedy or to none; see docs/implementation/DECISIONS.md, DEC-20.
     DEPENDENCY_RESOLUTION = "DEPENDENCY_RESOLUTION"
     RESOURCE_CONFIG_INVALID = "RESOURCE_CONFIG_INVALID"
+    # Found by EXP-2 (DEC-52): the sandbox or its container engine failing is not the job's
+    # code failing, and was classified as a Python exception and sent to code regeneration.
+    SANDBOX_UNAVAILABLE = "SANDBOX_UNAVAILABLE"
     UNKNOWN = "UNKNOWN"
 
 
@@ -142,11 +145,25 @@ PLAYBOOK: dict[ErrorClass, PlaybookEntry] = {
     ErrorClass.RESOURCE_CONFIG_INVALID: PlaybookEntry(
         ErrorClass.RESOURCE_CONFIG_INVALID, Remedy.NONE, 0, False,
         note="the setting is outside the agent's allowlist; a person must change it"),
+    # The job never failed - the machinery around it did - so the same code is resubmitted,
+    # once; an outage that outlasts that is escalated by the circuit breaker on the repeat.
+    ErrorClass.SANDBOX_UNAVAILABLE: PlaybookEntry(
+        ErrorClass.SANDBOX_UNAVAILABLE, Remedy.RESUBMIT, 1, True,
+        note="the sandbox or its container engine failed, not the job; code is not regenerated"),
     ErrorClass.UNKNOWN: PlaybookEntry(ErrorClass.UNKNOWN, Remedy.NONE, 1, True),
 }
 
 # Ordered: the first pattern that matches wins.
 _PATTERNS: list[tuple[ErrorClass, re.Pattern[str]]] = [
+    # First: the service's reply carries the engine's own exception text, whose "...Error:"
+    # every later pattern down to PYTHON_EXCEPTION would otherwise take for the job's. Only an
+    # unreachable service, its 503 (DEC-52) and a 500 whose cause is the connection to the
+    # engine count; a 500 for a missing input folder is the engine's answer, not an outage.
+    (ErrorClass.SANDBOX_UNAVAILABLE, re.compile(
+        r"sandbox-runner unreachable|sandbox-runner refused the job \(503\)"
+        r"|sandbox-runner refused the job \(5\d\d\)[^\n]*(ReadTimeout|ConnectTimeout"
+        r"|ConnectionError|ChunkedEncodingError|ProtocolError|Read timed out|Connection aborted"
+        r"|Response ended prematurely|\d{3} Server Error)", re.I)),
     # These two come first because both appear inside text later patterns also match: every
     # line of an sbt stack trace begins `[error]`, and Spark's low-memory refusal mentions memory.
     # "unable to create native thread" is a process limit (the profile's pids cap), not heap:

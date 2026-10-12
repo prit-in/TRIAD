@@ -78,7 +78,7 @@ and it is reused only when none of them has changed.
 
 ## 6.4 Feedback, repair, and budgets
 
-When a stage fails, its error is classified against a taxonomy of 27 error classes, each with a
+When a stage fails, its error is classified against a taxonomy of 28 error classes, each with a
 remedy in a playbook: resubmit, raise shuffle partitions, raise executor memory, enable skew
 handling, quarantine and continue, regenerate the code, or none. The classifier works from the
 job's own structured error report when there is one, and from the exception lines of its log when
@@ -114,7 +114,7 @@ by planting instructions in a dataset (Section 12).
   `scala_spark/jobs/src/main/scala/triad/jobs/{CleanJob,FeatureJob,LabelJob}.scala`.
 - Gates: `agents/codegen/gates.py`; gate-5 cache key `fixture_key`; all nine recorded on
   run-2026-10-03-002.
-- 27 error classes, 17 remedies: `triad_core/errors.py`; DEC-20, DEC-25.
+- 28 error classes, 17 remedies: `triad_core/errors.py`; DEC-20, DEC-25, DEC-52.
 - Budgets: `agents/llm/budget.py`; circuit breaker observed on run-2026-10-04-002
   ("error fingerprint repeated").
 - Injection scanning: `tests/unit/test_injection.py` (ATC-13); EXP-10.

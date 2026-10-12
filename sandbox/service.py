@@ -22,7 +22,7 @@ from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from sandbox.runner import DockerRunner, SandboxError, SandboxRequest
+from sandbox.runner import DockerRunner, EngineUnavailable, SandboxError, SandboxRequest
 
 log = logging.getLogger("triad.sandbox")
 
@@ -63,6 +63,11 @@ def make_handler(runner: Any, token: str, images: frozenset[str]) -> type[BaseHT
                 if request.image not in images:
                     raise SandboxError(f"image {request.image!r} is not one this runner starts")
                 result = runner.run(request)
+            except EngineUnavailable as exc:
+                # Not a refusal of the request, and not the job failing: the engine is down.
+                log.error("engine unavailable: %s", exc)
+                self._reply(503, {"detail": str(exc)})
+                return
             except (SandboxError, TypeError, ValueError) as exc:
                 log.warning("refused: %s", exc)
                 self._reply(422, {"detail": str(exc)})

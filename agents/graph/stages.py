@@ -293,6 +293,9 @@ class StageRunner:
         execution.status = "succeeded" if result.get("ok") else "failed"
         execution.exit_code = result.get("exit_code")
         execution.finished_at = utcnow()
+        # What the stage reports, and nothing in its place: a sandboxed job reports its own
+        # time and the in-process profile stage times itself (DEC-51), while a job the sandbox
+        # never ran reports none, and is recorded with none (DEC-52).
         execution.duration_ms = result.get("duration_ms")
         execution.metrics_json = result.get("metrics", {})
         execution.outputs_json = {k: str(v)[:500] for k, v in (result.get("outputs") or {}).items()}
@@ -547,6 +550,11 @@ def _suggested_actions(diagnoses: list[dict[str, Any]], reason: str) -> list[str
         ],
         ErrorClass.DEPENDENCY_RESOLUTION.value: [
             "Check the toolchain's dependency cache and its network access to the repository",
+            "The generated code was not the cause; do not regenerate it",
+        ],
+        ErrorClass.SANDBOX_UNAVAILABLE.value: [
+            "Check the container engine and the Docker VM's memory (docker info, the "
+            "sandbox-runner log), then resume the run",
             "The generated code was not the cause; do not regenerate it",
         ],
         ErrorClass.LEAKAGE_SUSPECTED.value: [
