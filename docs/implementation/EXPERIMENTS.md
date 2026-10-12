@@ -84,14 +84,16 @@ different class from instruction phrases — a tokenizer may treat one as a role
 data fence is ordinary text that loses to that. They are now scanned and broken up before
 fencing.
 
-### EXP-7, model degradation — held, partial
+### EXP-7, model degradation — held, completed
+
+Run `20261011T165840Z` (11-10-2026 16:58 to 17:46 UTC), on the code after DEC-48 and DEC-49.
 
 | Arm | Max PSI | PSI flagged after | PR-AUC | 10% drop visible after | Triggers |
 | --- | --- | --- | --- | --- | --- |
 | six stable months | 0.031 | never (0 false alarms) | 0.5064 mean | — | — |
 | covariate shift, one feature | 0.311 | 0 scoring months | 0.5538 → 0.7079 | never | RT-2, RT-3, RT-5, RT-6 |
 | covariate shift, one segment | 1.084 | 0 scoring months | 0.5538 → 0.7405 | never | RT-2, RT-3, RT-5, RT-6 |
-| concept drift, one segment | 0.032 | **never** | 0.5538 → lower | 0 label months | **RT-1**, RT-5, RT-6 |
+| concept drift, one segment | 0.032 | **never** | 0.5538 → 0.3281 | 0 label months | **RT-1**, RT-5, RT-6 |
 
 The two kinds of drift behave oppositely, and separating them is the result. PSI catches
 covariate shift on the first scoring run with no labels at all — and covariate shift did not
@@ -108,10 +110,37 @@ later month looked 10% worse immediately and the label delay came out as 0 for b
 distributions, so PR-AUC went *up*; reporting that as degradation would have been wrong, so
 concept drift is a third arm rather than a relabelling of the first two.
 
-Partial because the approval half of the hypothesis is covered by the pipeline's own approval
-gate (AT-08, AT-13) and is not re-tested here, and because replay is over synthetic months
-rather than Online Retail II — only the generator can be told to shift one feature or change one
-segment's behaviour on demand.
+**End to end, on the platform itself.** The detector arms above do not use the platform's
+retraining; one arm runs the hypothesis's whole chain through it - drift flagged, retraining
+started, the challenger compared with the champion, promotion waiting for approval - and each
+part is judged on its own, untested if the chain never reached it (DEC-48). 1 500 customers; the
+champion is trained by the platform's pipeline on 24 synthetic months, the generator's
+basket-size and channel-mix shift runs at full strength from month 18 (inside the champion's test
+window, after its training cutoffs), and three more months arrive afterwards.
+
+- **The champion's promotion waited.** It escalated on AP-6 and took the two-approver path
+  (`model.promote_with_failed_check`): the run sat in APPROVAL_REQUIRED with no champion until
+  both approvals were given, then became version 1.
+- **Drift was flagged.** The champion's publish flagged `monetary_90d` (PSI 6.54) while its score
+  distribution barely moved (PSI 0.018); publish's own retraining evaluation, under the
+  configured 7-day cooldown, held back (`cooldown`).
+- **Retraining started, on the data that arrived.** With the arrived months registered (7 new
+  dataset versions), the scheduler's evaluation fired RT-2 and queued run-2026-10-11-030 as a
+  drift-triggered retrain of the same model, reading exactly the versions that had arrived.
+- **The challenger was compared with the champion.** AP-8 scored both on the challenger's test
+  cutoff: PR-AUC difference +0.004, 95% interval [-0.024, +0.034] - no significant lift, so not
+  eligible for an override. It also failed AP-6 (tenure-band recall gap 0.289) and escalated;
+  nothing was promoted and the champion stayed version 1.
+
+Earlier end-to-end runs are kept with notes: `20261010T175642Z`, whose retrain read unrelated data
+(fixed by DEC-48); `20261010T184800Z`, not an experiment run; and `20261011T075932Z`, whose
+harness misread the escalated retrain as never compared (fixed by DEC-49).
+
+Limits: the scheduler's evaluation uses a 0-day cooldown, because the champion is minutes old,
+with publish's own 7-day evaluation recorded beside it; the approvals are given by the harness
+acting as the approvers, so they show that promotion waits for a decision, not how long a person
+takes; and replay is over synthetic months rather than Online Retail II - only the generator can
+be told to shift one feature or change one segment's behaviour on demand.
 
 ### EXP-4, schema errors — held, completed
 
