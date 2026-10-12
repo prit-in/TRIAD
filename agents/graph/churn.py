@@ -353,6 +353,9 @@ def prepare(
                    f"{profile_out['row_count']} rows, "
                    f"{profile_out['blocking_issues']} blocking issues", True)
     pipeline._advance("PROFILED", stage="profile")
+    # The clean job runs in the sandbox beside this process, so the heap profiling left idle
+    # would otherwise sit in the same VM as that job's for its whole run (DEC-47, DEC-52).
+    release_jvm_heap(spark)
 
     # -- clean ------------------------------------------------------------------
     clean_out = pipeline.stage_scala_job(
