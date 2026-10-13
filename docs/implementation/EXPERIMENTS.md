@@ -13,7 +13,7 @@ carrying an estimate.
 
 | ID | Title | Status | Hypothesis | Where |
 | --- | --- | --- | --- | --- |
-| EXP-1 | Small dataset against the non-agentic baselines | **partial** | **held** (P end to end in 831 s, no manual step; escalated on AP-5 at 243 rows) | `experiments/EXP-1/latest.json` |
+| EXP-1 | Small dataset against the non-agentic baselines | **partial** | **held** (P end to end in 1 230 s with no manual step, 0.957 of it beyond B3's time; escalated on AP-5 at 243 rows) | `experiments/EXP-1/latest.json` |
 | EXP-2 | Medium dataset: where a single node gives out | **partial** | **refuted on this node** (B3 stopped first, at 100 000 customers) | `experiments/EXP-2/latest.json` |
 | EXP-3 | Scaling with parallelism | **partial** | **did not hold** | `experiments/EXP-3/latest.json` |
 | EXP-4 | Schema errors | **completed** | **held** (every fault detected and handled; the mapping proposed, approved, then applied) | `experiments/EXP-4/latest.json` |
@@ -225,39 +225,38 @@ because the caches were mounted where nothing looked (DEC-43).
 
 ### EXP-1, TRIAD against the non-agentic baselines — held, partial
 
-Run `experiments/EXP-1/20261011T063017Z/` (11-10-2026, 06:30 UTC, 400 customers), with P, B2 and
-B3 each in a process of their own (DEC-44).
+Run `experiments/EXP-1/20261013T132108Z/` (13-10-2026, 13:21 to 13:43 UTC, 400 customers), on the
+code after DEC-53, with P, B2 and B3 each in a process of their own (DEC-44) and nothing else
+running on the host.
 
 | Configuration | Wall clock | Test PR-AUC | Model | Features | Hand-written lines | Manual steps | Audit entries |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| P (TRIAD) | 773 s | 0.741 (escalated) | xgboost | full catalogue (44) | 0 | 0 | 17 |
-| B2 (pandas only) | 6.7 s | 0.790 | logreg | 12 | 188 | 0 | 0 |
-| B3 (Spark, no agents) | 52 s | 0.787 | logreg | 12 | 262 | 0 | 0 |
+| P (TRIAD) | 1 230 s | 0.741 (escalated) | xgboost | full catalogue (44) | 0 | 0 | 17 |
+| B2 (pandas only) | 6.9 s | 0.790 | logreg | 12 | 188 | 0 | 0 |
+| B3 (Spark, no agents) | 53 s | 0.787 | logreg | 12 | 291 | 0 | 0 |
 | B1 (manual runbook) | **not measured** | - | - | - | - | - | - |
 
-The hypothesis has two halves. **The first holds:** P ran four sandboxed Spark jobs, wrote 8
-decision records and 17 audit entries, and needed no manual step; its candidate (xgboost) was
-escalated by AP-5 - calibration error above 0.05 after both remedies - on a validation split of
-243 rows, which Section 15 shows is inside the calibration estimator's noise floor at that size.
-An escalation is the policy handing a person the decision, which is what it is for. **The second,
+The hypothesis has two halves. **The first holds:** P ran four Spark jobs - profiling in the
+worker's own session, then three generated jobs in the sandbox - wrote 8 decision records and 17
+audit entries, made no LLM call, and needed no manual step; its candidate (xgboost) was escalated
+by AP-5 - calibration error above 0.05 after both remedies - on a validation split of 243 rows,
+which Section 15 shows is inside the calibration estimator's noise floor at that size. An
+escalation is the policy handing a person the decision, which is what it is for. **The second,
 "agent overhead dominates P's time", holds as measured:** B3 does the same Spark work and
-modelling with no agents, so P's time beyond B3's is the agentic loop's cost - 721 s, or 0.933 of
-P's wall clock (DEC-48). None of it is LLM time, because no provider is configured (ADR-0003); it
-is the gates, the sandbox start-ups, the tuning and calibration P does and B3 does not, and the
-governance writes. The verdict used to be computed from "P is slower than B2", which is the PRD's
-expected observation rather than its hypothesis.
+modelling with no agents, so P's time beyond B3's is the agentic loop's cost - 1 177 s, or 0.957
+of P's wall clock (DEC-48). None of it is LLM time, because no provider is configured (ADR-0003);
+it is the gates, the sandbox start-ups, the tuning and calibration P does and B3 does not, and the
+governance writes.
 
-**Where P's time goes**, read off the platform's own gate records: the gates before each run took
-349 s - compilation 164 s, the dry runs on a sample 184 s, the fixture suite nothing because its
-result for these exact sources was reused (FR-083) - and the four full Spark runs 178 s (gate 9,
-which recorded 0 ms for every run until DEC-48). The rest is training with tuning and calibration,
-and the governance writes. B3's 52 s splits into 44 s of Spark and 7 s of modelling, against 76 s on
-10-10-2026, when its Spark JVM stayed resident through the modelling (DEC-44). The run of 10-10-2026
-(`20261010T143000Z`) took 831 s for P with the same models; that of 09-10-2026
-(`20261009T172131Z`) 989 s, its first compile including a download of sbt and the build's
-dependencies (DEC-43). The first run after the template fix, `20261009T161555Z`, is kept as the cold
-case: every fixture run was fresh (1 867 s of gate 5), the first compile rebuilt everything (718 s,
-downloads included), and P took 3 397 s.
+**Where P's time goes**, read off the platform's own records: profiling 116 s (the stage times
+itself since DEC-51); the gates before the generated jobs 553 s - compilation 262 s and the dry
+runs on a sample 292 s, the fixture suite nothing because its result for these exact sources was
+reused (FR-083); the three full runs 299 s, 88 to 120 s each; and the rest training with tuning
+and calibration, and the governance writes. B3's 53 s splits into 45 s of Spark, 0.14 s to read
+its feature table back (the parquet hand-off of DEC-50, which its 291 lines include; 262 before)
+and 6 s of modelling.
+
+**P's wall clock varies more than anything else it reports.** Three runs on the same code path agree on every count and score - P's test PR-AUC 0.7405, 17 audit entries, 8 decision records, B3 0.787, B2 0.790 - and not on P's time: 786 s on 11-10-2026 (`20261011T174929Z`, straight after EXP-7 had used the same images for 50 minutes), 2 296 s on 12-10-2026 (`20261012T145209Z`, beside a three-agent review on the same host, kept with a note) and 1 230 s here. The baselines took 6.9 s and 53 s here against 6.6 s and 49 s on 11-10, so the difference lies in what only P does: compiling with sbt (262 s against 160 s), and the dry runs and full runs in sandbox containers (292 s against 183 s, and 299 s against 166 s). This run was the first after Docker Desktop restarted, and the likeliest reason is that those steps read their toolchain caches and container images cold; the environment record does not capture that, so it is not measured. The share of P's time beyond B3's was 0.938, 0.944 and 0.957: the verdict does not depend on which run is read.
 
 **The PR-AUC column is not a quality comparison.** P uses its 44-feature catalogue, the baselines
 twelve hand-picked features, and the baselines train on P's training and calibration cutoffs
@@ -268,14 +267,16 @@ random forest (validation PR-AUC: random forest 0.703, histogram GB 0.699, logre
 either, so no ranking is claimed; the comparison says that the modelling is not where P earns its
 time - the evidence is.
 
-**History.** The run of 07-10-2026 failed when P escalated and the harness had nothing to read
-(DEC-34). The run of 08-10-2026 23:53 failed because the DEC-36 CleanJob template compiled but its
-generated copies did not (a varargs deprecation made fatal in generated code); every repair
-attempt failed gate 4 identically and P escalated at cleaning. The 16:15 run on 09-10-2026 then
-reached the end but its like-for-like refit crashed: the shortlist's preprocessing chose
-categorical columns from the baselines' three names and sent P's payment-method column to a
-median imputer. Both are fixed, with tests. The LLM part of "agent overhead" stays untestable while
-no LLM provider is configured (ADR-0003); the overhead that is present is measured above.
+**History.** The runs of 11-10-2026 (`20261011T063017Z`, P 773 s, before B3's parquet hand-off;
+`20261011T174929Z`, whose profile stage recorded no time) and of 12-10-2026 are kept. The run of
+07-10-2026 failed when P escalated and the harness had nothing to read (DEC-34). The run of
+08-10-2026 23:53 failed because the DEC-36 CleanJob template compiled but its generated copies did
+not (a varargs deprecation made fatal in generated code); every repair attempt failed gate 4
+identically and P escalated at cleaning. The 16:15 run on 09-10-2026 then reached the end but its
+like-for-like refit crashed: the shortlist's preprocessing chose categorical columns from the
+baselines' three names and sent P's payment-method column to a median imputer. Both are fixed,
+with tests. The LLM part of "agent overhead" stays untestable while no LLM provider is configured
+(ADR-0003); the overhead that is present is measured above.
 
 ### EXP-2, where a single node gives out — refuted on this node, partial
 
