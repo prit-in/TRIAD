@@ -508,6 +508,70 @@ def test_an_export_is_audited_before_the_file_exists(client, users, db_session) 
     assert entry is not None and entry.details["rows"] == response.json()["rows"]
 
 
+def test_a_retried_export_is_the_same_export(client, users, db_session) -> None:
+    """PRD 25.1: `Idempotency-Key` on exports - one file and one audit entry per key, and the
+    same key with other filters refused, as run creation refuses it (DEC-53)."""
+    from sqlalchemy import func, select
+
+    from triad_core.models import AuditLog
+
+    analyst = users["business_analyst"]
+
+    def exported() -> int:
+        return db_session.execute(
+            select(func.count()).select_from(AuditLog)
+            .where(AuditLog.action == "predictions.exported",
+                   AuditLog.actor_id == str(analyst.id))).scalar_one()
+
+    key = {"Idempotency-Key": f"export-{uuid.uuid4().hex}"}
+    before = exported()
+    first = client.post("/api/v1/predictions/export", headers={**_auth(analyst), **key})
+    again = client.post("/api/v1/predictions/export", headers={**_auth(analyst), **key})
+    assert first.status_code == again.status_code == 202
+    assert first.json()["download"] == again.json()["download"]
+    assert exported() == before + 1, "the retry wrote no second export and no second entry"
+
+    other = client.post("/api/v1/predictions/export?risk_band=high",
+                        headers={**_auth(analyst), **key})
+    assert other.status_code == 409 and other.json()["type"].endswith("/idempotency-conflict")
+
+
+def test_every_problem_carries_the_correlation_id_it_was_answered_with(client, users) -> None:
+    """PRD 26.3: an error shows "a correlation ID for support" (DEC-53)."""
+    headers = _auth(users["admin"])
+    missing = client.get("/api/v1/pipelines/run-that-does-not-exist", headers=headers)
+    assert missing.status_code == 404
+    assert missing.json()["correlation_id"] == missing.headers["X-Request-ID"]
+    assert len(missing.headers["X-Request-ID"]) == 32
+
+    traced = client.get("/api/v1/pipelines/run-that-does-not-exist",
+                        headers={**headers, "X-Request-ID": "dashboard-trace-0001"})
+    assert traced.json()["correlation_id"] == "dashboard-trace-0001", "a caller's id is kept"
+    odd = client.get("/api/v1/pipelines/run-that-does-not-exist",
+                     headers={**headers, "X-Request-ID": "short"})
+    assert odd.headers["X-Request-ID"] != "short", "only a plain token is kept"
+
+
+def test_an_unexpected_error_is_a_problem_the_dashboard_can_read(client, users,
+                                                                 monkeypatch) -> None:
+    """Left to Starlette it was a plain-text 500 outside the CORS layer: unreadable from the
+    dashboard's origin, which then said it could not reach the server (DEC-53)."""
+    from backend.app.api.v1 import pipelines
+
+    def broken(session, run_ref):
+        raise RuntimeError("an internal detail that must not leak")
+
+    monkeypatch.setattr(pipelines, "_find_run", broken)
+    response = client.get("/api/v1/pipelines/any",
+                          headers={**_auth(users["admin"]), "Origin": "http://localhost:5173"})
+    assert response.status_code == 500
+    assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.json()["type"].endswith("/internal")
+    assert response.json()["correlation_id"] == response.headers["X-Request-ID"]
+    assert "must not leak" not in response.text
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
 @pytest.mark.parametrize("name", ["..passwd", "..%5C..%5Cetc%5Cpasswd", "a..b.csv"])
 def test_an_export_name_cannot_walk_out_of_its_directory(client, users, name: str) -> None:
     """The handler's own guard refuses it - asserted by its answer, not by any 4xx.

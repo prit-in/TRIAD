@@ -219,6 +219,10 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
   border-radius: 6px;
   padding: 0.6rem 0.75rem;
 }
+.problem p { margin: 0.15rem 0; }
+.problem-hint { color: var(--muted); font-size: 0.9rem; }
+.problem details { margin-top: 0.3rem; font-size: 0.8rem; color: var(--muted); }
+.problem pre { white-space: pre-wrap; margin: 0.3rem 0 0; }
 
 .waiting-note {
   background: #fdf7e8;

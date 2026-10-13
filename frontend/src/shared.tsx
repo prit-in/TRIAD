@@ -52,18 +52,62 @@ export function Panel({
   );
 }
 
+/** What to do next, by what went wrong (PRD 26.2: a summary, then a suggested action). */
+function suggestedAction(error: ApiProblem | Error): string {
+  if (!(error instanceof ApiProblem)) {
+    return "Check that the API is running and reachable, then try again.";
+  }
+  if (error.status === 401) return "Sign in again: the session has ended.";
+  if (error.status === 403) return "Ask an administrator for one of the roles named above.";
+  if (error.status === 404) {
+    return "It may have been removed or renamed: go back to the list and choose it again.";
+  }
+  if (error.status === 409) return "Reload the page to see its current state, then try again.";
+  if (error.status === 413) return "Choose a smaller file.";
+  if (error.status === 400 || error.status === 422) {
+    return "Check the values entered and try again.";
+  }
+  return "Try again in a moment; if it keeps failing, give support the reference below.";
+}
+
+/** An error as PRD 26.2-26.3 ask: a one-line summary, a suggested action, the correlation id
+ * for support, and the technical detail on demand rather than in the way. */
 export function Problem({ error }: { error: ApiProblem | Error | null }) {
   if (!error) return null;
-  const title = error instanceof ApiProblem ? error.title : "Could not reach the server";
+  const problem = error instanceof ApiProblem ? error : null;
+  const title = problem ? problem.title : "Could not reach the server";
   return (
-    <p className="problem">
-      <strong>{title}.</strong> {error.message}
-    </p>
+    <div className="problem" role="alert">
+      <p>
+        <strong>{title}.</strong> {error.message}
+      </p>
+      <p className="problem-hint">{suggestedAction(error)}</p>
+      {problem?.correlationId && (
+        <p className="problem-hint">
+          Reference for support: <code>{problem.correlationId}</code>
+        </p>
+      )}
+      {problem && (
+        <details>
+          <summary>Technical detail</summary>
+          <pre>{JSON.stringify({ status: problem.status, ...problem.extra }, null, 2)}</pre>
+        </details>
+      )}
+    </div>
   );
 }
 
-/** Says there is nothing, rather than drawing an empty chart that looks like a zero. */
-export function Empty({ what }: { what: string }) {
+/** Says there is nothing, rather than drawing an empty chart that looks like a zero - and
+ * while the data is still on its way says that, not "nothing" (PRD 26.3): a page used to read
+ * "No experiments yet" for the second it took them to arrive (DEC-53). */
+export function Empty({ what, loading = false }: { what: string; loading?: boolean }) {
+  if (loading) {
+    return (
+      <p className="muted" aria-busy="true">
+        Loading {what}…
+      </p>
+    );
+  }
   return <p className="muted">No {what} yet.</p>;
 }
 

@@ -120,7 +120,7 @@ export function Experiments() {
         </table>
       </Panel>
 
-      {shown.length === 0 && !experiments.problem && <Empty what="experiments matching that" />}
+      {shown.length === 0 && !experiments.problem && <Empty what="experiments matching that" loading={experiments.loading} />}
 
       {shown.map((experiment) => (
         <ExperimentCard key={experiment.exp_id} experiment={experiment} />

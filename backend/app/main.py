@@ -14,9 +14,11 @@ orchestrator worker and not by this process - see backend/app/metrics.py.
 from __future__ import annotations
 
 import logging
+import re
+import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -73,6 +75,36 @@ app = FastAPI(
 app.add_exception_handler(problems.Problem, problems.problem_handler)
 app.add_exception_handler(RequestValidationError, problems.validation_handler)
 
+# A caller's own id is kept when it is a plain token, so a trace can cross the dashboard and
+# the API; anything else - a header carrying a line break, say - is replaced, never logged.
+_CALLER_ID = re.compile(r"[A-Za-z0-9-]{8,64}")
+
+
+@app.middleware("http")
+async def correlate(request: Request, call_next):
+    """Give every request a correlation id, and every failure a problem that carries it.
+
+    PRD 26.3 asks an error to show "a correlation ID for support". This middleware is added
+    before the CORS middleware below, so it runs inside it: an error nothing anticipated is
+    answered here as a problem, with its CORS headers. Left to Starlette, it became a plain-text
+    500 outside the CORS layer, which the dashboard - on another origin - could not even read,
+    and so reported as "could not reach the server" (DEC-53).
+    """
+    supplied = request.headers.get("X-Request-ID", "")
+    request.state.correlation_id = (
+        supplied if _CALLER_ID.fullmatch(supplied) else uuid.uuid4().hex)
+    try:
+        response = await call_next(request)
+    except Exception:
+        logging.getLogger("triad.api").exception(
+            "unhandled error on %s %s, correlation id %s",
+            request.method, request.url.path, request.state.correlation_id)
+        response = problems.internal_error().to_response(
+            request.url.path, request.state.correlation_id)
+    response.headers["X-Request-ID"] = request.state.correlation_id
+    return response
+
+
 # The dashboard is served from a different origin in development. Credentials are carried in
 # the Authorization header, not a cookie, so no cookie-sharing is needed or allowed.
 app.add_middleware(
@@ -80,7 +112,10 @@ app.add_middleware(
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=False,
     allow_methods=["GET", "POST"],
-    allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
+    allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-ID"],
+    # Readable by the dashboard: the correlation id it shows with an error, and where a
+    # started run lives.
+    expose_headers=["X-Request-ID", "Location"],
 )
 
 app.include_router(api_v1)

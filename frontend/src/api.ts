@@ -23,8 +23,14 @@ export class ApiProblem extends Error {
   readonly type: string;
   /** Extension members of the problem, e.g. a refused upload's `approval_id` (RFC 9457). */
   readonly extra: Record<string, unknown>;
+  /** What a person quotes to support (PRD 26.3): the problem's own id, else the response's. */
+  readonly correlationId: string | null;
 
-  constructor(status: number, body: Record<string, unknown> | null) {
+  constructor(
+    status: number,
+    body: Record<string, unknown> | null,
+    correlationId: string | null = null,
+  ) {
     const title = typeof body?.title === "string" ? body.title : "Request failed";
     const detail = typeof body?.detail === "string" ? body.detail : `HTTP ${status}`;
     super(detail);
@@ -33,6 +39,8 @@ export class ApiProblem extends Error {
     this.detail = detail;
     this.type = typeof body?.type === "string" ? body.type : "";
     this.extra = body ?? {};
+    this.correlationId =
+      typeof body?.correlation_id === "string" ? body.correlation_id : correlationId;
   }
 }
 
@@ -89,8 +97,22 @@ async function request<T>(
   { authenticated = true }: { authenticated?: boolean } = {},
 ): Promise<T> {
   const { response, text } = await send(path, init, authenticated);
-  const body = text ? (JSON.parse(text) as Record<string, unknown>) : null;
-  if (!response.ok) throw new ApiProblem(response.status, body);
+  const correlation = response.headers.get("X-Request-ID");
+  let body: Record<string, unknown> | null = null;
+  try {
+    body = text ? (JSON.parse(text) as Record<string, unknown>) : null;
+  } catch {
+    // Not JSON - a proxy's error page, say. It is still an answer with a status: reporting it
+    // as an unreachable server, as the parse error used to, misdirected the reader (DEC-53).
+    if (response.ok) {
+      throw new ApiProblem(
+        response.status,
+        { title: "Unreadable response", detail: "The server answered with something other than JSON." },
+        correlation,
+      );
+    }
+  }
+  if (!response.ok) throw new ApiProblem(response.status, body, correlation);
   return body as T;
 }
 
@@ -111,7 +133,7 @@ async function requestText(path: string): Promise<string> {
     } catch {
       /* a non-JSON error body: ApiProblem falls back to the status line */
     }
-    throw new ApiProblem(response.status, body);
+    throw new ApiProblem(response.status, body, response.headers.get("X-Request-ID"));
   }
   return text;
 }
@@ -147,6 +169,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ note }),
     }),
+  resumeRun: (runKey: string, fixNote: string) =>
+    request<{ run_id: string; state: string }>(`/pipelines/${runKey}/resume`, {
+      method: "POST",
+      body: JSON.stringify({ fix_note: fixNote }),
+    }),
   models: () => request<ModelSummary[]>("/models"),
   model: (ref: string) => request<ModelDetail>(`/models/${ref}`),
   /** PRD 19.5: restore the previous recorded champion. Pre-approved, audited, alerted. */
@@ -167,6 +194,13 @@ export const api = {
   acknowledgeAlert: (id: string) =>
     request<Alert>(`/alerts/${id}/acknowledge`, { method: "POST" }),
   predictions: (query = "") => request<Prediction[] | PredictionAggregate>(`/predictions${query}`),
+  exportPredictions: (query: string, idempotencyKey: string) =>
+    request<PredictionExport>(`/predictions/export${query}`, {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+    }),
+  /** The CSV an export produced, fetched with the token: a plain link would carry none. */
+  exportFile: (download: string) => requestText(download.replace(/^\/api\/v1/, "")),
   drift: () => request<DriftReport[]>("/drift"),
   reports: () => request<Report[]>("/reports"),
   /** The curves, intervals, segment metrics and importance behind one version's charts. */
@@ -580,6 +614,13 @@ export interface Prediction {
   model_version_id: string;
   feature_set_version: string | null;
   top_reasons: { feature: string; value: number }[];
+}
+
+/** `POST /predictions/export`: what was written, and where to fetch it from. */
+export interface PredictionExport {
+  rows: number;
+  filters: Record<string, string | null>;
+  download: string;
 }
 
 export interface PredictionAggregate {

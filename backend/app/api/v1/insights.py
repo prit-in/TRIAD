@@ -11,9 +11,11 @@ skip is not a rule:
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import json
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 
@@ -187,13 +189,37 @@ def export_predictions(
     score_date: dt.date | None = Query(default=None),
     risk_band: str | None = Query(default=None, pattern="^(high|medium|low)$"),
     prediction_set: str = Query(default="official", pattern="^(official|shadow)$"),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> dict:
-    """Write the CSV, then hand back a link. The audit entry is written first, on purpose."""
+    """Write the CSV, then hand back a link. The audit entry is written first, on purpose.
+
+    With an `Idempotency-Key` (PRD 25.1) a retried request gets the export it already made -
+    one file and one audit entry - and the same key with other filters is refused, as run
+    creation refuses it (DEC-53). The key is scoped to the user who sent it.
+    """
     import csv
 
     filters = {"model_version_id": str(model_version_id) if model_version_id else None,
                "score_date": score_date.isoformat() if score_date else None,
                "risk_band": risk_band, "prediction_set": prediction_set}
+    folder = storage().root / "exports"
+    receipt = None
+    if idempotency_key:
+        digest = hashlib.sha256(f"{user.id}:{idempotency_key}".encode()).hexdigest()[:16]
+        target = folder / f"predictions-{digest}.csv"
+        # Beside the exports, in a folder no download name can reach (names carry no "/").
+        receipt = folder / "receipts" / f"{digest}.json"
+        if receipt.is_file():
+            earlier = json.loads(receipt.read_text(encoding="utf-8"))
+            if earlier["filters"] != filters:
+                raise problems.conflict(
+                    "Idempotency key reused with a different body",
+                    f"Key {idempotency_key} already exported predictions with other filters.",
+                    problem_type="idempotency-conflict",
+                )
+            return {**earlier, "download": f"/api/v1/exports/{target.name}"}
+    else:
+        target = folder / f"predictions-{uuid.uuid4().hex[:12]}.csv"
     rows = session.execute(
         _prediction_query(model_version_id, score_date, risk_band, prediction_set, None)
         .order_by(Prediction.churn_probability.desc())
@@ -205,8 +231,6 @@ def export_predictions(
         details={"filters": filters, "rows": len(rows)},
     )
 
-    store = storage()
-    target = store.root / "exports" / f"predictions-{uuid.uuid4().hex[:12]}.csv"
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
@@ -215,6 +239,12 @@ def export_predictions(
         for row in rows:
             writer.writerow([row.customer_ref, row.score_date, row.churn_probability,
                              row.risk_band, row.prediction_set, row.feature_set_version])
+    # Written last: a request that failed before this point left nothing a retry would reuse.
+    # ponytail: two simultaneous first requests with one key both export; a lock if that matters.
+    if receipt is not None:
+        receipt.parent.mkdir(parents=True, exist_ok=True)
+        receipt.write_text(json.dumps({"rows": len(rows), "filters": filters}),
+                           encoding="utf-8")
 
     return {"rows": len(rows), "filters": filters,
             "download": f"/api/v1/exports/{target.name}"}

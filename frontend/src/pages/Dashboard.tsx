@@ -60,7 +60,7 @@ export function Dashboard() {
             </tbody>
           </table>
         ) : (
-          <Empty what="runs" />
+          <Empty what="runs" loading={runs.loading} />
         )}
       </Panel>
 
@@ -92,7 +92,7 @@ export function Dashboard() {
             ))}
           </ul>
         ) : (
-          <Empty what="open alerts" />
+          <Empty what="open alerts" loading={alerts.loading} />
         )}
       </Panel>
     </>

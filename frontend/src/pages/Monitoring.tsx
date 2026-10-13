@@ -51,7 +51,7 @@ export function Monitoring() {
 
       <Panel title="Drift over time" provenance="Measured">
         {measured.length === 0 ? (
-          <Empty what="drift reports with a measured PSI" />
+          <Empty what="drift reports with a measured PSI" loading={drift.loading} />
         ) : (
           <>
             <LineChart
@@ -96,7 +96,7 @@ export function Monitoring() {
               label: `Open (${shownAlerts.length})`,
               content:
                 shownAlerts.length === 0 ? (
-                  <Empty what="open alerts matching that" />
+                  <Empty what="open alerts matching that" loading={alerts.loading} />
                 ) : (
                   <table>
                     <thead>
@@ -165,14 +165,14 @@ export function Monitoring() {
               label: `Drift reports (${reports.length})`,
               content:
                 reports.length === 0 ? (
-                  <Empty what="drift reports" />
+                  <Empty what="drift reports" loading={drift.loading} />
                 ) : (
                   <table>
                     <thead>
                       <tr>
                         <th>Computed</th>
-                        <th>Max PSI</th>
-                        <th>Flagged features</th>
+                        <th>Max PSI (any feature)</th>
+                        <th>Flagged (monitored features)</th>
                         <th>Score drift</th>
                       </tr>
                     </thead>
@@ -189,9 +189,15 @@ export function Monitoring() {
                             )}
                           </td>
                           <td>
-                            <span className={`pill ${report.score_flagged ? "bad" : "good"}`}>
-                              {report.score_flagged ? "flagged" : "stable"}
-                            </span>
+                            {/* Not measured is not "stable": a green pill for it claimed a
+                                stability nobody measured (DEC-53). */}
+                            {report.score_flagged === null ? (
+                              "not measured"
+                            ) : (
+                              <span className={`pill ${report.score_flagged ? "bad" : "good"}`}>
+                                {report.score_flagged ? "flagged" : "stable"}
+                              </span>
+                            )}
                           </td>
                         </tr>
                       ))}

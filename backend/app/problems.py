@@ -38,7 +38,7 @@ class Problem(Exception):
         self.extra = extra or {}
         self.headers = headers or {}
 
-    def to_response(self, instance: str) -> JSONResponse:
+    def to_response(self, instance: str, correlation_id: str | None = None) -> JSONResponse:
         body = {
             "type": f"{BASE}/{self.problem_type}",
             "title": self.title,
@@ -47,6 +47,10 @@ class Problem(Exception):
             "instance": instance,
             **self.extra,
         }
+        if correlation_id:
+            # What a person quotes to support, and what the API's log line for the request
+            # carries (PRD 26.3); also sent as the X-Request-ID header.
+            body["correlation_id"] = correlation_id
         return JSONResponse(
             body, status_code=self.status, media_type=MEDIA_TYPE, headers=self.headers
         )
@@ -80,6 +84,18 @@ def bad_request(detail: str) -> Problem:
     )
 
 
+def internal_error() -> Problem:
+    """An error nothing anticipated. It says so, and never what the code was doing."""
+    return Problem(
+        status=500, title="Internal error",
+        detail="The server failed while handling this request.", problem_type="internal",
+    )
+
+
+def correlation_id(request: Request) -> str | None:
+    return getattr(request.state, "correlation_id", None)
+
+
 def unprocessable(detail: str) -> Problem:
     return Problem(
         status=422, title="Unprocessable request", detail=detail,
@@ -88,7 +104,7 @@ def unprocessable(detail: str) -> Problem:
 
 
 async def problem_handler(request: Request, exc: Problem) -> JSONResponse:
-    return exc.to_response(request.url.path)
+    return exc.to_response(request.url.path, correlation_id(request))
 
 
 async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -102,4 +118,4 @@ async def validation_handler(request: Request, exc: RequestValidationError) -> J
             {"location": list(e.get("loc", [])), "message": e.get("msg", "")}
             for e in exc.errors()
         ]},
-    ).to_response(request.url.path)
+    ).to_response(request.url.path, correlation_id(request))

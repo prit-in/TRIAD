@@ -1,8 +1,58 @@
 import { useState } from "react";
 import { api, isAggregate } from "../api";
 import type { DriftReport, ModelSummary, Prediction, PredictionAggregate } from "../api";
-import { Bars, Empty, Panel, Problem, num, pct, useLoad, when } from "../shared";
+import { Bars, Empty, Panel, Problem, num, pct, useLoad, useToast, when } from "../shared";
 import { useAuth } from "../auth";
+
+// `POST /predictions/export` admits these (PRD 25.2); admin is always admitted.
+const EXPORT_ROLES = ["business_analyst", "admin"];
+
+/** One idempotency key per click: a retried request then returns the same export. */
+function newKey(): string {
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+/**
+ * Export the scores on screen as CSV (PRD 26.1, "export (audited)"). The API had the endpoint
+ * and nothing on screen called it. The server writes the audit entry before the file, and the
+ * file is fetched with the token, since a plain link would carry none.
+ */
+function ExportButton({ query }: { query: string }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<Error | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setProblem(null);
+    try {
+      const done = await api.exportPredictions(query, newKey());
+      const csv = await api.exportFile(done.download);
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = done.download.split("/").pop() ?? "predictions.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+      toast(`Exported ${done.rows} scores. The export is recorded in the audit trail.`);
+    } catch (error) {
+      setProblem(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button type="button" onClick={() => void run()} disabled={busy}>
+        {busy ? "Exporting…" : "Export CSV"}
+      </button>
+      <Problem error={problem} />
+    </>
+  );
+}
 
 export function Predictions() {
   const { user } = useAuth();
@@ -58,6 +108,12 @@ export function Predictions() {
               <option value="medium">medium</option>
               <option value="low">low</option>
             </select>
+            {selected && user && EXPORT_ROLES.includes(user.role) && (
+              <ExportButton
+                query={`?prediction_set=${set}&model_version_id=${selected}` +
+                  `${band ? `&risk_band=${band}` : ""}`}
+              />
+            )}
             <select value={selected} onChange={(e) => setVersion(e.target.value)}>
               {(models.data ?? []).flatMap((model) =>
                 [model.champion, model.challenger]
@@ -130,8 +186,8 @@ export function Predictions() {
             <thead>
               <tr>
                 <th>Computed</th>
-                <th>Highest PSI</th>
-                <th>Flagged features</th>
+                <th>Highest PSI (any feature)</th>
+                <th>Flagged (monitored features)</th>
                 <th>Score distribution</th>
               </tr>
             </thead>
@@ -142,7 +198,7 @@ export function Predictions() {
                   <td>{num(report.max_psi, 3)}</td>
                   <td>
                     {report.flagged_features.length === 0
-                      ? "none over the threshold"
+                      ? "none of the monitored features"
                       : report.flagged_features.join(", ")}
                   </td>
                   <td>
@@ -159,7 +215,7 @@ export function Predictions() {
             </tbody>
           </table>
         ) : (
-          <Empty what="drift reports" />
+          <Empty what="drift reports" loading={drift.loading} />
         )}
       </Panel>
     </>

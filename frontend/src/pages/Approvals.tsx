@@ -28,7 +28,7 @@ export function Approvals() {
           <Request key={approval.id} approval={approval} onDecided={approvals.refresh} />
         ))
       ) : (
-        <Empty what={`${status} requests`} />
+        <Empty what={`${status} requests`} loading={approvals.loading} />
       )}
     </Panel>
   );

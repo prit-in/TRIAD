@@ -133,7 +133,7 @@ export function Audit() {
               label: `Entries (${shown.length})`,
               content:
                 shown.length === 0 ? (
-                  <Empty what="audit entries matching that" />
+                  <Empty what="audit entries matching that" loading={entries.loading} />
                 ) : (
                   <table>
                     <thead>

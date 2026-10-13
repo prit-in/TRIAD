@@ -74,6 +74,10 @@ def _find_run(session: DbSession, run_ref: str) -> PipelineRun:
     return run
 
 
+def _or_unrecorded(value: object) -> object:
+    return "not recorded" if value is None else value
+
+
 def _stage_label(execution: Execution) -> str:
     """What stage an execution belongs to, for the stage list and the log filter alike.
 
@@ -586,8 +590,9 @@ def run_logs(
         masked, _ = mask(execution.command or "")
         lines.append(LogLine(
             at=execution.started_at, stage=_stage_label(execution), level=severity,
-            message=f"{execution.engine} exit={execution.exit_code} "
-                    f"duration_ms={execution.duration_ms} :: {masked[:500]}",
+            # A value nothing recorded reads as such, not as Python's "None" (DEC-53).
+            message=f"{execution.engine} exit={_or_unrecorded(execution.exit_code)} "
+                    f"duration_ms={_or_unrecorded(execution.duration_ms)} :: {masked[:500]}",
         ))
 
     lines.sort(key=lambda line: (line.at is None, line.at))

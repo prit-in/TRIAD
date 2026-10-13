@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api } from "../api";
+import { ApiProblem, api } from "../api";
 import type {
   Artifact,
   DatasetSummary,
@@ -94,7 +94,7 @@ export function Runs() {
           </tbody>
         </table>
       ) : (
-        <Empty what="runs in this state" />
+        <Empty what="runs in this state" loading={runs.loading} />
       )}
       <Pager
         pages={pages}
@@ -111,8 +111,11 @@ export function Runs() {
  *  marked unavailable when it does not (FR-025). */
 const CHURN_INPUTS = ["transactions", "customers", "products", "returns", "web_sessions",
                       "support_tickets", "promotions"];
-// The roles `POST /pipelines/run` admits (backend/app/api/v1/pipelines.py STARTER_ROLES).
-const STARTER_ROLES = ["data_engineer", "data_scientist", "ml_engineer"];
+// The roles `POST /pipelines/run` admits: STARTER_ROLES in backend/app/api/v1/pipelines.py, and
+// admin, which `require_roles` always adds. Without it an admin never saw this form (DEC-53).
+const STARTER_ROLES = ["data_engineer", "data_scientist", "ml_engineer", "admin"];
+// `POST /pipelines/{id}/resume` admits these, and admin likewise (PRD 25.2).
+const RESUME_ROLES = ["data_engineer", "ml_engineer", "admin"];
 
 /**
  * Start a run from the dashboard, so a demonstration needs no shell. Each input resolves to its
@@ -204,6 +207,19 @@ export function RunDetailPage() {
       .toLowerCase()
       .includes(decisionQueryLower),
   );
+
+  // A run that does not exist leaves every panel below with the same 404; one error and a way
+  // back say it once (DEC-53).
+  if (run.problem instanceof ApiProblem && run.problem.status === 404) {
+    return (
+      <>
+        <Problem error={run.problem} />
+        <p>
+          <Link to="/runs">Back to the runs</Link>
+        </p>
+      </>
+    );
+  }
 
   return (
     <>
@@ -307,6 +323,8 @@ export function RunDetailPage() {
         <OverrideRequest runId={runId} override={run.data.override} onRequested={run.refresh} />
       )}
 
+      {run.data?.state === "ESCALATED" && <ResumeRun runId={runId} onResumed={run.refresh} />}
+
       <Panel
         title="Agent decisions"
         provenance="Decision records"
@@ -346,7 +364,7 @@ export function RunDetailPage() {
             this run.
           </p>
         ) : (
-          <Empty what="decisions" />
+          <Empty what="decisions" loading={decisions.loading} />
         )}
       </Panel>
 
@@ -387,7 +405,7 @@ export function RunDetailPage() {
             </tbody>
           </table>
         ) : (
-          <Empty what="generated artifacts" />
+          <Empty what="generated artifacts" loading={artifacts.loading} />
         )}
       </Panel>
 
@@ -405,7 +423,7 @@ export function RunDetailPage() {
             ))}
           </ul>
         ) : (
-          <Empty what="recorded timeline" />
+          <Empty what="recorded timeline" loading={logs.loading} />
         )}
       </Panel>
     </>
@@ -488,6 +506,62 @@ function OverrideRequest({
   );
 }
 
+/**
+ * Resume an escalated run once its cause is fixed (FR-082; PRD 26.1, "resume after
+ * escalation"). The API had the endpoint and nothing on screen called it, so an escalation
+ * could only be cancelled from the dashboard. The run re-enters the stage it stopped in, with
+ * the inputs it was given, and the fix note is recorded in the audit trail with the action.
+ */
+function ResumeRun({ runId, onResumed }: { runId: string; onResumed: () => void }) {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<Error | null>(null);
+  if (!user || !RESUME_ROLES.includes(user.role)) return null;
+
+  async function submit() {
+    setBusy(true);
+    setProblem(null);
+    try {
+      const result = await api.resumeRun(runId, note.trim());
+      toast(`${runId} is now ${result.state.toLowerCase()}: it resumes from the stage it stopped in.`);
+      setNote("");
+      onResumed();
+    } catch (error) {
+      setProblem(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel title="Resume after a fix" provenance="Governed">
+      <p className="muted">
+        Once the cause named in the escalation is fixed - a dataset corrected, an engine
+        restarted, a setting changed - the run can re-enter the stage it stopped in, with the
+        inputs it was given. The note is kept in the audit trail with the action.
+      </p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <label>
+          What was fixed (at least 10 characters)
+          <textarea value={note} rows={3} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
+        </label>
+        {/* The server refuses a shorter note too; disabling here only saves a round trip. */}
+        <button type="submit" disabled={busy || note.trim().length < 10}>
+          {busy ? "Working…" : "Resume the run"}
+        </button>
+      </form>
+      <Problem error={problem} />
+    </Panel>
+  );
+}
+
 /** The options a decision refused, and why.
  *
  * `decision_records.alternatives` held `[]` on every row: the column existed, the argument that
@@ -558,7 +632,7 @@ function SparkExecutions({ runId }: { runId: string }) {
       {executions.problem ? (
         <Problem error={executions.problem} />
       ) : measured.length === 0 ? (
-        <Empty what="Spark stage metrics" />
+        <Empty what="Spark stage metrics" loading={executions.loading} />
       ) : (
         <table className="spark">
           <thead>
