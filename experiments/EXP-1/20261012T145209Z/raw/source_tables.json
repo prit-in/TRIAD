@@ -1,0 +1,9 @@
+[
+  "customers",
+  "products",
+  "promotions",
+  "returns",
+  "support_tickets",
+  "transactions",
+  "web_sessions"
+]

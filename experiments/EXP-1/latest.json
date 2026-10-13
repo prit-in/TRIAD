@@ -11,11 +11,11 @@
     "test_pr_auc",
     "source_lines"
   ],
-  "started_at": "2026-10-11T17:49:29.829890+00:00",
-  "duration_s": 882.14,
+  "started_at": "2026-10-12T14:52:09.165899+00:00",
+  "duration_s": 2583.39,
   "status": "partial",
   "hypothesis_held": true,
-  "conclusion": "Wall-clock: P 785.83s, B3 49.1s, B2 6.6s, B1 not measured. P's time beyond B3's - the agentic loop's cost, with no LLM time in it - is 0.938 of P's wall clock, so overhead dominates P's time at this size: True. P is slower than B2: True, which is the expected observation at this size and the argument for local-mode routing (LR-07). P's candidate was escalated by the acceptance policy (calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED) on a validation split of 243 rows - a decision left to a person, which is the platform working as designed, and at this size inside the calibration estimator's measured noise floor (experiments/calibration_noise_floor.py). P required 0 approval(s) and 0 other manual steps, so the first half of the hypothesis holds. Whole-pipeline test PR-AUC: P 0.7405 (full feature catalogue), B3 0.7871 and B2 0.79 (twelve features each) - not comparable as model quality, because the feature sets differ. Hand-written pipeline lines: B2 188, B3 291. P made 0 LLM calls, ran 4 sandboxed Spark jobs and wrote 17 audit entries and 8 decision records - the governance and evidence the baselines produce none of, which is the cost the wall-clock difference is buying. See the like-for-like trial for the only PR-AUC comparison in which the features are held constant.",
+  "conclusion": "Wall-clock: P 2296.01s, B3 128.5s, B2 17.9s, B1 not measured. P's time beyond B3's - the agentic loop's cost, with no LLM time in it - is 0.944 of P's wall clock, so overhead dominates P's time at this size: True. P is slower than B2: True, which is the expected observation at this size and the argument for local-mode routing (LR-07). P's candidate was escalated by the acceptance policy (calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED) on a validation split of 243 rows - a decision left to a person, which is the platform working as designed, and at this size inside the calibration estimator's measured noise floor (experiments/calibration_noise_floor.py). P required 0 approval(s) and 0 other manual steps, so the first half of the hypothesis holds. Whole-pipeline test PR-AUC: P 0.7405 (full feature catalogue), B3 0.7871 and B2 0.79 (twelve features each) - not comparable as model quality, because the feature sets differ. Hand-written pipeline lines: B2 188, B3 291. P made 0 LLM calls, ran 4 sandboxed Spark jobs and wrote 19 audit entries and 9 decision records - the governance and evidence the baselines produce none of, which is the cost the wall-clock difference is buying. See the like-for-like trial for the only PR-AUC comparison in which the features are held constant.",
   "limitations": [
     "B1 is not measured: it is defined as a person following a runbook, and its metrics are engineer hours. Inventing them would fabricate the comparison.",
     "The dataset is TRIAD's synthetic generator, not Online Retail II, which has no customer, session, ticket or return tables and so cannot support the churn definition or most of the feature catalogue (ADR-0002).",
@@ -45,17 +45,17 @@
     {
       "condition": "P_triad",
       "ok": true,
-      "detail": "ran end to end in 786s over 4 Spark jobs (343s of it in validation gates); xgboost at test PR-AUC 0.7405; the acceptance policy escalated it (calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED), so a person decides what happens next; no other manual step",
+      "detail": "ran end to end in 2296s over 4 Spark jobs (1359s of it in validation gates); xgboost at test PR-AUC 0.7405; the acceptance policy escalated it (calibration rules still failing after calibration:sigmoid, calibration:sigmoid + class weighting removed: MISCALIBRATED), so a person decides what happens next; no other manual step",
       "measurements": [
         {
           "name": "wall_clock_s",
-          "value": 785.83,
+          "value": 2296.01,
           "unit": "s",
           "note": ""
         },
         {
           "name": "ingest_s",
-          "value": 1.99,
+          "value": 4.5,
           "unit": "s",
           "note": ""
         },
@@ -73,25 +73,25 @@
         },
         {
           "name": "validation_gates_s",
-          "value": 343.14,
+          "value": 1359.38,
           "unit": "s",
           "note": "gates 1 to 8 summed over the run's generated jobs: compile, fixture tests, dry runs, contract and storage checks"
         },
         {
           "name": "full_runs_s",
-          "value": 165.6,
+          "value": 407.36,
           "unit": "s",
           "note": "gate 9: the jobs doing their work on the whole input"
         },
         {
           "name": "peak_rss_mb",
-          "value": 354.7,
+          "value": 348.9,
           "unit": "MB",
           "note": "P's Python process: the pipeline's control and the modelling. The in-process Spark JVM is the next figure; the gates' compiler and the sandboxed jobs run as processes and containers of their own"
         },
         {
           "name": "jvm_peak_rss_mb",
-          "value": 994.4,
+          "value": 937.0,
           "unit": "MB",
           "note": "the in-process Spark session's JVM (profile and cutoffs)"
         },
@@ -103,13 +103,13 @@
         },
         {
           "name": "decision_records",
-          "value": 8,
+          "value": 9,
           "unit": "",
           "note": ""
         },
         {
           "name": "audit_entries",
-          "value": 17,
+          "value": 19,
           "unit": "",
           "note": ""
         },
@@ -195,30 +195,30 @@
         },
         {
           "name": "agentic_overhead_share",
-          "value": 0.938,
+          "value": 0.944,
           "unit": "",
           "note": "(P - B3) / P: P's time beyond the same work done without agents; none of it is LLM time, as no provider is configured"
         }
       ],
       "observations": {
         "per_stage_s": {
-          "spark:fa6d57": 0.0,
-          "scala_spark:0be5da": 60.34,
-          "scala_spark:eb8680": 61.38,
-          "scala_spark:198523": 43.87
+          "spark:791e9d": 86.26,
+          "scala_spark:32e059": 121.71,
+          "scala_spark:c5cc01": 158.04,
+          "scala_spark:916abc": 127.61
         },
         "gate_s": {
           "1": 0.0,
           "2": 0.0,
           "3": 0.0,
-          "4": 160.03,
+          "4": 878.31,
           "5": 0.0,
-          "6": 183.11,
+          "6": 481.07,
           "7": 0.0,
           "8": 0.0,
-          "9": 165.6
+          "9": 407.36
         },
-        "run_key": "run-2026-10-11-031"
+        "run_key": "run-2026-10-12-003"
       }
     },
     {
@@ -228,7 +228,7 @@
       "measurements": [
         {
           "name": "wall_clock_s",
-          "value": 6.59,
+          "value": 17.86,
           "unit": "s",
           "note": ""
         },
@@ -282,7 +282,7 @@
         },
         {
           "name": "peak_rss_mb",
-          "value": 228.2,
+          "value": 227.7,
           "unit": "MB",
           "note": ""
         },
@@ -307,8 +307,8 @@
       ],
       "observations": {
         "per_stage_s": {
-          "features": 0.67,
-          "train_and_select": 5.92
+          "features": 2.0,
+          "train_and_select": 15.85
         },
         "families_tried": [
           "logreg",
@@ -325,7 +325,7 @@
       "measurements": [
         {
           "name": "wall_clock_s",
-          "value": 49.09,
+          "value": 128.49,
           "unit": "s",
           "note": ""
         },
@@ -379,13 +379,13 @@
         },
         {
           "name": "peak_rss_mb",
-          "value": 222.5,
+          "value": 226.6,
           "unit": "MB",
           "note": ""
         },
         {
           "name": "jvm_peak_rss_mb",
-          "value": 1323.6,
+          "value": 1103.6,
           "unit": "MB",
           "note": ""
         },
@@ -404,9 +404,9 @@
       ],
       "observations": {
         "per_stage_s": {
-          "features_spark": 41.07,
-          "features_read": 0.23,
-          "train_and_select": 6.06
+          "features_spark": 112.88,
+          "features_read": 0.33,
+          "train_and_select": 12.84
         },
         "families_tried": [
           "logreg",
@@ -486,5 +486,5 @@
       }
     }
   ],
-  "run_dir": "20261011T174929Z"
+  "run_dir": "20261012T145209Z"
 }
