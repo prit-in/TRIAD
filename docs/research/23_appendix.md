@@ -106,7 +106,9 @@ Every job registers the stage-metrics listener before its first read and stops S
 writes its report, so that every stage's measurements are complete. Spark 4.1.3, Scala 2.13.17,
 and Java 17 come from the pinned toolchain image.
 
-**Resource profiles** (equation (4); clamped to 4 CPUs and 3 GB on the evaluation workstation):
+The resource profiles that equation (4) allocates from are listed in Table 15; on the evaluation workstation each is clamped to 4 CPUs and 3 GB.
+
+**Table 15. Sandbox Resource Profiles**
 
 | Profile | Used for | CPUs | Memory | Processes | Timeout | Scratch |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -116,26 +118,26 @@ and Java 17 come from the pinned toolchain image.
 
 ## C. Agent workflow and governance settings
 
-| Setting | Value |
-| --- | --- |
-| Code repair attempts per stage | 3 |
-| Infrastructure retries | 2 |
-| Optimization cycles | 2 |
-| Identical error fingerprints before the circuit breaker | 2 |
-| Wall clock per run | 240 min |
-| LLM calls and cost per run (when configured) | 60 calls, 3.0 USD |
-| Approval expiry | 72 h (expired counts as rejected) |
-| Task lease / worker poll | 300 s / 1 s |
-| Scheduler tick | 300 s |
-| Retraining cooldown | 7 days |
-| Volume anomaly | modified z-score above 3.5 against the median day; at least 14 whole days |
-| Distribution shift | PSI at least 0.10 (moderate) or 0.25 (major) on the previous version's bins |
-| Rule breaches reported | non-positive price, zero quantity (the rules cleaning quarantines on) |
-| Shuffle partitions (loop) | 2 to 64; doubled on spill, halved below a 50 ms median reduce task |
-| Before-and-after noise band | 10% of the earlier run's wall clock |
-| Minimum profile quality to plan | 0.70 |
-| Cleaning passes | 2 |
-| Risk bands | high at or above 0.66, medium at or above 0.33 |
+The orchestrator's limits and thresholds, as configured:
+
+- Code repair attempts per stage: 3.
+- Infrastructure retries: 2.
+- Optimization cycles: 2.
+- Identical error fingerprints before the circuit breaker: 2.
+- Wall clock per run: 240 min.
+- LLM calls and cost per run (when configured): 60 calls, 3.0 USD.
+- Approval expiry: 72 h (expired counts as rejected).
+- Task lease / worker poll: 300 s / 1 s.
+- Scheduler tick: 300 s.
+- Retraining cooldown: 7 days.
+- Volume anomaly: modified z-score above 3.5 against the median day; at least 14 whole days.
+- Distribution shift: PSI at least 0.10 (moderate) or 0.25 (major) on the previous version's bins.
+- Rule breaches reported: non-positive price, zero quantity (the rules cleaning quarantines on).
+- Shuffle partitions (loop): 2 to 64; doubled on spill, halved below a 50 ms median reduce task.
+- Before-and-after noise band: 10% of the earlier run's wall clock.
+- Minimum profile quality to plan: 0.70.
+- Cleaning passes: 2.
+- Risk bands: high at or above 0.66, medium at or above 0.33.
 
 **Acceptance policy:** AP-1 PR-AUC at least churn rate + 0.10; AP-2 margin 0.01; AP-3 ROC-AUC at
 least 0.70; AP-4 Brier skill at least 0.10; AP-5 ECE at most 0.05 after calibration; AP-6 recall gap

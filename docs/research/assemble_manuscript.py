@@ -778,14 +778,22 @@ def main() -> int:
     front, pending = read(RESEARCH / "00_front_matter.md")
     report["pending"]["00_front_matter.md"] = pending
     title, abstract, terms, summary = split_front(front)
-    w.heading1(None, "Executive Summary")
+    w.heading1(None, "Executive Summary", bookmark="_Exec")
     w.render(summary)
-    front_words = w.words + words(abstract) + words(terms)
+    summary_words = w.words
+    front_words = summary_words + words(abstract) + words(terms)
     report["sections"].append({"file": "00_front_matter.md", "topic": "Executive Summary and Abstract",
                                "words": front_words, "abstract_words": words(abstract),
                                "index_terms_words": words(terms),
                                "range": ranges.get("00_front_matter.md")})
-    topics = [("Executive Summary and Abstract", "_Abs", front_words)]
+    # The Index and the Contributions table take the front matter row by row, with a section's
+    # number in its own column, as the course's reference report lays them out: (Sl. No.,
+    # topic, bookmark) in the Index; (Sl. No., topic, words) in the Contributions table.
+    index_rows = [("", "Abstract", "_Abs"), ("", "Executive Summary", "_Exec")]
+    contrib_rows = [("", "Abstract", words(abstract)),
+                    ("", "Index Terms (Keywords)", words(terms)),
+                    ("", "Executive Summary (with Table 1)", summary_words)]
+    da_words = 0
 
     numbered = sorted(p for p in RESEARCH.glob("[0-2][0-9]_*.md")
                       if re.match(r"(0[1-9]|1\d|2[0-2])_", p.name))
@@ -805,13 +813,19 @@ def main() -> int:
         w.heading1(roman(n), sec_title, bookmark=f"_Sec{n:02d}")
         w.render(blocks[1:])
         count = w.words - before
-        if n == 22:     # the statement belongs with the paper's end matter, after the conclusion
-            da, _ = read(RESEARCH / "data_availability.md")
-            w.heading1(None, "Data Availability")
-            w.render(da[1:])
         report["sections"].append({"file": path.name, "topic": f"{roman(n)}. {sec_title}",
                                    "words": count, "range": ranges.get(path.name)})
-        topics.append((f"{roman(n)}. {sec_title}", f"_Sec{n:02d}", count))
+        index_rows.append((f"{n}.", sec_title, f"_Sec{n:02d}"))
+        contrib_rows.append((f"{n}.", sec_title, count))
+        if n == 22:     # the statement belongs with the paper's end matter, after the conclusion
+            da, _ = read(RESEARCH / "data_availability.md")
+            before = w.words
+            w.heading1(None, "Data Availability", bookmark="_DA")
+            w.render(da[1:])
+            da_words = w.words - before
+            report["sections"].append({"file": "data_availability.md",
+                                       "topic": "Data Availability", "words": da_words,
+                                       "range": None})
 
     appendix, pending = read(RESEARCH / "23_appendix.md")
     report["pending"]["23_appendix.md"] = pending
@@ -878,19 +892,23 @@ def main() -> int:
 
     # Index, figures, tables, contributions.
     index, lof, lot, contrib, consolidated = front_tables
-    rows = [*topics, ("References", "_Refs", None), ("Appendix", "_Appx", appendix_words)]
-    for table, entries in ((index, rows), (contrib, rows)):
+    index_rows += [("", "Data Availability", "_DA"), ("", "References", "_Refs"),
+                   ("", "Appendix", "_Appx")]
+    contrib_rows += [("", "Data Availability", da_words), ("", "References", None),
+                     ("", "Appendix", appendix_words)]
+    for table, entries in ((index, index_rows), (contrib, contrib_rows)):
         fit_rows(table, len(entries))
         cr = cell_rpr(table)
-        for k, (topic, mark, count) in enumerate(entries, 1):
+        for k, (number, topic, value) in enumerate(entries, 1):
             cells = table.rows[k].cells
-            set_cell(cells[0], [run_like(str(k), cr)])
+            set_cell(cells[0], [run_like(number, cr)])
             set_cell(cells[1], [run_like(topic, cr)])
             if table is index:
-                set_cell(cells[2], field_runs(f"PAGEREF {mark} \\h", "?", cr))
+                set_cell(cells[2], field_runs(f"PAGEREF {value} \\h", "?", cr))
             else:
                 set_cell(cells[2], [run_like("[TO BE CONFIRMED]", cr)])
-                set_cell(cells[3], [run_like("-" if count is None else str(count), cr)])
+                # References are not counted, as the reference report marks them.
+                set_cell(cells[3], [run_like("Excl." if value is None else str(value), cr)])
     for table, entries, label, prefix in ((lof, w.figures, str, "_Fig"),
                                           (lot, sorted(w.tables), roman, "_Tab")):
         fit_rows(table, len(entries))
