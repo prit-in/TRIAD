@@ -10,13 +10,14 @@ PySpark query or a Python trainer.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import re
 import shutil
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -120,6 +121,8 @@ class ChurnPipeline:
         self.replay_of = replay_of
         self.replay = replay_of is not None
         self._generated_objects: set[str] = set()
+        # The JARs each generated object was packaged into, copied out under the build lock.
+        self._jars: dict[str, dict[str, str] | None] = {}
         self._specs_seen: dict[str, ToolSpec] = {}
         self._replayed_from: dict[str, Any] = {}
         self.result = PipelineResult(run_key=run.run_key, state=run.state, ok=False)
@@ -232,11 +235,9 @@ class ChurnPipeline:
                 slot_id: template.default_body(slot_id) for slot_id in template.slot_ids()
             }
             artifact = render(template, bodies)
-        write_artifact(artifact)
-        # Generated sources compile as one module, so an artifact left behind by an earlier
-        # run would fail this run's build. Only this run's artifacts stay on disk.
+        # The source reaches the shared generated module only inside the build lock, where the
+        # module is cleaned down to this run's objects and compiled (`_validate_scala`, DEC-55).
         self._generated_objects.add(artifact.object_name)
-        clean_generated(keep=self._generated_objects)
 
         row = CodeArtifact(
             run_id=self.run.id,
@@ -343,12 +344,24 @@ class ChurnPipeline:
         report.add(G.gate2_static_checks(artifact, template))
         report.add(G.gate3_dependencies(artifact, G.build_file_hashes(), []))
         if report.passed:
-            report.add(G.gate4_compile())
-        if report.passed and checks.get("fixture_tests", True):
-            report.add(G.gate5_fixture_tests(
-                [f"triad.jobs.generated.{artifact.object_name}"],
-                cache_dir=self.storage.root / "cache" / "gate5",
-            ))
+            # Generated sources compile as one module, so an artifact left behind by an earlier
+            # run would fail this build, and a run building beside this one would remove this
+            # attempt's source. Writing, cleaning, compiling, testing and copying the JARs out
+            # happen as one step that no other run's build can interleave with (DEC-55).
+            with _scala_build_lock(self.session):
+                write_artifact(artifact)
+                clean_generated(keep=self._generated_objects)
+                report.add(G.gate4_compile())
+                if report.passed and checks.get("fixture_tests", True):
+                    report.add(G.gate5_fixture_tests(
+                        [f"triad.jobs.generated.{artifact.object_name}"],
+                        cache_dir=self.storage.root / "cache" / "gate5",
+                    ))
+                if report.passed:
+                    self._jars[artifact.object_name] = _snapshot_jars(
+                        self.storage.root / "artifacts" / "jars" / self.run.run_key
+                        / artifact.object_name
+                    )
         if report.passed and dry_run is not None and checks.get("dry_run", True):
             report.add(G.gate6_dry_run(dry_run()))
         # Gate 8 records what `_store_artifact` already did: the source is in content-addressed
@@ -630,18 +643,19 @@ class ChurnPipeline:
             ]
             if quarantine_dir is not None:
                 job_args.append(f"--quarantine=file://{scratch}-quarantine")
-            jar = _newest_jar(SCALA_ROOT / "jobs" / "target" / "scala-2.13")
-            core_jar = _newest_jar(SCALA_ROOT / "core" / "target" / "scala-2.13")
-            if jar is None or core_jar is None:
-                return {"ok": False, "detail": "no packaged JAR to dry-run"}
+            jars = self._jars.get(artifact["artifact"].object_name)
+            if not jars:
+                return {"ok": False, "detail": "no JAR was packaged for this attempt to dry-run"}
+            # A report left by an earlier attempt would be read as this one's (DEC-55).
+            dry_report.unlink(missing_ok=True)
             call = self._call_tool(
                 "spark.submit_job",
                 "code_generation",
                 {
                     "run_key": self.run.run_key,
                     "stage": f"{stage}-dryrun",
-                    "jar": str(jar),
-                    "core_jar": str(core_jar),
+                    "jar": jars["jar"],
+                    "core_jar": jars["core_jar"],
                     "main_class": main_class
                     or f"triad.jobs.generated.{artifact['artifact'].object_name}",
                     "job_args": job_args,
@@ -684,10 +698,14 @@ class ChurnPipeline:
             )
 
         def execute(artifact):
-            jar = _newest_jar(SCALA_ROOT / "jobs" / "target" / "scala-2.13")
-            core_jar = _newest_jar(SCALA_ROOT / "core" / "target" / "scala-2.13")
-            if jar is None or core_jar is None:
-                return {"ok": False, "error": "no packaged JAR found; run `sbt core/package jobs/package`"}
+            # This attempt's own JARs, copied out of the workspace when it was built (DEC-55).
+            jars = self._jars.get(artifact["artifact"].object_name)
+            if not jars:
+                return {"ok": False, "error": "no JAR was packaged for this attempt; "
+                                              "run `sbt core/package jobs/package`"}
+            # A failed attempt that never wrote its report was diagnosed from the one before it:
+            # EXP-2's retry could not load its class and was read as the earlier timeout (DEC-55).
+            report_path.unlink(missing_ok=True)
 
             # The class to submit is the object this attempt actually generated, so a
             # repaired artifact is the one that runs.
@@ -702,8 +720,8 @@ class ChurnPipeline:
                 {
                     "run_key": self.run.run_key,
                     "stage": stage,
-                    "jar": str(jar),
-                    "core_jar": str(core_jar),
+                    "jar": jars["jar"],
+                    "core_jar": jars["core_jar"],
                     "main_class": main_class or generated_class,
                     "job_args": artifact["job_args"],
                     "master": artifact["resources"]["master"],
@@ -755,7 +773,7 @@ class ChurnPipeline:
                 payload["spark_app_id"] = report.get("spark_app_id")
                 if report.get("status") != "succeeded":
                     payload["ok"] = False
-                    payload["error"] = json.dumps(report.get("error", {}))
+                    payload["error"] = _job_failure(result.get("detail"), report)
             return payload
 
         def contract_check(execution):
@@ -1128,6 +1146,64 @@ def _newest_jar(folder: Path) -> Path | None:
         return None
     jars = sorted(folder.glob("*.jar"), key=lambda p: p.stat().st_mtime)
     return jars[-1] if jars else None
+
+
+def _job_failure(runner_detail: str | None, report: dict[str, Any]) -> str:
+    """A failed job's message for the taxonomy: the runner's account first, then the job's.
+
+    A job killed at its deadline writes its own shutdown into its report ("SparkContext was shut
+    down"); that message replacing the runner's "hard timeout reached" made EXP-2's timeout
+    UNKNOWN on 14-10-2026, with no remedy, where TIMEOUT prescribes a retry (DEC-55).
+    """
+    return "\n".join(part for part in (runner_detail, json.dumps(report.get("error", {})))
+                     if part)
+
+
+# Advisory-lock namespace shared with `churn._lock_pipeline` ("TRAD"); the key names the build.
+_BUILD_LOCK = {"namespace": 0x54524144, "key": 0x5343414C}   # "SCAL"
+
+
+@contextlib.contextmanager
+def _scala_build_lock(session: Session) -> Iterator[None]:
+    """One Scala build at a time across every process that shares the workspace (DEC-55).
+
+    Generated sources compile as one module in one folder, and every stage packages the same
+    JARs, so two runs building at once removed each other's sources: on 14-10-2026 a scheduled
+    retrain rebuilt the JAR between EXP-2's dry run and its full run, which then found no class
+    to load. The lock is session-level, on a connection of its own, so the run's own commits
+    and rollbacks cannot release it; a process that dies releases it with its connection.
+    """
+    bind = session.get_bind()
+    if bind.dialect.name != "postgresql":
+        yield
+        return
+    from sqlalchemy import text
+
+    with bind.engine.connect() as conn:
+        conn.execute(text("SELECT pg_advisory_lock(:namespace, :key)"), _BUILD_LOCK)
+        try:
+            yield
+        finally:
+            conn.execute(text("SELECT pg_advisory_unlock(:namespace, :key)"), _BUILD_LOCK)
+
+
+def _snapshot_jars(folder: Path) -> dict[str, str] | None:
+    """Copy the JARs just packaged into `folder`, for this attempt's dry run and full run.
+
+    Submitting the workspace's newest JAR let another run's later build decide what ran; the
+    copy is this attempt's own, outside any folder a job can write to.
+    """
+    built = {key: _newest_jar(SCALA_ROOT / project / "target" / "scala-2.13")
+             for key, project in (("jar", "jobs"), ("core_jar", "core"))}
+    if any(path is None for path in built.values()):
+        return None
+    folder.mkdir(parents=True, exist_ok=True)
+    copies = {}
+    for key, path in built.items():
+        target = folder / path.name
+        shutil.copy2(path, target)
+        copies[key] = str(target)
+    return copies
 
 
 _SUMMED = ("duration_ms", "executor_run_time_ms", "jvm_gc_time_ms", "input_bytes", "output_bytes",

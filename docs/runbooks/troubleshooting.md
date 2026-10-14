@@ -58,6 +58,18 @@ fixes, and both stop the run.
 
 `STORAGE_ERROR` also covers a file call the file system refuses for want of memory, space or I/O (`[Errno 12]`, `[Errno 28]`, `[Errno 5]` with a path), since EXP-2 met one (DEC-54): the host share refused to list the generated-sources folder while the Docker VM was short of memory. A refusal while a stage writes its generated source is retried once after a 10 s pause, the same code; a repeat escalates through the circuit breaker. The playbook's remedy, refreshing scoped credentials, is recorded as not applied, because this deployment has none. If one escalates, check the VM's free memory (`docker stats`) and the free space under `storage/` before resuming.
 
+**DEC-55: diagnosis and concurrent runs.**
+- **Timeouts.** A job the sandbox kills at its deadline is a `TIMEOUT`, whatever the job wrote as
+  it was shut down. Its retry runs with twice the shuffle partitions.
+- **Concurrent runs.** Generated Scala compiles as one shared module, so only one run builds at a
+  time, under a cross-process lock. A run waiting on another's build is waiting on that lock, not
+  hung. Each attempt submits its own copy of the JARs, from `storage/artifacts/jars/<run>/`.
+- **Report check.** An attempt that failed before writing a report has no report. Its diagnosis
+  comes from the runner and the log, never from the previous attempt's report.
+- **Experiments and the scheduler.** Stop the orchestrator before an experiment that measures time
+  or memory, unless the experiment needs the scheduler (EXP-7). Its scheduler starts retrains on
+  its own clock: a published champion's seven-day cooldown ending is enough.
+
 ## Handling an escalation
 
 A run in `ESCALATED` has written a ticket. Read it before anything else:

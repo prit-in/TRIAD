@@ -8,6 +8,7 @@ and the memory it reports is P's, as B2's and B3's are theirs.
 
 from __future__ import annotations
 
+import contextlib
 import time
 import uuid
 from pathlib import Path
@@ -37,6 +38,22 @@ def _spark(app: str) -> Any:
     )
     session.sparkContext.setLogLevel("ERROR")
     return session
+
+
+def _end_session(spark: Any) -> int | None:
+    """Stop P's in-process session; return its JVM's exit code if it had already ended.
+
+    The JVM can die under the run, as EXP-2's did on 14-10-2026, and stopping a dead one raised
+    ConnectionRefusedError over P's own result - B3's defect in DEC-50, here in P (DEC-55).
+    None means the JVM was alive at the end; -9 means it had been killed.
+    """
+    try:
+        code = spark.sparkContext._gateway.proc.poll()
+    except Exception:
+        code = None
+    with contextlib.suppress(Exception):
+        spark.stop()
+    return code
 
 
 def _round(value: Any, places: int = 4) -> Any:
@@ -170,7 +187,7 @@ def _prepare_and_read(
             )
             out["jvm_peak_rss_mb"] = jvm_peak_rss_mb(spark)
         finally:
-            spark.stop()
+            out["jvm_exit_code"] = _end_session(spark)
 
         out["wall_clock_s"] = round(time.perf_counter() - started, 2)
         out["peak_rss_mb"] = peak_rss_mb()
@@ -260,6 +277,8 @@ def record_p(trial: Any, p: dict[str, Any]) -> None:
                       "sandboxed jobs run as processes and containers of their own")
     trial.record("jvm_peak_rss_mb", p.get("jvm_peak_rss_mb"), "MB",
                  note="the in-process Spark session's JVM (profile and cutoffs)")
+    trial.record("jvm_exit_code", p.get("jvm_exit_code"),
+                 note="None: the in-process JVM was alive when P ended; -9: it had been killed")
     trial.observations["per_stage_s"] = p.get("per_stage_s") or {}
     trial.observations["gate_s"] = p.get("gate_s") or {}
     trial.observations["run_key"] = p.get("run_key")
