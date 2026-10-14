@@ -307,6 +307,7 @@ def run() -> Experiment:
         else:
             rung = next(t for t in rungs if t.condition == target)
             p_trial = exp.trial(f"P_at_{target}")
+            p_started = time.perf_counter()
             try:
                 p = run_isolated("experiments.configuration_p:run_p", timeout_s=p_ceiling_s(),
                                  source=str(sources[target]), prefix="exp02",
@@ -319,6 +320,9 @@ def run() -> Experiment:
             except RuntimeError as exc:   # P raised: a failure of P, not of the experiment
                 p_trial.ok = False
                 p_trial.detail = f"P raised before it finished: {str(exc)[:400]}"
+                # As for a killed process: how long P ran is measured even when it did not finish.
+                p_trial.record("wall_clock_s", round(time.perf_counter() - p_started, 1), "s",
+                               note="until P raised")
             p_finished = bool(p_trial.ok)
             b3_s = _value(rung, "b3_wall_clock_s")
             p_s = _value(p_trial, "wall_clock_s")
@@ -340,6 +344,10 @@ def run() -> Experiment:
                 )
             else:
                 p_sentence = f" P at {target} did not finish: {p_trial.detail[:200]}."
+                if b3_s and p_s:
+                    # A lower bound: had P finished, it would have taken at least this long.
+                    p_sentence += (f" It had run {p_s:.0f}s when it stopped, {p_s / b3_s:.2f} "
+                                   "times B3's whole run at that rung.")
 
         # --- what 10 GB would take, from this run's own largest rung ---------------------
         # The last rung whose data was generated: a rung whose generation failed has no size.

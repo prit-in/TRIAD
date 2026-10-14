@@ -203,8 +203,12 @@ _PATTERNS: list[tuple[ErrorClass, re.Pattern[str]]] = [
         r"ExecutorLostFailure|FetchFailedException|Lost executor|Connection reset by peer", re.I)),
     (ErrorClass.DATA_SKEW, re.compile(r"skew(ed)? (partition|key)|task .* took .* median", re.I)),
     (ErrorClass.TIMEOUT, re.compile(r"TimeoutException|deadline exceeded|hard timeout", re.I)),
+    # A file call the file system refused for want of memory, space or I/O, naming its path -
+    # EXP-2's P arm, 13-10-2026: "[Errno 12] Cannot allocate memory: '/workspace/...'" from the
+    # host share. The storage failed, not the code. A fork refused for memory names no path.
     (ErrorClass.STORAGE_ERROR, re.compile(
-        r"(FileNotFoundException|NoSuchFileException|Permission denied|AccessDenied|PathNotFound)", re.I)),
+        r"(FileNotFoundException|NoSuchFileException|Permission denied|AccessDenied|PathNotFound)"
+        r"|\[Errno (5|12|28)\] [^:\n]+: '", re.I)),
     (ErrorClass.MISSING_REQUIRED_COLUMN, re.compile(r"required column .* (missing|not found)", re.I)),
     (ErrorClass.MISSING_OPTIONAL_COLUMN, re.compile(r"optional column .* (missing|not found)", re.I)),
     (ErrorClass.RENAMED_REQUIRED_COLUMN, re.compile(r"renamed column|candidate mapping", re.I)),

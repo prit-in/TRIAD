@@ -56,6 +56,8 @@ fixes, and both stop the run.
 
 `SANDBOX_UNAVAILABLE` was added after EXP-2 (DEC-52). When the sandbox service cannot be reached, or the container engine behind it stops answering, the job has not failed - the machinery around it has - so the same code is resubmitted once and never regenerated; a repeat escalates through the circuit breaker. Before that, the service outlasts a stalled engine itself: each call to the engine is retried with exponential backoff, at most three attempts (NFR-REL-01), and a running job is waited on until its own deadline. If one escalates, check the Docker VM's memory and the sandbox-runner's log before resuming the run.
 
+`STORAGE_ERROR` also covers a file call the file system refuses for want of memory, space or I/O (`[Errno 12]`, `[Errno 28]`, `[Errno 5]` with a path), since EXP-2 met one (DEC-54): the host share refused to list the generated-sources folder while the Docker VM was short of memory. A refusal while a stage writes its generated source is retried once after a 10 s pause, the same code; a repeat escalates through the circuit breaker. The playbook's remedy, refreshing scoped credentials, is recorded as not applied, because this deployment has none. If one escalates, check the VM's free memory (`docker stats`) and the free space under `storage/` before resuming.
+
 ## Handling an escalation
 
 A run in `ESCALATED` has written a ticket. Read it before anything else:

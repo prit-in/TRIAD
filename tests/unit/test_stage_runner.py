@@ -181,6 +181,43 @@ class TestStageRunner:
         assert "circuit breaker" in outcome.reason
         assert outcome.attempts == 2, "it must not keep retrying the same failure"
 
+    def test_the_workspace_refusing_a_write_is_retried_not_a_crash(self, monkeypatch) -> None:
+        """EXP-2, 13-10-2026: an OSError writing the generated source ended the phase unclassified."""
+        import errno
+
+        from agents.graph import stages
+
+        monkeypatch.setattr(stages, "STORAGE_BACKOFF_S", 0.0)
+        calls = {"n": 0}
+
+        def generate(inputs, history):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise OSError(errno.ENOMEM, "Cannot allocate memory", "/workspace/generated")
+            return {"artifact": "x"}
+
+        outcome = self._runner().run_stage(self._request(generate=generate))
+        assert outcome.ok is True
+        assert outcome.attempts == 2
+        assert outcome.diagnoses[0]["error_class"] == ErrorClass.STORAGE_ERROR.value
+        assert "no scoped storage credentials" in outcome.applied_fixes[0]["note"]
+
+    def test_a_refusal_that_persists_escalates_with_its_class(self, monkeypatch) -> None:
+        import errno
+
+        from agents.graph import stages
+
+        monkeypatch.setattr(stages, "STORAGE_BACKOFF_S", 0.0)
+
+        def generate(inputs, history):
+            raise OSError(errno.ENOMEM, "Cannot allocate memory", "/workspace/generated")
+
+        outcome = self._runner().run_stage(self._request(generate=generate, max_attempts=5))
+        assert outcome.ok is False and outcome.escalated is True
+        assert "circuit breaker" in outcome.reason
+        assert outcome.attempts == 2
+        assert {d["error_class"] for d in outcome.diagnoses} == {ErrorClass.STORAGE_ERROR.value}
+
     def test_a_non_recoverable_error_escalates_after_one_diagnosis(self) -> None:
         """ATC-05: a missing input is classified non-recoverable; no repair loop runs."""
         def execute(artifact):

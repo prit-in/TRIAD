@@ -18,6 +18,7 @@ here in the orchestrator, never in an agent (FR-058, NFR-REL-05).
 from __future__ import annotations
 
 import re
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -29,6 +30,10 @@ from triad_core import audit
 from triad_core.errors import Diagnosis, ErrorClass, Remedy, classify
 from triad_core.ids import sha256_obj, utcnow
 from triad_core.models import DecisionRecord, Execution, FixMemory, PipelineRun
+
+# A file call the workspace refuses while generating is retried after this pause, doubled per
+# attempt (NFR-REL-01): the refusal EXP-2 met was memory pressure, which a pause lets clear.
+STORAGE_BACKOFF_S = 10.0
 
 
 @dataclass
@@ -198,7 +203,21 @@ class StageRunner:
                     request, outcome, f"budget exceeded: {exc}", extra=exc.to_dict()
                 )
 
-            artifact = request.generate(inputs, history)
+            try:
+                artifact = request.generate(inputs, history)
+            except OSError as exc:
+                # Writing the generated source is the platform's file work, not the job's code.
+                # The workspace refusing it ("[Errno 12] Cannot allocate memory" from the host
+                # share, EXP-2 at 200 000 customers) escaped this loop and ended the phase
+                # unclassified. It is a stage failure like any other now: classified, recorded,
+                # retried after a pause, and escalated by the breaker if it repeats (DEC-54).
+                diagnosis = classify(f"{type(exc).__name__}: {exc}")
+                if self._after_failure(request, outcome, diagnosis, history):
+                    return outcome
+                inputs = self._apply_fix(inputs, diagnosis)
+                outcome.applied_fixes = list(inputs.get("_applied_fixes") or [])
+                time.sleep(STORAGE_BACKOFF_S * 2 ** (attempt - 1))
+                continue
 
             gate_report = request.validate(artifact)
             outcome.gate_reports.append(
@@ -424,6 +443,9 @@ class StageRunner:
         note = "" if applied else (
             "no remedy is prescribed for this error, so the next attempt is the same work"
             if remedy is Remedy.NONE else
+            "this deployment has no scoped storage credentials to refresh, so the next attempt "
+            "is the same work"
+            if remedy is Remedy.REFRESH_CREDENTIALS else
             f"{remedy.value} needs the generated code rewritten, which requires an LLM "
             "provider; no input the stage reads was changed, so the next attempt is identical"
         )

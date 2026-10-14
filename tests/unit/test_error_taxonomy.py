@@ -171,3 +171,25 @@ def test_a_failure_without_a_job_error_line_keeps_the_exception_not_just_the_fra
     message = _structured_error(NATIVE_THREAD_TRACE)
     assert "unable to create native thread" in message
     assert classify(message).error_class is ErrorClass.RESOURCE_CONFIG_INVALID
+
+
+# experiments/EXP-2/20261013T134333Z/result.json, condition P_at_customers_200000: the host share
+# refused a directory call for want of memory while P wrote its feature job's source.
+WORKSPACE_REFUSED = (
+    "OSError: [Errno 12] Cannot allocate memory: "
+    "'/workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated'"
+)
+
+
+def test_the_file_system_refusing_a_file_call_is_a_storage_error_not_the_code() -> None:
+    diagnosis = classify(WORKSPACE_REFUSED)
+    assert diagnosis.error_class is ErrorClass.STORAGE_ERROR
+    assert diagnosis.remedy is not Remedy.REGENERATE_CODE
+    for errno_line in ("OSError: [Errno 28] No space left on device: '/data/lake/x.parquet'",
+                       "OSError: [Errno 5] Input/output error: '/workspace/storage/run'"):
+        assert classify(errno_line).error_class is ErrorClass.STORAGE_ERROR
+
+
+def test_a_fork_refused_for_memory_names_no_path_and_is_not_a_storage_error() -> None:
+    assert classify("OSError: [Errno 12] Cannot allocate memory").error_class \
+        is not ErrorClass.STORAGE_ERROR

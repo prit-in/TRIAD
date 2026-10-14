@@ -13,25 +13,25 @@
     "p_to_b3_time_ratio",
     "validation_gates_s"
   ],
-  "started_at": "2026-10-11T18:04:25.350694+00:00",
-  "duration_s": 9017.16,
+  "started_at": "2026-10-13T13:43:33.754419+00:00",
+  "duration_s": 5985.94,
   "status": "partial",
   "hypothesis_held": false,
-  "conclusion": "Ladder: 400 customers, 0.4 MB on disk: B2 ok in 12s, B3 ok in 75s; 1500 customers, 1.4 MB on disk: B2 ok in 12s, B3 ok in 68s; 6000 customers, 5.1 MB on disk: B2 ok in 9s, B3 ok in 82s; 20000 customers, 14.9 MB on disk: B2 ok in 34s, B3 ok in 119s; 50000 customers, 36.4 MB on disk: B2 ok in 45s, B3 ok in 180s; 100000 customers, 76.3 MB on disk: B2 ok in 118s, B3 ok in 332s; 200000 customers, 153.9 MB on disk: B2 FAILED in 19s, B3 ok in 509s. Crossover observed at customers_200000: the single-node pandas configuration failed while the Spark configuration completed, which is the shape the hypothesis asserts. At the largest rung both completed (customers_100000), B2 took 117.7s and B3 331.7s, with peak memory 2326.5 MB for B2's Python process and 2134.4 MB for B3's Spark JVM. P at customers_200000 did not finish: stopped at ESCALATED: feature job failed. The PRD's 10 GB tier is not reported: see the limitations.",
+  "conclusion": "Ladder: 400 customers, 0.4 MB on disk: B2 ok in 7s, B3 ok in 73s; 1500 customers, 1.4 MB on disk: B2 ok in 9s, B3 ok in 84s; 6000 customers, 5.1 MB on disk: B2 ok in 23s, B3 ok in 75s; 20000 customers, 14.9 MB on disk: B2 ok in 34s, B3 ok in 196s; 50000 customers, 36.4 MB on disk: B2 ok in 61s, B3 ok in 236s; 100000 customers, 76.3 MB on disk: B2 ok in 129s, B3 ok in 384s; 200000 customers, 153.9 MB on disk: B2 FAILED in 23s, B3 ok in 592s. Crossover observed at customers_200000: the single-node pandas configuration failed while the Spark configuration completed, which is the shape the hypothesis asserts. At the largest rung both completed (customers_100000), B2 took 128.9s and B3 384.5s, with peak memory 2293.7 MB for B2's Python process and 2189.0 MB for B3's Spark JVM. P at customers_200000 did not finish: P raised before it finished: experiments.configuration_p:run_p raised OSError: [Errno 12] Cannot allocate memory: '/workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated'. The PRD's 10 GB tier is not reported: see the limitations.",
   "limitations": [
     "REES46 monthly files were not used: they are not available in this environment, and the PRD asks for them only 'where available'.",
     "The ladder stopped at 200000 customers, where B2 failed and B3 succeeded. Rungs above that were not run: the crossover is the measurement, and pushing both to failure adds nothing.",
-    "The PRD's 10 GB tier was not run. At 769 bytes per customer on disk (customers_200000), 10 GB is about 14.0 million customers, and at this run's generation rate that is about 18 hours of generation alone, by a generator that holds each table in memory before writing it, in a 3 GB container (ADR-0002). That extrapolates the generator only; no result is estimated for that size. What is measured instead is the crossover the hypothesis asserts, and P beside B3 where it happens."
+    "The PRD's 10 GB tier was not run. At 769 bytes per customer on disk (customers_200000), 10 GB is about 14.0 million customers, and at this run's generation rate that is about 21 hours of generation alone, by a generator that holds each table in memory before writing it, in a 3 GB container (ADR-0002). That extrapolates the generator only; no result is estimated for that size. What is measured instead is the crossover the hypothesis asserts, and P beside B3 where it happens."
   ],
   "trials": [
     {
       "condition": "customers_400",
       "ok": true,
-      "detail": "400 customers, 0.4 MB on disk: B2 ok in 12s, B3 ok in 75s",
+      "detail": "400 customers, 0.4 MB on disk: B2 ok in 7s, B3 ok in 73s",
       "measurements": [
         {
           "name": "generate_s",
-          "value": 3.1,
+          "value": 1.9,
           "unit": "s",
           "note": ""
         },
@@ -55,13 +55,13 @@
         },
         {
           "name": "b2_wall_clock_s",
-          "value": 11.6,
+          "value": 7.0,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b2_peak_rss_mb",
-          "value": 228.4,
+          "value": 228.3,
           "unit": "MB",
           "note": ""
         },
@@ -85,7 +85,7 @@
         },
         {
           "name": "b3_wall_clock_s",
-          "value": 75.5,
+          "value": 72.5,
           "unit": "s",
           "note": ""
         },
@@ -97,7 +97,7 @@
         },
         {
           "name": "b3_jvm_peak_rss_mb",
-          "value": 1116.3,
+          "value": 1322.3,
           "unit": "MB",
           "note": "the Spark JVM's own peak (VmHWM)"
         },
@@ -118,7 +118,7 @@
         "b2": {
           "baseline": "B2",
           "ok": true,
-          "wall_clock_s": 11.57,
+          "wall_clock_s": 7.03,
           "rows_trained": 769,
           "rows_tested": 291,
           "test_pr_auc": 0.7929,
@@ -133,18 +133,18 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 228.4,
+          "peak_rss_mb": 228.3,
           "jvm_peak_rss_mb": null,
           "detail": "selected logreg on validation PR-AUC 0.7591",
           "per_stage_s": {
-            "features": 0.98,
-            "train_and_select": 10.59
+            "features": 0.6,
+            "train_and_select": 6.42
           }
         },
         "b3": {
           "baseline": "B3",
           "ok": true,
-          "wall_clock_s": 75.47,
+          "wall_clock_s": 72.53,
           "rows_trained": 769,
           "rows_tested": 291,
           "test_pr_auc": 0.7923,
@@ -160,12 +160,12 @@
           "human_actions": 0,
           "llm_calls": 0,
           "peak_rss_mb": 227.8,
-          "jvm_peak_rss_mb": 1116.3,
+          "jvm_peak_rss_mb": 1322.3,
           "detail": "selected logreg on validation PR-AUC 0.7589",
           "per_stage_s": {
-            "features_spark": 66.29,
-            "features_read": 0.25,
-            "train_and_select": 7.17
+            "features_spark": 59.07,
+            "features_read": 0.19,
+            "train_and_select": 11.58
           }
         }
       }
@@ -173,11 +173,11 @@
     {
       "condition": "customers_1500",
       "ok": true,
-      "detail": "1500 customers, 1.4 MB on disk: B2 ok in 12s, B3 ok in 68s",
+      "detail": "1500 customers, 1.4 MB on disk: B2 ok in 9s, B3 ok in 84s",
       "measurements": [
         {
           "name": "generate_s",
-          "value": 10.5,
+          "value": 8.2,
           "unit": "s",
           "note": ""
         },
@@ -201,13 +201,13 @@
         },
         {
           "name": "b2_wall_clock_s",
-          "value": 12.4,
+          "value": 8.8,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b2_peak_rss_mb",
-          "value": 251.8,
+          "value": 250.5,
           "unit": "MB",
           "note": ""
         },
@@ -231,19 +231,19 @@
         },
         {
           "name": "b3_wall_clock_s",
-          "value": 68.4,
+          "value": 84.1,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b3_peak_rss_mb",
-          "value": 233.9,
+          "value": 238.4,
           "unit": "MB",
           "note": "the Python driver process only"
         },
         {
           "name": "b3_jvm_peak_rss_mb",
-          "value": 1360.2,
+          "value": 1236.2,
           "unit": "MB",
           "note": "the Spark JVM's own peak (VmHWM)"
         },
@@ -264,7 +264,7 @@
         "b2": {
           "baseline": "B2",
           "ok": true,
-          "wall_clock_s": 12.42,
+          "wall_clock_s": 8.83,
           "rows_trained": 2688,
           "rows_tested": 1050,
           "test_pr_auc": 0.7761,
@@ -279,18 +279,18 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 251.8,
+          "peak_rss_mb": 250.5,
           "jvm_peak_rss_mb": null,
           "detail": "selected random_forest on validation PR-AUC 0.731",
           "per_stage_s": {
-            "features": 1.13,
-            "train_and_select": 11.28
+            "features": 1.04,
+            "train_and_select": 7.78
           }
         },
         "b3": {
           "baseline": "B3",
           "ok": true,
-          "wall_clock_s": 68.37,
+          "wall_clock_s": 84.14,
           "rows_trained": 2688,
           "rows_tested": 1050,
           "test_pr_auc": 0.7724,
@@ -305,13 +305,13 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 233.9,
-          "jvm_peak_rss_mb": 1360.2,
+          "peak_rss_mb": 238.4,
+          "jvm_peak_rss_mb": 1236.2,
           "detail": "selected random_forest on validation PR-AUC 0.7348",
           "per_stage_s": {
-            "features_spark": 53.58,
-            "features_read": 0.26,
-            "train_and_select": 12.08
+            "features_spark": 71.08,
+            "features_read": 0.19,
+            "train_and_select": 10.39
           }
         }
       }
@@ -319,7 +319,7 @@
     {
       "condition": "customers_6000",
       "ok": true,
-      "detail": "6000 customers, 5.1 MB on disk: B2 ok in 9s, B3 ok in 82s",
+      "detail": "6000 customers, 5.1 MB on disk: B2 ok in 23s, B3 ok in 75s",
       "measurements": [
         {
           "name": "generate_s",
@@ -347,13 +347,13 @@
         },
         {
           "name": "b2_wall_clock_s",
-          "value": 9.2,
+          "value": 22.7,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b2_peak_rss_mb",
-          "value": 356.0,
+          "value": 314.5,
           "unit": "MB",
           "note": ""
         },
@@ -377,19 +377,19 @@
         },
         {
           "name": "b3_wall_clock_s",
-          "value": 81.5,
+          "value": 74.8,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b3_peak_rss_mb",
-          "value": 268.5,
+          "value": 272.3,
           "unit": "MB",
           "note": "the Python driver process only"
         },
         {
           "name": "b3_jvm_peak_rss_mb",
-          "value": 1485.4,
+          "value": 1411.2,
           "unit": "MB",
           "note": "the Spark JVM's own peak (VmHWM)"
         },
@@ -410,7 +410,7 @@
         "b2": {
           "baseline": "B2",
           "ok": true,
-          "wall_clock_s": 9.16,
+          "wall_clock_s": 22.74,
           "rows_trained": 11331,
           "rows_tested": 4267,
           "test_pr_auc": 0.7662,
@@ -425,18 +425,18 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 356.0,
+          "peak_rss_mb": 314.5,
           "jvm_peak_rss_mb": null,
           "detail": "selected random_forest on validation PR-AUC 0.7332",
           "per_stage_s": {
-            "features": 2.12,
-            "train_and_select": 7.03
+            "features": 4.31,
+            "train_and_select": 18.42
           }
         },
         "b3": {
           "baseline": "B3",
           "ok": true,
-          "wall_clock_s": 81.55,
+          "wall_clock_s": 74.8,
           "rows_trained": 11331,
           "rows_tested": 4267,
           "test_pr_auc": 0.7646,
@@ -451,13 +451,13 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 268.5,
-          "jvm_peak_rss_mb": 1485.4,
+          "peak_rss_mb": 272.3,
+          "jvm_peak_rss_mb": 1411.2,
           "detail": "selected random_forest on validation PR-AUC 0.732",
           "per_stage_s": {
-            "features_spark": 63.94,
-            "features_read": 0.33,
-            "train_and_select": 14.46
+            "features_spark": 61.68,
+            "features_read": 0.31,
+            "train_and_select": 11.01
           }
         }
       }
@@ -465,11 +465,11 @@
     {
       "condition": "customers_20000",
       "ok": true,
-      "detail": "20000 customers, 14.9 MB on disk: B2 ok in 34s, B3 ok in 119s",
+      "detail": "20000 customers, 14.9 MB on disk: B2 ok in 34s, B3 ok in 196s",
       "measurements": [
         {
           "name": "generate_s",
-          "value": 173.6,
+          "value": 229.6,
           "unit": "s",
           "note": ""
         },
@@ -493,13 +493,13 @@
         },
         {
           "name": "b2_wall_clock_s",
-          "value": 34.2,
+          "value": 33.7,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b2_peak_rss_mb",
-          "value": 600.3,
+          "value": 597.4,
           "unit": "MB",
           "note": ""
         },
@@ -523,19 +523,19 @@
         },
         {
           "name": "b3_wall_clock_s",
-          "value": 119.2,
+          "value": 196.5,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b3_peak_rss_mb",
-          "value": 361.8,
+          "value": 358.1,
           "unit": "MB",
           "note": "the Python driver process only"
         },
         {
           "name": "b3_jvm_peak_rss_mb",
-          "value": 2117.6,
+          "value": 2148.3,
           "unit": "MB",
           "note": "the Spark JVM's own peak (VmHWM)"
         },
@@ -556,7 +556,7 @@
         "b2": {
           "baseline": "B2",
           "ok": true,
-          "wall_clock_s": 34.21,
+          "wall_clock_s": 33.65,
           "rows_trained": 37265,
           "rows_tested": 14198,
           "test_pr_auc": 0.7848,
@@ -571,18 +571,18 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 600.3,
+          "peak_rss_mb": 597.4,
           "jvm_peak_rss_mb": null,
           "detail": "selected hist_gb on validation PR-AUC 0.7268",
           "per_stage_s": {
-            "features": 13.11,
-            "train_and_select": 21.07
+            "features": 9.6,
+            "train_and_select": 24.04
           }
         },
         "b3": {
           "baseline": "B3",
           "ok": true,
-          "wall_clock_s": 119.16,
+          "wall_clock_s": 196.48,
           "rows_trained": 37265,
           "rows_tested": 14198,
           "test_pr_auc": 0.7846,
@@ -597,13 +597,13 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 361.8,
-          "jvm_peak_rss_mb": 2117.6,
+          "peak_rss_mb": 358.1,
+          "jvm_peak_rss_mb": 2148.3,
           "detail": "selected random_forest on validation PR-AUC 0.7267",
           "per_stage_s": {
-            "features_spark": 98.33,
-            "features_read": 0.48,
-            "train_and_select": 18.37
+            "features_spark": 171.81,
+            "features_read": 0.46,
+            "train_and_select": 19.45
           }
         }
       }
@@ -611,11 +611,11 @@
     {
       "condition": "customers_50000",
       "ok": true,
-      "detail": "50000 customers, 36.4 MB on disk: B2 ok in 45s, B3 ok in 180s",
+      "detail": "50000 customers, 36.4 MB on disk: B2 ok in 61s, B3 ok in 236s",
       "measurements": [
         {
           "name": "generate_s",
-          "value": 243.6,
+          "value": 272.2,
           "unit": "s",
           "note": ""
         },
@@ -639,13 +639,13 @@
         },
         {
           "name": "b2_wall_clock_s",
-          "value": 45.4,
+          "value": 60.7,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b2_peak_rss_mb",
-          "value": 1281.9,
+          "value": 1284.6,
           "unit": "MB",
           "note": ""
         },
@@ -669,19 +669,19 @@
         },
         {
           "name": "b3_wall_clock_s",
-          "value": 179.7,
+          "value": 235.5,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b3_peak_rss_mb",
-          "value": 589.6,
+          "value": 589.3,
           "unit": "MB",
           "note": "the Python driver process only"
         },
         {
           "name": "b3_jvm_peak_rss_mb",
-          "value": 2223.8,
+          "value": 2218.8,
           "unit": "MB",
           "note": "the Spark JVM's own peak (VmHWM)"
         },
@@ -702,7 +702,7 @@
         "b2": {
           "baseline": "B2",
           "ok": true,
-          "wall_clock_s": 45.42,
+          "wall_clock_s": 60.73,
           "rows_trained": 92429,
           "rows_tested": 35390,
           "test_pr_auc": 0.7766,
@@ -717,18 +717,18 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 1281.9,
+          "peak_rss_mb": 1284.6,
           "jvm_peak_rss_mb": null,
           "detail": "selected hist_gb on validation PR-AUC 0.7326",
           "per_stage_s": {
-            "features": 18.19,
-            "train_and_select": 27.19
+            "features": 21.28,
+            "train_and_select": 39.42
           }
         },
         "b3": {
           "baseline": "B3",
           "ok": true,
-          "wall_clock_s": 179.71,
+          "wall_clock_s": 235.54,
           "rows_trained": 92429,
           "rows_tested": 35390,
           "test_pr_auc": 0.778,
@@ -743,13 +743,13 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 589.6,
-          "jvm_peak_rss_mb": 2223.8,
+          "peak_rss_mb": 589.3,
+          "jvm_peak_rss_mb": 2218.8,
           "detail": "selected hist_gb on validation PR-AUC 0.7325",
           "per_stage_s": {
-            "features_spark": 141.24,
-            "features_read": 0.67,
-            "train_and_select": 35.75
+            "features_spark": 192.96,
+            "features_read": 0.7,
+            "train_and_select": 38.98
           }
         }
       }
@@ -757,11 +757,11 @@
     {
       "condition": "customers_100000",
       "ok": true,
-      "detail": "100000 customers, 76.3 MB on disk: B2 ok in 118s, B3 ok in 332s",
+      "detail": "100000 customers, 76.3 MB on disk: B2 ok in 129s, B3 ok in 384s",
       "measurements": [
         {
           "name": "generate_s",
-          "value": 449.3,
+          "value": 518.9,
           "unit": "s",
           "note": ""
         },
@@ -785,13 +785,13 @@
         },
         {
           "name": "b2_wall_clock_s",
-          "value": 117.7,
+          "value": 128.9,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b2_peak_rss_mb",
-          "value": 2326.5,
+          "value": 2293.7,
           "unit": "MB",
           "note": ""
         },
@@ -815,19 +815,19 @@
         },
         {
           "name": "b3_wall_clock_s",
-          "value": 331.7,
+          "value": 384.5,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b3_peak_rss_mb",
-          "value": 961.1,
+          "value": 959.2,
           "unit": "MB",
           "note": "the Python driver process only"
         },
         {
           "name": "b3_jvm_peak_rss_mb",
-          "value": 2134.4,
+          "value": 2189.0,
           "unit": "MB",
           "note": "the Spark JVM's own peak (VmHWM)"
         },
@@ -848,7 +848,7 @@
         "b2": {
           "baseline": "B2",
           "ok": true,
-          "wall_clock_s": 117.72,
+          "wall_clock_s": 128.91,
           "rows_trained": 184492,
           "rows_tested": 70747,
           "test_pr_auc": 0.7837,
@@ -863,18 +863,18 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 2326.5,
+          "peak_rss_mb": 2293.7,
           "jvm_peak_rss_mb": null,
           "detail": "selected hist_gb on validation PR-AUC 0.7398",
           "per_stage_s": {
-            "features": 51.77,
-            "train_and_select": 65.81
+            "features": 47.69,
+            "train_and_select": 81.1
           }
         },
         "b3": {
           "baseline": "B3",
           "ok": true,
-          "wall_clock_s": 331.73,
+          "wall_clock_s": 384.49,
           "rows_trained": 184492,
           "rows_tested": 70747,
           "test_pr_auc": 0.7843,
@@ -889,13 +889,13 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 961.1,
-          "jvm_peak_rss_mb": 2134.4,
+          "peak_rss_mb": 959.2,
+          "jvm_peak_rss_mb": 2189.0,
           "detail": "selected hist_gb on validation PR-AUC 0.7405",
           "per_stage_s": {
-            "features_spark": 220.07,
-            "features_read": 0.83,
-            "train_and_select": 108.62
+            "features_spark": 289.1,
+            "features_read": 0.64,
+            "train_and_select": 91.91
           }
         }
       }
@@ -903,11 +903,11 @@
     {
       "condition": "customers_200000",
       "ok": true,
-      "detail": "200000 customers, 153.9 MB on disk: B2 FAILED in 19s, B3 ok in 509s",
+      "detail": "200000 customers, 153.9 MB on disk: B2 FAILED in 23s, B3 ok in 592s",
       "measurements": [
         {
           "name": "generate_s",
-          "value": 923.6,
+          "value": 1064.7,
           "unit": "s",
           "note": ""
         },
@@ -931,7 +931,7 @@
         },
         {
           "name": "b2_wall_clock_s",
-          "value": 18.8,
+          "value": 23.2,
           "unit": "s",
           "note": ""
         },
@@ -961,19 +961,19 @@
         },
         {
           "name": "b3_wall_clock_s",
-          "value": 509.5,
+          "value": 591.5,
           "unit": "s",
           "note": ""
         },
         {
           "name": "b3_peak_rss_mb",
-          "value": 1722.2,
+          "value": 1726.6,
           "unit": "MB",
           "note": "the Python driver process only"
         },
         {
           "name": "b3_jvm_peak_rss_mb",
-          "value": 2275.0,
+          "value": 2271.8,
           "unit": "MB",
           "note": "the Spark JVM's own peak (VmHWM)"
         },
@@ -991,7 +991,7 @@
         },
         {
           "name": "b2_failure",
-          "value": "killed: experiments.baseline_b2:run ended after 19s without returning (exit code -9); the container's cgroup recorded 1 out-of-memory kill(s) meanwhile",
+          "value": "killed: experiments.baseline_b2:run ended after 23s without returning (exit code -9); the container's cgroup recorded 1 out-of-memory kill(s) meanwhile",
           "unit": "",
           "note": ""
         }
@@ -1000,7 +1000,7 @@
         "b2": {
           "baseline": "B2",
           "ok": false,
-          "wall_clock_s": 18.82,
+          "wall_clock_s": 23.16,
           "rows_trained": 0,
           "rows_tested": 0,
           "test_pr_auc": null,
@@ -1012,13 +1012,13 @@
           "llm_calls": 0,
           "peak_rss_mb": null,
           "jvm_peak_rss_mb": null,
-          "detail": "killed: experiments.baseline_b2:run ended after 19s without returning (exit code -9); the container's cgroup recorded 1 out-of-memory kill(s) meanwhile",
+          "detail": "killed: experiments.baseline_b2:run ended after 23s without returning (exit code -9); the container's cgroup recorded 1 out-of-memory kill(s) meanwhile",
           "per_stage_s": {}
         },
         "b3": {
           "baseline": "B3",
           "ok": true,
-          "wall_clock_s": 509.46,
+          "wall_clock_s": 591.52,
           "rows_trained": 369270,
           "rows_tested": 141373,
           "test_pr_auc": 0.7854,
@@ -1033,13 +1033,13 @@
           ],
           "human_actions": 0,
           "llm_calls": 0,
-          "peak_rss_mb": 1722.2,
-          "jvm_peak_rss_mb": 2275.0,
+          "peak_rss_mb": 1726.6,
+          "jvm_peak_rss_mb": 2271.8,
           "detail": "selected hist_gb on validation PR-AUC 0.7354",
           "per_stage_s": {
-            "features_spark": 341.97,
-            "features_read": 0.88,
-            "train_and_select": 163.11
+            "features_spark": 399.61,
+            "features_read": 0.76,
+            "train_and_select": 188.86
           }
         }
       }
@@ -1047,109 +1047,10 @@
     {
       "condition": "P_at_customers_200000",
       "ok": false,
-      "detail": "stopped at ESCALATED: feature job failed",
-      "measurements": [
-        {
-          "name": "wall_clock_s",
-          "value": 5228.8,
-          "unit": "s",
-          "note": ""
-        },
-        {
-          "name": "ingest_s",
-          "value": 3.13,
-          "unit": "s",
-          "note": ""
-        },
-        {
-          "name": "prepare_ok",
-          "value": false,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "prepare_state",
-          "value": "ESCALATED",
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "validation_gates_s",
-          "value": 1110.59,
-          "unit": "s",
-          "note": "gates 1 to 8 summed over the run's generated jobs: compile, fixture tests, dry runs, contract and storage checks"
-        },
-        {
-          "name": "full_runs_s",
-          "value": 481.64,
-          "unit": "s",
-          "note": "gate 9: the jobs doing their work on the whole input"
-        },
-        {
-          "name": "peak_rss_mb",
-          "value": 1718.2,
-          "unit": "MB",
-          "note": "P's Python process: the pipeline's control and the modelling. The in-process Spark JVM is the next figure; the gates' compiler and the sandboxed jobs run as processes and containers of their own"
-        },
-        {
-          "name": "jvm_peak_rss_mb",
-          "value": 1752.3,
-          "unit": "MB",
-          "note": "the in-process Spark session's JVM (profile and cutoffs)"
-        },
-        {
-          "name": "llm_calls",
-          "value": 0,
-          "unit": "",
-          "note": "0 because no provider is configured (ADR-0003), not because the loop made none"
-        },
-        {
-          "name": "decision_records",
-          "value": 8,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "audit_entries",
-          "value": 18,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "spark_jobs",
-          "value": 5,
-          "unit": "",
-          "note": ""
-        },
-        {
-          "name": "test_pr_auc",
-          "value": null,
-          "unit": "",
-          "note": "the pipeline did not reach selection"
-        }
-      ],
-      "observations": {
-        "per_stage_s": {
-          "spark:d7ac60": 0.0,
-          "scala_spark:01cf4e": 0.0,
-          "scala_spark:35dcdc": 481.64,
-          "scala_spark:a98508": 0.0,
-          "scala_spark:1a699a": 0.0
-        },
-        "gate_s": {
-          "1": 0.0,
-          "2": 0.0,
-          "3": 0.0,
-          "4": 575.84,
-          "5": 0.0,
-          "6": 534.75,
-          "7": 0.0,
-          "8": 0.0,
-          "9": 481.64
-        },
-        "run_key": "run-2026-10-11-032"
-      }
+      "detail": "P raised before it finished: experiments.configuration_p:run_p raised OSError: [Errno 12] Cannot allocate memory: '/workspace/scala_spark/jobs/src/main/scala/triad/jobs/generated'",
+      "measurements": [],
+      "observations": {}
     }
   ],
-  "run_dir": "20261011T180425Z"
+  "run_dir": "20261013T134333Z"
 }
