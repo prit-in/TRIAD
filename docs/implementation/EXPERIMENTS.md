@@ -19,7 +19,7 @@ carrying an estimate.
 | EXP-4 | Schema errors | **completed** | **held** (every fault detected and handled; the mapping proposed, approved, then applied) | `experiments/EXP-4/latest.json` |
 | EXP-5 | Missing values | **completed** | **did not hold** (PR-AUC flat within noise; key nulls quarantined, non-key nulls cost no row, the over-limit plan paused for approval) | `experiments/EXP-5/latest.json`, `experiments/EXP-5/calibration_noise_floor.json` |
 | EXP-6 | Spark failures and recovery | **partial** | **no verdict** (the executor loss absorbed with identical output; no out-of-memory lands on this node; skew not assessable at this size) | `experiments/EXP-6/latest.json` |
-| EXP-7 | Model degradation | **partial** | **held** | `experiments/EXP-7/latest.json` |
+| EXP-7 | Model degradation | **completed** | **held** (covariate shift flagged before any label matured, concept drift only by the performance trigger; drift to retrain to comparison to approval held end to end) | `experiments/EXP-7/latest.json` |
 | EXP-8 | Scala compile failures | **partial** | **no verdict** (repair needs an LLM; 19 of 20 faults stopped before reading data, forbidden APIs never run, the breaker trips at attempt 2) | `experiments/EXP-8/latest.json` |
 | EXP-9 | Leakage sentinel | **completed** | **held** | `experiments/EXP-9/latest.json` |
 | EXP-10 | Governance bypass | **completed** | **held** | `experiments/EXP-10/latest.json` |

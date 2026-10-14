@@ -53,10 +53,9 @@ unreliable at pilot sizes, where fixed thresholds refuse sound models by chance.
 that governance must be exercised to be trusted: walking a promotion despite a failed check end to
 end exposed three defects that rule-by-rule tests had missed.
 
-The price of governance was measured as well: on 400 customers a governed run took 831 s against
-76 s for a hand-written Spark pipeline, about 395 s of it in the validation gates, and as the data
-grew on
-a 3 GB node it was Spark, not the single Python process, that gave out first.
+The price of governance was measured as well: on 400 customers a governed run took 1 230 s
+against 53 s for a hand-written Spark pipeline, 553 s of it in the validation gates. PENDING: the
+EXP-2 clause, from its re-run of 14-10-2026.
 
 **Table 1. Executive Summary of Contributions and Outcomes**
 
@@ -77,7 +76,7 @@ a 3 GB node it was Spark, not the single Python process, that gave out first.
 
 - Abstract numbers: business snapshot (gain 0.298 at 10%); calibration noise floor (0.458 max
   share above 0.05 at 324 rows); EXP-8 (forbidden API 5/5 at gate 2, type mismatch and missing
-  import 5/5 each at gate 4, wrong column 0/5 static and 4/5 at gate 5; run 20261010T131443Z).
+  import 5/5 each at gate 4, wrong column 0/5 static and 4/5 at gate 5; run 20261011T084444Z).
 - Table 1: requirement counts (`REQUIREMENTS_TRACEABILITY.md`); EXP-8, EXP-9, EXP-10; segment and
   calibration noise floors; DEC-35 (memory limits), DEC-36 (conformance).
 - Abstract length: 213 words, one paragraph, no abbreviations, references, or equations; index

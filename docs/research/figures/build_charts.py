@@ -155,6 +155,14 @@ def fig22() -> None:
         if failed:
             ax.scatter(*zip(*failed, strict=True), marker="x", s=36, color=COLOURS["warn"], zorder=5,
                        label=f"{key.upper()} failed")
+    # P runs once, at the rung that decides the hypothesis. A P that stopped is drawn at the time
+    # it had run, which is a lower bound on what finishing would have taken, and labelled so.
+    for key, v in e2.items():
+        if key.startswith("P_at_customers_") and isinstance(v.get("wall_clock_s"), (int, float)):
+            done = bool(v.get("_ok"))
+            ax.scatter([int(key.rsplit("_", 1)[1])], [v["wall_clock_s"]], s=30, zorder=6,
+                       marker="D" if done else "^", color=COLOURS["P"],
+                       label="P completed" if done else "P stopped (time so far)")
     ax.set_xscale("log")
     ax.set_xlabel("Customers in the synthetic dataset")
     ax.set_ylabel("Wall clock (s)")

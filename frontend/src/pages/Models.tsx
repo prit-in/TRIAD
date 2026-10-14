@@ -30,6 +30,7 @@ export function Models() {
   return (
     <>
       <Problem error={models.problem} />
+      {!models.data && models.loading && <Empty what="registered models" loading />}
       {models.data?.length === 0 && <Empty what="registered models" />}
       {fromExperiments > 0 && (
         <p className="muted">

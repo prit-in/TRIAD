@@ -73,8 +73,8 @@ intervals before such a platform is used on small data.
   data could differ in every predictive metric reported.
 - **Faults this node cannot produce.** Executor memory set as low as Spark accepts made the jobs
   spill to disk rather than fail, at 400 and at 20 000 customers, so the playbook's out-of-memory
-  remedy was never exercised; and in local mode Spark retries no task, so a lost executor is
-  absorbed by the platform resubmitting the job, not by Spark itself.
+  remedy was never exercised. Spark's own task retries absorbed a lost executor on the compose
+  cluster; in local mode, which retries no task, the platform resubmitted the job.
 - **Reproducible under the same plan only.** A replay reproduces every output bit for bit, but with
   less memory, spilling changed the order of floating-point additions and so the last bit of three
   monetary sums in 9 of 110 900 rows; summing money as a decimal type would remove the difference.
@@ -93,7 +93,8 @@ intervals before such a platform is used on small data.
 
 ## Evidence (not part of the manuscript)
 
-- Faults the node cannot produce and plan-dependent sums: EXP-6 `20261010T113128Z`,
+- Faults the node cannot produce and plan-dependent sums: EXP-6 `20261011T070906Z` (cluster kill
+  absorbed by Spark's retries; local kill resubmitted; 460m spilled 183.6 MB), `20261010T113128Z`,
   `experiments/EXP-6/pilot_20261010.md`, `experiments/EXP-6/diag_feature_determinism_20261010.md`.
 - Boundary defects: DEC-05, DEC-11; quarantine mount and hostname: run-2026-10-04-001 and
   run-2026-10-04-002, DEC-25; commit messages of 88a3d72 and its successor.

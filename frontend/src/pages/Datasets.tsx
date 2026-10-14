@@ -44,7 +44,9 @@ export function Datasets() {
                      placeholder="name, entity, source…" />
         }
       >
-        {datasets.data && shown.length === 0 ? (
+        {!datasets.data ? (
+          datasets.loading && <Empty what="registered datasets" loading />
+        ) : shown.length === 0 ? (
           <Empty what={needle ? "datasets matching that" : "registered datasets"} />
         ) : (
           <table>

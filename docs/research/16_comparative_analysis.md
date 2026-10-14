@@ -14,13 +14,13 @@ Table 11).
 ## 16.1 Against traditional Python analytics and a Spark-native pipeline
 
 On 400 customers the conventional pipelines are far faster: the single pandas process finished in
-7.1 s and the Spark pipeline in 76 s, against 831 s for TRIAD (Table 11). Neither needed a
+6.9 s and the Spark pipeline in 53 s, against 1 230 s for TRIAD (Table 11). Neither needed a
 manual step, and neither did TRIAD; the difference is in what each run leaves behind. The
 baselines produce a model and its scores. TRIAD produced the same kind of model together with 8
 decision records, 17 hash-chained audit entries, three generated Spark jobs that each passed the
 nine gates and ran in a sandbox, a calibrated probability, and a verdict of its acceptance policy
 - here an escalation, because calibration could not be confirmed on 243 validation rows.
-Hand-written code is the other side of the ledger: the baselines are 188 and 228 lines of
+Hand-written code is the other side of the ledger: the baselines are 188 and 291 lines of
 pipeline code that a person writes and maintains for this task, where TRIAD's pipeline for the
 same task is configuration and generated jobs, whose templates belong to the platform.
 
@@ -30,12 +30,14 @@ against TRIAD's 44 - and so are not a comparison of modelling. Holding the featu
 the baselines' model shortlist refitted on TRIAD's feature table and split reached 0.776, on the
 same 280 test rows as TRIAD's 0.741, with no interval computed for either. What TRIAD adds over
 the conventional pipelines is therefore not a better model at this size but a governed one, at a
-cost of about 14 minutes per run on this workstation, of which the validation gates take about
-six and a half.
+cost of about 20 minutes per run on this workstation - 13 to 38 minutes across three runs - of
+which the validation gates took about nine.
 
 {{include: tables/table11_comparative_performance.md}}
 
 ## 16.2 Where each configuration stops
+
+PENDING: rewrite from EXP-2's re-run of 14-10-2026; the paragraph below is superseded.
 
 Speed at small sizes and survival at large ones are different questions, and EXP-2 asked the
 second one on this workstation. Up to 50 000 customers both conventional pipelines completed and
@@ -52,8 +54,8 @@ overhead - the requirements' 10 GB tier and above - were not run and are not est
 
 No Scala-only configuration was built, so this comparison is by the measurements that isolate
 what the compiled language contributes. In EXP-8 every type mismatch and every missing import in
-generated Scala was stopped by compilation, before the job touched data, at a cost of 37 to 52 s
-per compile; a dynamically typed script would have revealed the same faults only when the
+generated Scala was stopped by compilation, before the job touched data, at a cost of under a
+minute per attempt; a dynamically typed script would have revealed the same faults only when the
 offending line ran. That is the case for Scala in the transformation layer, where generated code
 meets data at scale. A Scala-only platform would keep it and give up the modelling layer that the
 results also depend on: calibration, exact tree explanations, hyperparameter search, and the
@@ -94,11 +96,13 @@ repository contains everything needed to repeat it.
 
 ## Evidence (not part of the manuscript)
 
-- 16.1: `experiments/EXP-1/latest.json`; Table 11 from `docs/research/tables/build_tables.py`;
+- 16.1: EXP-1 run `20261013T132108Z` (P 1 230.24 s, B3 53.24 s, B2 6.94 s; gates 553 s; earlier
+  runs 785.83 s and 2 296.01 s); hand-written lines 188 and 291; Table 11 from `docs/research/tables/build_tables.py`;
   Fig. 24 from `docs/research/figures/build_charts.py`.
 - 16.2: EXP-2 run `20261008T171242Z` (see Section 15 evidence); LR-06 in
   `agents/policies/routing.yaml`, `agents/routing.py`.
-- 16.3: EXP-8 (`experiments/EXP-8/latest.json`: type and import faults at gate 4, 37-41 s);
+- 16.3: EXP-8 run `20261011T084444Z`: type and import faults at gate 4, 77-114 s per fault over
+  its two attempts;
   published model's ECE 0.019 and reasons (Section 17 evidence, run-2026-10-07-001).
 - 16.4: EXP-8 (forbidden API 5/5 at gate 2), EXP-9 (2/2), EXP-10 (4/4); override walk-through
   and defects: Section 17 evidence; repair rate not measured: ADR-0003.

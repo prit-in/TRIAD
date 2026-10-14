@@ -1,7 +1,53 @@
 # IMPLEMENTATION_STATUS
 
-Updated: 10-10-2026. **Read this file first when resuming.** The newest handoff below supersedes
+Updated: 14-10-2026. **Read this file first when resuming.** The newest handoff below supersedes
 everything after it where they disagree.
+
+## Progress, 14-10-2026 (read first)
+
+**Final runs.** Every experiment has a final run on the current code except EXP-2, whose re-run
+after DEC-54 started at 17:10 UTC on 14-10-2026 as a detached batch.
+
+| Exp | Run | Result |
+| --- | --- | --- |
+| EXP-1 | `20261013T132108Z` | partial, held - P 1 230 s (gates 553 s), B3 53 s, B2 6.9 s; 0.957 of P's time beyond B3's; like-for-like 0.776 against P's 0.741; runs of 11-10 (786 s) and 12-10 (2 296 s, busy host) agree on every count and score |
+| EXP-2 | re-run of 14-10 in progress | run of 13-10 `20261013T134333Z` kept with a NOTE.md: B2 killed by the memory limit at 200 000 customers, B3 finished every rung (592 s at 200 000), P raised on the host share after 1 604 s (DEC-54) |
+| EXP-3 | `20261011T064506Z` | partial, did not hold - 1.258x on 2 cores, 1.33x on 4, doubling 1.057x |
+| EXP-4 | `20261011T065017Z` | completed, held - 3 of 3 faults detected and handled; recovery 172 s after the approval |
+| EXP-5 | `20261011T111552Z` | completed, did not hold - identical to the run of 10-10 in 149 of 155 measurements |
+| EXP-6 | `20261011T070906Z` | partial, no verdict - cluster kill absorbed by Spark's retries and local kill resubmitted, both with identical output; no out-of-memory lands; skew not assessable |
+| EXP-7 | `20261011T165840Z` | completed, held - detector arms, and the chain end to end: drift flagged, retrain on the months that arrived, comparison, approvals |
+| EXP-8 | `20261011T084444Z` | partial, no verdict - 15 of 20 faults stopped statically, 19 of 20 before reading data; breaker 19 of 19 |
+| EXP-9 | `20261011T064933Z` | completed, held |
+| EXP-10 | `20261011T064957Z` | completed, held - 4 of 4 bypasses refused; 178 chains verify |
+
+**Decisions since 10-10**, each in DECISIONS.md:
+- **DEC-44.** Each configuration runs in a process of its own, and B3 ends its JVM before modelling.
+- **DEC-45.** EXP-7 runs the hypothesis's chain on the platform.
+- **DEC-46.** The cluster path is correct and exercised.
+- **DEC-47.** Configurations are deep-copied, and the in-process JVM's idle heap is released.
+- **DEC-48.** Fixes from the review of 11-10.
+- **DEC-49.** The acceptance record carries the champion comparison.
+- **DEC-50.** B3 hands its feature table over as parquet.
+- **DEC-51.** Profiling times itself, and no duration is invented.
+- **DEC-52.** The sandbox outlasts a stalled engine, and `SANDBOX_UNAVAILABLE` is a class of its own.
+- **DEC-53.** Correlation ids, readable errors, resume and an idempotent audited export in the API and dashboard.
+- **DEC-54.** A workspace write refused while generating is classified and retried.
+
+Environment: after the reboot of 14-10, Windows reserved ports 55057-55556. The gitignored
+`docker/.env` therefore sets `TRIAD_PG_PORT=54432`.
+
+**Next, in order:**
+1. When EXP-2 ends: §15.2 and every PENDING marker (Sections 00, 13, 15, 16 and 22); then the EXPERIMENTS.md EXP-2 section and its summary paragraph.
+2. The full test suite.
+3. Tables and charts.
+4. `assemble_manuscript.py --final`, then `finalize_manuscript.ps1`.
+5. Read the PDF against the reference layout.
+6. The compliance checklist.
+7. A browser pass over the remaining pages.
+8. Then the team details from the user.
+
+Start no container while an experiment runs.
 
 ## Progress, 10-10-2026 (read first)
 

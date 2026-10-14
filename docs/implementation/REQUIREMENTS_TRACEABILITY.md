@@ -224,6 +224,7 @@ result of an experiment that did not run.
 | Security (NFR-SEC) | Met where testable: argon2, no secret in source or log, redaction, fenced untrusted content, sandbox refusals, separation of duties, tamper-evident audit |
 | Reproducibility (NFR-REP) | Met: pinned toolchain read from the image, content hashes, seeded sampler, manifest per output |
 | Observability (NFR-OBS) | Met: decision records, audit trail, alerts, execution records |
+| Reliability (NFR-REL) | Met: a transient failure is retried with exponential backoff, at most three attempts - every call to the container engine (DEC-52), and a workspace write refused while a stage generates its code (DEC-54); a crashed worker's task is re-queued and the run resumed (AT-11, `tests/unit/test_queue_and_sandbox.py`, `tests/unit/test_worker.py`); stages write to run-scoped staging paths and commit atomically (TC-073) |
 | Performance and scale (NFR-PER, NFR-SCA) | **Not run** — environment-limited (ADR-0002). Reported as not run, never estimated |
 
 ## What a reader should take from this

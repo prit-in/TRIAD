@@ -173,6 +173,25 @@ object FeatureJob extends TriadJob {
 }
 ```
 
+## F. Supplementary analyses
+
+Section 15.7 rests on two simulations that involve no model and read no run data. Both apply the
+platform's own estimators, with 20 000 draws per cell and fixed seeds.
+
+**Calibration.** Scores were drawn from a Beta distribution whose mean is 0.2716, EXP-5's
+validation churn rate, at concentrations 2, 4, and 8, and each label was drawn with its score as
+its probability, so the predictor is perfectly calibrated by construction. The expected
+calibration error, computed over 10 equal-width bins as AP-5 computes it, exceeded the 0.05 limit
+in 40% to 46% of draws at 324 rows, 4% to 7% at 650, at most 0.11% at 1 300, and never at 2 600
+or 5 200.
+
+**Segment recall gap.** Each simulated validation set gave every customer independent attributes
+in the generator's own proportions, made 25.3% of them churners, and detected each churner with
+probability 0.5 whatever their segment, so every true recall gap is zero. AP-6 was then applied as
+the pipeline applies it: segments of at least 50 rows and 30 churners, gaps within each
+segmentation, and the largest against 0.10. Across the four segmentations it refused 65.5% of
+draws at 494 rows, 97.1% at 1 000, 95.1% at 2 000, 80.9% at 4 000, and 39.6% at 8 000.
+
 ---
 
 ## Evidence (not part of the manuscript)
@@ -187,3 +206,7 @@ object FeatureJob extends TriadJob {
   `ChurnPipeline._plan_shuffle_partitions`; DEC-31. Listener: `TriadJob.scala`, DEC-29.
 - Anomaly settings: `dataeng/profile.py` (`VOLUME_Z`, `VOLUME_MIN_DAYS`, `SHIFT_PSI`,
   `BUSINESS_RULES`); DEC-30.
+- Supplementary analyses: `experiments/calibration_noise_floor.py` ->
+  `experiments/EXP-5/calibration_noise_floor.json` (seed 20260922); `experiments/
+  segment_gap_noise_floor.py` -> `experiments/policy_floors/segment_gap_noise_floor.json` (seed
+  20261004).

@@ -36,12 +36,12 @@ people, on stated evidence, rather than by a default.
 ## 19.3 Operational efficiency, productivity, and infrastructure
 
 On the small dataset of EXP-1 the comparison with the conventional pipelines is direct. TRIAD took
-831 s where a hand-written Spark pipeline took 76 s and a single pandas process 7.1 s, and none of
-the three needed a manual step; the conventional pipelines are 188 and 228 lines of code a person
+1 230 s where a hand-written Spark pipeline took 53 s and a single pandas process 6.9 s, and none
+of the three needed a manual step; the conventional pipelines are 188 and 291 lines of code a person
 writes for this one task, and they leave no decision record, audit entry, calibration check, or
-policy verdict behind. About 395 s of TRIAD's time is its validation gates, so the price of
-running generated code safely is roughly six and a half minutes per run on this workstation, and more on the
-first run after a template changes, when the fixture tests run again in full (3 397 s in all).
+policy verdict behind. Its validation gates took 553 s of that, so the price of running
+generated code safely is roughly nine minutes per run on this workstation, and more on the first
+run after a template changes, when the fixture tests run again in full (3 397 s in all).
 
 What the governance costs in time is measured, not estimated. A full governed run on 10 000
 customers took 49 minutes on the evaluation laptop, from ingestion to a published report, and
@@ -85,5 +85,7 @@ does not have, and a figure computed from guessed values would be a guess presen
   band thresholds `pipelines/churn_v1.yaml` 0.66/0.33).
 - 19.2: `segment_threshold_review` in the same snapshot (recall at global threshold 0.164, 0.4578,
   0.4947; segment-aware 0.4603; flagged 0.1525 -> 0.176); model card approval section.
-- 19.3: run-2026-10-07-001 state transitions (RECEIVED 19:24:00 to PUBLISHED 20:13:13, of which
+- 19.3: EXP-1 run `20261013T132108Z` (P 1 230.24 s, B3 53.24 s, B2 6.94 s; gates 553 s; lines
+  188 and 291); the cold case, every fixture run fresh: EXP-1 run `20261009T161555Z`, P 3 396.87 s;
+  run-2026-10-07-001 state transitions (RECEIVED 19:24:00 to PUBLISHED 20:13:13, of which
   EVALUATED 19:40:47 to ESCALATED 20:12:41 was selection); routing LR-07; FR-037 loop (DEC-31).

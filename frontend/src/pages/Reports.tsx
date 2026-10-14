@@ -31,7 +31,9 @@ export function Reports() {
       <Problem error={reports.problem} />
 
       <Panel title="Reports" provenance="Model output">
-        {reports.data && rows.length === 0 ? (
+        {!reports.data ? (
+          reports.loading && <Empty what="generated reports" loading />
+        ) : rows.length === 0 ? (
           <Empty what="generated reports" />
         ) : (
           <table>
