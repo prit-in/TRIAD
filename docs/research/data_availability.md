@@ -1,7 +1,7 @@
 # Data Availability
 
 The datasets generated and analysed during the current study are available in the TRIAD
-repository, [PERSISTENT WEB LINK TO DATASETS - TO BE CONFIRMED AT FINALIZATION]. All of them are
+repository, https://github.com/pritdadhania27/TRIAD. All of them are
 synthetic: the repository's seeded generator produces every table, so the command
 `python -m datasets.synthetic.generator --out <folder> --customers <n> --seed <seed>` regenerates
 any of them exactly, and the size, seed, and fault settings of each experiment are recorded beside

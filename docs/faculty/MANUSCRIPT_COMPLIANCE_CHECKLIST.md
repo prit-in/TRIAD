@@ -8,7 +8,7 @@ reasoning behind each requirement is in `FACULTY_MATERIALS_ANALYSIS.md`.
 Status: **DONE** (evidence named) · **PARTIAL** · **PENDING** (not started) · **FINAL** (deferred
 by instruction to the finalization stage) · **N/A** (with the reason).
 
-**State on 15-10-2026:** 46 DONE, 4 PARTIAL, 3 FINAL (the team's names, numbers, photographs and allocation), 1 PENDING (the execution videos), 1 N/A.
+**State on 16-10-2026:** 50 DONE, 3 PARTIAL, 0 FINAL, 1 PENDING (the execution videos), 1 N/A.
 
 ## Identity and front matter
 
@@ -17,11 +17,11 @@ by instruction to the finalization stage) · **N/A** (with the reason).
 | 1 | Team ID `26FSPDSCPMID4096` used exactly | L, C | cover Team ID box; README | DONE | box reads `Team ID: 26FSPDSCPMID4096` on one line (build of 15-10-2026) |
 | 2 | Title verbatim: "Agentic Data Science Programming: Autonomous Python–Scala–Spark Ecosystems for Intelligent Analytics" | L, T | cover; paper title | DONE | both read the title verbatim, en dashes included |
 | 3 | Course: Programming for Data Science (MACSE502) | L, C | cover | DONE | the template's own text, kept |
-| 4 | Cover page per template: Reg No / Name ×4, "To Dr M Rajasekhara Babu", SCSE, VIT, October 2026 | C | cover | FINAL | faculty name, SCSE, VIT and October 2026 in place; the four Reg No / Name boxes await the team's details |
+| 4 | Cover page per template: Reg No / Name ×4, "To Dr M Rajasekhara Babu", SCSE, VIT, October 2026 | C | cover | DONE | four members by registration number, each with Reg No, Name and photograph (from the team's lab-record covers); faculty, SCSE, VIT, October 2026 |
 | 5 | Index table: Abstract, 1–22, References, Appendix, page numbers | C | front matter, page 2 | DONE | Abstract, Executive Summary, 1-22, Data Availability, Appendix, References; Word fills the page numbers (PAGEREF) |
 | 6 | List of Figures with page numbers | C | front matter, page 3 | DONE | 32 rows, numbered 1. to 32.; page numbers by Word |
 | 7 | List of Tables with page numbers | C | front matter, page 4 | DONE | 15 rows; page numbers by Word |
-| 8 | Contributions table per section, and consolidated per member | C | front matter, pages 5-6 | FINAL | per-section word counts and the consolidated total are generated; Reg. Nos. and the allocation await the team |
+| 8 | Contributions table per section, and consolidated per member | C | front matter, page 5 | DONE | each section assigned to one member so the totals are as equal as whole sections allow (5 700, 5 705, 5 703, 5 701 of 22 809), the team's instruction |
 
 ## Structure and length
 
@@ -92,7 +92,7 @@ by instruction to the finalization stage) · **N/A** (with the reason).
 | 46 | Section headings in Roman numerals and capitals | C | manuscript | DONE | e.g. XV. RESULTS AND FINDINGS |
 | 47 | Abbreviations defined at first use | C | manuscript | DONE | checked 15-10-2026: LLM, API, PSI, ECE, PR-AUC, ROC-AUC, JVM, UDF and JAR defined at first use |
 | 48 | Template sample content removed | C | manuscript | DONE | no sample text left ('J. K. Author', '<Title>', 'TITLE OF THE PAPER' all absent) |
-| 49 | Author biographies with photographs | C | end of manuscript | FINAL | the faculty biography is in place; the four team biographies and photographs await the team |
+| 49 | Author biographies with photographs | C | end of manuscript | DONE | faculty and four team biographies, each with a photograph |
 
 ## Deliverables
 
@@ -100,7 +100,7 @@ by instruction to the finalization stage) · **N/A** (with the reason).
 | --- | --- | --- | --- | --- | --- |
 | 50 | Complete manuscript in Word format | G | `docs/final/TRIAD_Manuscript_26FSPDSCPMID4096.docx` (.pdf beside it) | DONE | 55 pages; Word fills the page references; every page numbered |
 | 51 | Diagram folder | G | `docs/research/figures/` | DONE | draw.io sources, SVG and PNG exports |
-| 52 | Source code folder, preferably GitHub with link | G | this repository | PARTIAL | complete; the public link is the team's to publish |
+| 52 | Source code folder, preferably GitHub with link | G | https://github.com/pritdadhania27/TRIAD | PARTIAL | link given by the team; publishing the repository is the team's step |
 | 53 | Datasets folder | G | `datasets/synthetic/` | DONE | seeded generator; each experiment's sizes and seeds stored with its results; no data committed (by rule) |
 | 54 | Execution videos folder | G | `videos/` | PENDING | needs a person to record; `scripts/run_demo.py` runs the demonstration scenario end to end |
-| 55 | Data availability statement, same in manuscript and submission | G | `docs/research/data_availability.md` | PARTIAL | statement written in the repository form; the persistent link awaits the team |
+| 55 | Data availability statement, same in manuscript and submission | G | `docs/research/data_availability.md` | DONE | statement in the repository form, with the link https://github.com/pritdadhania27/TRIAD |

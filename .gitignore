@@ -84,3 +84,7 @@ experiments/_logs/
 # the faculty template, which is not in the repository either. manuscript_report.json is kept.
 docs/final/*.docx
 docs/final/*.pdf
+
+# The team's personal documents and photographs (lab-record PDFs, extracted photos): used to
+# build the report locally, never published with the repository.
+Team_Details/

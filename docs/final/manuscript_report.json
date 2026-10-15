@@ -235,7 +235,7 @@
     {
       "file": "data_availability.md",
       "topic": "Data Availability",
-      "words": 78,
+      "words": 69,
       "range": null,
       "within_range": null
     },
@@ -276,8 +276,14 @@
     "22_conclusion.md": [],
     "23_appendix.md": []
   },
+  "contributions": {
+    "26MML0013": 5700,
+    "26MML0025": 5705,
+    "26MML0026": 5703,
+    "26MML0051": 5701
+  },
   "output": "docs\\final\\TRIAD_Manuscript_26FSPDSCPMID4096.docx",
-  "total_words": 22818,
+  "total_words": 22809,
   "figures": 32,
   "figure_numbers": [
     1,

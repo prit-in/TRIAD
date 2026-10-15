@@ -43,7 +43,66 @@ OUT = ROOT / "docs" / "final" / "TRIAD_Manuscript_26FSPDSCPMID4096.docx"
 XSL = Path(os.environ.get("MML2OMML_XSL",
                           r"C:\Program Files\Microsoft Office\root\Office16\MML2OMML.XSL"))
 TEAM_ID = "26FSPDSCPMID4096"
-MEMBERS = [f"[TEAM MEMBER {i}]" for i in range(1, 5)]
+# The team's names, numbers, e-mails and photographs live outside the repository (Team_Details/
+# is not published). Without the file the report is built with placeholders.
+TEAM_FILE = ROOT / "Team_Details" / "team.json"
+
+
+def load_team() -> dict[str, Any]:
+    if TEAM_FILE.exists():
+        team = json.loads(TEAM_FILE.read_text(encoding="utf-8"))
+        team["members"] = sorted(team["members"], key=lambda m: m["reg"])   # author order
+        return team
+    return {"members": [{"reg": f"[REG. NO. {i}]", "name": f"[TEAM MEMBER {i}]",
+                         "email": f"[TEAM MEMBER {i} VIT E-MAIL]", "photo": None}
+                        for i in range(1, 5)],
+            "biography": "{name} [BIOGRAPHY - TO BE INSERTED AT FINALIZATION]"}
+
+
+TEAM = load_team()
+MEMBERS = [m["name"] for m in TEAM["members"]]
+
+
+def share_sections(words: list[int], people: int) -> list[int]:
+    """Each section's author, so the members' totals are as equal as whole sections allow.
+
+    Largest sections first to whoever has the fewest words, then single moves and swaps while
+    they narrow the gap between the largest and smallest total. Deterministic.
+    """
+    owner = [0] * len(words)
+    totals = [0] * people
+    for i in sorted(range(len(words)), key=lambda i: (-words[i], i)):
+        k = min(range(people), key=lambda k: (totals[k], k))
+        owner[i], totals[k] = k, totals[k] + words[i]
+
+    def spread(t: list[int]) -> int:
+        return max(t) - min(t)
+
+    improved = True
+    while improved:
+        improved = False
+        for i, j in itertools.product(range(len(words)), repeat=2):
+            a = owner[i]
+            for b in ([owner[j]] if j != i else range(people)):
+                if a == b:
+                    continue
+                t = totals[:]
+                if j == i:      # move section i to member b
+                    t[a] -= words[i]
+                    t[b] += words[i]
+                else:           # swap sections i and j
+                    t[a] += words[j] - words[i]
+                    t[b] += words[i] - words[j]
+                if spread(t) < spread(totals):
+                    if j == i:
+                        owner[i] = b
+                    else:
+                        owner[i], owner[j] = b, a
+                    totals, improved = t, True
+                    break
+            if improved:
+                break
+    return owner
 
 M = "{http://schemas.openxmlformats.org/officeDocument/2006/math}"
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -749,6 +808,93 @@ def index_terms(terms: str) -> str:
     return ", ".join(out) + "."
 
 
+NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+NS_DGM = "http://schemas.openxmlformats.org/drawingml/2006/diagram"
+NS_DSP = "http://schemas.microsoft.com/office/drawing/2008/diagram"
+
+
+def blip_fill(rid: str) -> etree._Element:
+    fill = etree.Element(f"{{{NS_A}}}blipFill", {"rotWithShape": "1"})
+    etree.SubElement(fill, f"{{{NS_A}}}blip", {f"{{{NS_R}}}embed": rid})
+    etree.SubElement(etree.SubElement(fill, f"{{{NS_A}}}stretch"), f"{{{NS_A}}}fillRect")
+    return fill
+
+
+def fill_cover_members(doc: Any, members: list[dict[str, Any]]) -> None:
+    """Reg No and Name in the cover's four banners, and each photograph in its circle.
+
+    The banners are a SmartArt diagram. Its data part is what Word edits and its drawing part is
+    what Word shows until it lays the diagram out again, so both are filled - the photographs
+    the way the faculty row's own diagram carries its photograph, a blipFill on the circle.
+    """
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+
+    parts = {str(p.partname): p for p in doc.part.package.iter_parts()}
+    for name in ("/word/diagrams/data1.xml", "/word/diagrams/drawing1.xml"):
+        part = parts.get(name)
+        if part is None:
+            continue
+        root = etree.fromstring(part.blob)
+        reg = iter(members)
+        nm = iter(members)
+        for t in root.iter(f"{{{NS_A}}}t"):
+            if (t.text or "").strip() == "Reg No":
+                t.text = f"Reg No: {next(reg)['reg']}"
+            elif (t.text or "").strip() == "Name":
+                t.text = f"Name: {next(nm)['name']}"
+        photos = [m.get("photo") and ROOT / m["photo"] for m in members]
+        rids = [part.relate_to(doc.part.package.get_or_add_image_part(str(p)),
+                               RT.IMAGE) if p and p.exists() else None for p in photos]
+        if name.endswith("data1.xml"):
+            circles = [pt.find(f"{{{NS_DGM}}}spPr") for pt in root.iter(f"{{{NS_DGM}}}pt")
+                       if (pt.find(f"{{{NS_DGM}}}prSet") is not None
+                           and pt.find(f"{{{NS_DGM}}}prSet").get("presName") == "imgShp")]
+        else:
+            circles = [sp.find(f"{{{NS_DSP}}}spPr") for sp in root.iter(f"{{{NS_DSP}}}sp")
+                       if sp.find(f".//{{{NS_A}}}prstGeom[@prst='ellipse']") is not None]
+        for sp_pr, rid in zip(circles, rids, strict=False):
+            if rid is None or sp_pr is None:
+                continue
+            for old in list(sp_pr):
+                if etree.QName(old).localname in ("solidFill", "gradFill", "noFill", "pattFill",
+                                                  "blipFill", "grpFill"):
+                    sp_pr.remove(old)
+            geom = sp_pr.find(f"{{{NS_A}}}prstGeom")
+            if geom is not None:
+                geom.addnext(blip_fill(rid))
+            else:
+                sp_pr.insert(0, blip_fill(rid))
+        part._blob = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
+def bio_photo(doc: Any, path: Path, shape_id: int) -> etree._Element:
+    """A photograph floated left beside its biography, as the template places the faculty's."""
+    rid, image = doc.part.get_or_add_image(str(path))
+    cx = 914400                                   # 1 in wide, as the template's
+    cy = int(cx * image.px_height / image.px_width)
+    xml = (
+        f'<w:r xmlns:w="{W[1:-1]}" xmlns:r="{NS_R}"'
+        ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"'
+        f' xmlns:a="{NS_A}" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        '<w:drawing><wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0"'
+        f' relativeHeight="{251700000 + shape_id}" behindDoc="0" locked="0" layoutInCell="1"'
+        ' allowOverlap="1"><wp:simplePos x="0" y="0"/>'
+        '<wp:positionH relativeFrom="column"><wp:posOffset>0</wp:posOffset></wp:positionH>'
+        '<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>'
+        f'<wp:extent cx="{cx}" cy="{cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>'
+        '<wp:wrapSquare wrapText="bothSides"/>'
+        f'<wp:docPr id="{shape_id}" name="{path.name}"/><wp:cNvGraphicFramePr/>'
+        '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+        f'<pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="{path.name}"/><pic:cNvPicPr/></pic:nvPicPr>'
+        f'<pic:blipFill><a:blip r:embed="{rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+        f'<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+        '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>'
+        '</a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>'
+    )
+    return etree.fromstring(xml)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--final", action="store_true", help="refuse pending markers and gaps")
@@ -847,13 +993,27 @@ def main() -> int:
         fbio.addprevious(e)
     sect_para = children[i_sect]
     bio_text = {"size": SMALL}
-    for member in MEMBERS:
-        sect_para.addprevious(paragraph(ppr(spacing={"before": 0, "after": 0})))
-        sect_para.addprevious(paragraph(ppr(jc="both", spacing={"before": 240}), [
-            run(member, size=SMALL, bold=True, font=HELV),
-            run(" [BIOGRAPHY AND PHOTOGRAPH - TO BE INSERTED AT FINALIZATION]", **bio_text)]))
+    for k, member in enumerate(TEAM["members"]):
+        text = TEAM["biography"].format(name=member["name"], reg=member["reg"])
+        rest = text[len(member["name"]):] if text.startswith(member["name"]) else " " + text
+        kids = []
+        photo = ROOT / member["photo"] if member.get("photo") else None
+        if photo is not None and photo.exists():
+            kids.append(bio_photo(doc, photo, 9101 + k))
+        kids += [run(member["name"], size=SMALL, bold=True, font=HELV), run(rest, **bio_text)]
+        bio = paragraph(ppr(jc="both", spacing={"before": 240}), kids)
+        # One biography is never split across columns.
+        bio.find(qn("w:pPr")).insert(0, bio.makeelement(qn("w:keepLines"), {}))
+        sect_para.addprevious(bio)
+        # The next biography starts below this photograph, not beside it. The break has a line of
+        # its own: ending the biography's last line, it was justified across the column.
+        sect_para.addprevious(etree.fromstring(
+            f'<w:p xmlns:w="{W[1:-1]}"><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr>'
+            '<w:r><w:br w:type="textWrapping" w:clear="all"/></w:r></w:p>'))
 
     # Cover page.
+    if TEAM_FILE.exists():
+        fill_cover_members(doc, TEAM["members"])
     def direct_texts(p: Any) -> list[Any]:
         """A paragraph's own text nodes - not those of a text box anchored in one of its runs."""
         return [t for r in p.findall(qn("w:r")) for t in r.findall(qn("w:t"))]
@@ -912,9 +1072,9 @@ def main() -> int:
     _, emails = find(body, lambda t: t.startswith("1mrajasekharababu"))
     plain14, sup14 = rpr(CAPTION), rpr(CAPTION, sup=True)
     mail = []
-    for k, member in enumerate(MEMBERS, 2):
+    for k, member in enumerate(TEAM["members"], 2):
         mail += [run_like(", ", plain14), run_like(str(k), sup14),
-                 run_like(f"{member} VIT E-MAIL", plain14)]
+                 run_like(member["email"], plain14)]
     replace_runs(emails, mail)
     _, abs_p = find(body, lambda t: t.startswith("ABSTRACT"))
     replace_runs(abs_p, [], keep_first=True)
@@ -951,6 +1111,10 @@ def main() -> int:
             props.insert(1 if props.find(qn("w:pStyle")) is not None else 0, num)
             props.append(props.makeelement(qn("w:jc"), {qn("w:val"): jc}))
 
+    # Who wrote what: whole sections, shared so the members' totals are as equal as they can be
+    # (the team's instruction); the references count no words, as the reference report marks them.
+    counted = [value if isinstance(value, int) else 0 for _, _, value in contrib_rows]
+    owners = share_sections(counted, len(TEAM["members"]))
     for table, entries in ((index, index_rows), (contrib, contrib_rows)):
         fit_rows(table, len(entries))
         cr = cell_rpr(table)
@@ -963,7 +1127,7 @@ def main() -> int:
             if table is index:
                 set_cell(cells[2], field_runs(f"PAGEREF {value} \\h", "?", cr))
             else:
-                set_cell(cells[2], [run_like("[TO BE CONFIRMED]", cr)])
+                set_cell(cells[2], [run_like(TEAM["members"][owners[k - 1]]["reg"], cr)])
                 # References are not counted, as the reference report marks them.
                 set_cell(cells[3], [run_like("Excl." if value is None else str(value), cr)])
     for table, entries, prefix in ((lof, w.figures, "_Fig"), (lot, sorted(w.tables), "_Tab")):
@@ -1020,10 +1184,13 @@ def main() -> int:
             break
     total = sum(s["words"] for s in report["sections"])
     cr = cell_rpr(consolidated)
-    for k, member in enumerate(MEMBERS, 2):
-        cells = consolidated.rows[k].cells
-        set_cell(cells[1], [run_like(f"{member} REG. NO.", cr)])
-        set_cell(cells[2], [run_like("[TO BE CONFIRMED]", cr)])
+    for k, member in enumerate(TEAM["members"]):
+        cells = consolidated.rows[k + 2].cells
+        share = sum(c for c, o in zip(counted, owners, strict=True) if o == k)
+        set_cell(cells[1], [run_like(member["reg"], cr)])
+        set_cell(cells[2], [run_like(str(share), cr)])
+    report["contributions"] = {m["reg"]: sum(c for c, o in zip(counted, owners, strict=True) if o == k)
+                               for k, m in enumerate(TEAM["members"])}
     set_cell(consolidated.rows[6].cells[-1], [run_like(str(total), cr)])
 
     doc.core_properties.title = title
