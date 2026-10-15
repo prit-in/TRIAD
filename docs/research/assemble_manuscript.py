@@ -26,6 +26,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import docx
 import latex2mathml.converter
@@ -853,13 +854,46 @@ def main() -> int:
             run(" [BIOGRAPHY AND PHOTOGRAPH - TO BE INSERTED AT FINALIZATION]", **bio_text)]))
 
     # Cover page.
+    def direct_texts(p: Any) -> list[Any]:
+        """A paragraph's own text nodes - not those of a text box anchored in one of its runs."""
+        return [t for r in p.findall(qn("w:r")) for t in r.findall(qn("w:t"))]
+
+    def point_size(r: Any, half_points: int) -> None:
+        rpr = r.find(qn("w:rPr"))
+        if rpr is None:
+            rpr = r.makeelement(qn("w:rPr"), {})
+            r.insert(0, rpr)
+        for tag in ("w:sz", "w:szCs"):
+            el = rpr.find(qn(tag))
+            if el is None:
+                el = rpr.makeelement(qn(tag), {})
+                rpr.append(el)
+            el.set(qn("w:val"), str(half_points))
+
     for p in children[0].iter(qn("w:p")):
-        if text_of(p).strip().startswith("Team ID"):
+        # Judged by its own text: the anchor paragraph's descendants include the box's text,
+        # which put the Team ID after "Case-Study Report" as well as in the box.
+        if "".join(t.text or "" for t in direct_texts(p)).strip().startswith("Team ID"):
             last = p.findall(qn("w:r"))[-1]
             p.append(run_like(TEAM_ID, last.find(qn("w:rPr"))))
+            for r in p.findall(qn("w:r")):
+                point_size(r, 14)   # one line in the 4.5 cm box, as the reference report sets it
+    for p in body.iter(qn("w:p")):
+        texts = direct_texts(p)
+        if "<Title>" not in "".join(t.text or "" for t in texts):
+            continue
+        # The placeholder is split across runs ("<", "Title", ">"); the first takes the title,
+        # set smaller than the template's 32 pt so a title this long keeps the cover one page.
+        start = next(i for i, t in enumerate(texts) if "<" in (t.text or ""))
+        end = next(i for i in range(start, len(texts)) if ">" in (texts[i].text or ""))
+        texts[start].text = "".join(t.text or "" for t in texts[start:end + 1]).replace(
+            "<Title>", title)
+        for t in texts[start + 1:end + 1]:
+            t.text = ""
+        for t in texts[max(0, start - 1):end + 2]:
+            if (t.text or "").strip() and t.text.strip() != "On":
+                point_size(t.getparent(), 32)
     for t in body.iter(qn("w:t")):
-        if t.text and "<Title>" in t.text:
-            t.text = t.text.replace("<Title>", title)
         if t.text and t.text.endswith("On\u201c"):
             t.text = t.text[:-1] + " \u201c"
 
@@ -892,10 +926,31 @@ def main() -> int:
 
     # Index, figures, tables, contributions.
     index, lof, lot, contrib, consolidated = front_tables
-    index_rows += [("", "Data Availability", "_DA"), ("", "References", "_Refs"),
-                   ("", "Appendix", "_Appx")]
-    contrib_rows += [("", "Data Availability", da_words), ("", "References", None),
-                     ("", "Appendix", appendix_words)]
+    # In the order they appear: the template puts the appendix before the references.
+    index_rows += [("", "Data Availability", "_DA"), ("", "Appendix", "_Appx"),
+                   ("", "References", "_Refs")]
+    contrib_rows += [("", "Data Availability", da_words), ("", "Appendix", appendix_words),
+                     ("", "References", None)]
+    def as_label(cell, jc: str) -> None:
+        """The cell's text is its whole label: the template's first-column cells carry automatic
+        list numbering, which printed "2. 1." beside the label written here; and rows copied
+        from the template's last row inherited its right alignment and bottom anchoring."""
+        tc_pr = cell._tc.get_or_add_tcPr()
+        for old in tc_pr.findall(qn("w:vAlign")):
+            tc_pr.remove(old)
+        tc_pr.append(tc_pr.makeelement(qn("w:vAlign"), {qn("w:val"): "top"}))
+        for p in cell._tc.findall(qn("w:p")):
+            props = p.find(qn("w:pPr"))
+            if props is None:
+                props = p.makeelement(qn("w:pPr"), {})
+                p.insert(0, props)
+            for old in props.findall(qn("w:numPr")) + props.findall(qn("w:jc")):
+                props.remove(old)
+            num = props.makeelement(qn("w:numPr"), {})
+            num.append(num.makeelement(qn("w:numId"), {qn("w:val"): "0"}))
+            props.insert(1 if props.find(qn("w:pStyle")) is not None else 0, num)
+            props.append(props.makeelement(qn("w:jc"), {qn("w:val"): jc}))
+
     for table, entries in ((index, index_rows), (contrib, contrib_rows)):
         fit_rows(table, len(entries))
         cr = cell_rpr(table)
@@ -903,21 +958,66 @@ def main() -> int:
             cells = table.rows[k].cells
             set_cell(cells[0], [run_like(number, cr)])
             set_cell(cells[1], [run_like(topic, cr)])
+            as_label(cells[0], "center")
+            as_label(cells[1], "left")
             if table is index:
                 set_cell(cells[2], field_runs(f"PAGEREF {value} \\h", "?", cr))
             else:
                 set_cell(cells[2], [run_like("[TO BE CONFIRMED]", cr)])
                 # References are not counted, as the reference report marks them.
                 set_cell(cells[3], [run_like("Excl." if value is None else str(value), cr)])
-    for table, entries, label, prefix in ((lof, w.figures, str, "_Fig"),
-                                          (lot, sorted(w.tables), roman, "_Tab")):
+    for table, entries, prefix in ((lof, w.figures, "_Fig"), (lot, sorted(w.tables), "_Tab")):
         fit_rows(table, len(entries))
         cr = cell_rpr(table)
         for k, (number, caption) in enumerate(sorted(entries), 1):
             cells = table.rows[k].cells
-            set_cell(cells[0], [run_like(label(number), cr)])
+            # "1.", "2.", ... in both lists, as the reference report numbers them.
+            set_cell(cells[0], [run_like(f"{number}.", cr)])
             set_cell(cells[1], [run_like(transform(re.sub(r"[*`]", "", caption)), cr)])
             set_cell(cells[2], field_runs(f"PAGEREF {prefix}{number:02d} \\h", "?", cr))
+            as_label(cells[0], "center")
+            as_label(cells[1], "left")
+
+    # The template's front matter spaces its tables with runs of empty paragraphs sized for its
+    # own short tables; with 32 figures they overflowed into a blank page. Each list, and the
+    # paper itself, starts on a page of its own instead. The template also says "Index" twice.
+    def own_text(p) -> str:
+        return "".join(t.text or "" for r in p.findall(qn("w:r")) for t in r.findall(qn("w:t")))
+
+    paper_title = next(el for el in body if el.tag == qn("w:p") and own_text(el).strip() == title)
+    front = list(body)[: list(body).index(paper_title)]
+    seen_index = False
+    started = False
+    for el in front:
+        if el.tag != qn("w:p"):
+            continue
+        text = own_text(el).strip()
+        if text == "Index":
+            if seen_index:
+                body.remove(el)
+                continue
+            seen_index = started = True
+        if not started:
+            continue   # the cover keeps its own layout
+        after_table = el.getprevious() is not None and el.getprevious().tag == qn("w:tbl")
+        bare = (not text and not after_table   # Word merges two tables with nothing between
+                and el.find(".//" + qn("w:drawing")) is None
+                and el.find(".//" + qn("w:br")) is None
+                and (el.find(qn("w:pPr")) is None or el.find(qn("w:pPr")).find(qn("w:sectPr")) is None))
+        if bare:
+            body.remove(el)
+    for el in body:
+        if el.tag == qn("w:p") and (own_text(el).strip() in ("List of Figures", "List of Tables")
+                                    or el is paper_title):
+            props = el.find(qn("w:pPr"))
+            if props is None:
+                props = el.makeelement(qn("w:pPr"), {})
+                el.insert(0, props)
+            if props.find(qn("w:pageBreakBefore")) is None:
+                props.insert(1 if props.find(qn("w:pStyle")) is not None else 0,
+                             props.makeelement(qn("w:pageBreakBefore"), {}))
+        if el is paper_title:
+            break
     total = sum(s["words"] for s in report["sections"])
     cr = cell_rpr(consolidated)
     for k, member in enumerate(MEMBERS, 2):
@@ -957,6 +1057,16 @@ def main() -> int:
         return 1
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
+    # Every page carries its number, as the reference report's pages do and as the Index's page
+    # numbers assume: the template's front-matter footer is a literal "1" on every page, and its
+    # paper footers are blank.
+    for part in doc.part.package.iter_parts():
+        if str(part.partname).startswith("/word/footer"):
+            footer = part.element
+            for p in footer.findall(qn("w:p")):
+                footer.remove(p)
+            footer.append(paragraph(ppr(jc="center"), field_runs("PAGE", "1", rpr(SMALL))))
+
     doc.save(str(args.out))
     (args.out.parent / "manuscript_report.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")

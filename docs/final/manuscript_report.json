@@ -3,7 +3,7 @@
     {
       "file": "00_front_matter.md",
       "topic": "Executive Summary and Abstract",
-      "words": 618,
+      "words": 634,
       "abstract_words": 225,
       "index_terms_words": 32,
       "range": [
@@ -135,7 +135,7 @@
     {
       "file": "13_experimental_setup.md",
       "topic": "XIII. Experimental Setup",
-      "words": 749,
+      "words": 750,
       "range": [
         700,
         1200
@@ -155,17 +155,17 @@
     {
       "file": "15_results.md",
       "topic": "XV. Results and Findings",
-      "words": 2746,
+      "words": 1995,
       "range": [
         1200,
         2000
       ],
-      "within_range": false
+      "within_range": true
     },
     {
       "file": "16_comparative_analysis.md",
       "topic": "XVI. Comparative Analysis",
-      "words": 1026,
+      "words": 1057,
       "range": [
         800,
         1200
@@ -195,7 +195,7 @@
     {
       "file": "19_business_impact.md",
       "topic": "XIX. Business Impact Assessment",
-      "words": 671,
+      "words": 667,
       "range": [
         500,
         1000
@@ -225,12 +225,12 @@
     {
       "file": "22_conclusion.md",
       "topic": "XXII. Conclusion",
-      "words": 808,
+      "words": 798,
       "range": [
         500,
         800
       ],
-      "within_range": false
+      "within_range": true
     },
     {
       "file": "data_availability.md",
@@ -242,7 +242,7 @@
     {
       "file": "23_appendix.md",
       "topic": "Appendix",
-      "words": 792,
+      "words": 1003,
       "range": [
         500,
         2000
@@ -277,8 +277,8 @@
     "23_appendix.md": []
   },
   "output": "docs\\final\\TRIAD_Manuscript_26FSPDSCPMID4096.docx",
-  "total_words": 23310,
-  "figures": 31,
+  "total_words": 22804,
+  "figures": 32,
   "figure_numbers": [
     1,
     2,
@@ -302,6 +302,7 @@
     20,
     21,
     22,
+    23,
     24,
     25,
     26,
