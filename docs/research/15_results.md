@@ -36,7 +36,21 @@ claimed; P's extra time buys evidence, not accuracy.
 
 ## 15.2 Scalability: where a single node gives out
 
-PENDING: EXP-2's run of 13-10-2026.
+EXP-2 grew the data from 400 to 200 000 customers, 0.4 to 154 MB of Parquet, on the 3 GB node,
+with each configuration in a process of its own (Fig. 22a, b). The single pandas process (B2)
+completed every rung up to 100 000 customers, two to six times faster than the Spark pipeline
+(B3), PR-AUC within 0.004; at 200 000 the container's memory limit killed it 28 s
+in. B3 completed every rung, in 632 s at 200 000, its JVM never above 2.4 GB because Spark spills
+what does not fit. The first clause of the hypothesis held in both ladders.
+
+TRIAD did not finish at that rung, in three attempts on code corrected after each. In the last
+two its feature job, sandboxed with 1 GB of heap, made no progress for its hour and was stopped;
+the retry, with twice the shuffle partitions, stalled with a third of one stage's time in
+garbage collection; and during the third attempt the 5.27 GB virtual machine stopped responding
+and restarted. P runs its own process and Spark session in one 3 GB container and each job in
+another, so on this node it needs more memory than B3, which does both in one. On 14-10 it had
+run 5 493 s, 8.7 times B3's whole time, when it stopped, so the 20% clause is refuted whatever a
+larger node would show.
 
 **Fig. 22. Scalability Analysis.** *(figures/png/Fig 22 Scalability Analysis.png)*
 
@@ -163,7 +177,13 @@ verdict, and the result it turned on.
   rows; like-for-like random_forest 0.7757 on 44 features, 390 training and 280 test rows. Earlier
   runs: `20261011T174929Z` (785.83 s, share 0.938), `20261012T145209Z` (2 296.01 s, share 0.944,
   busy host, NOTE.md).
-- EXP-2: PENDING.
+- EXP-2: ladder `experiments/EXP-2/20261014T171107Z/result.json` (B2 28.4 s killed at 200 000, ok
+  to 100 000 at 2.0x-6.2x B3's speed; B3 631.5 s at 200 000, JVM peak 2 326 MB; PR-AUC gaps at most
+  0.004), the same shape as `20261013T134333Z` (B2 23.2 s killed; B3 591.5 s). P: NOTE.md of
+  `20261013T134333Z` (host share ENOMEM after 1 604 s, DEC-54), `20261014T171107Z` (feature job
+  killed at the 1 h limit; 5 493 s, DEC-55), `20261014T214513Z` (no result.json: attempt 1 to the
+  hour, attempt 2 at 16 partitions 2 038 s with 579 s GC in a 1 394 s stage, attempt 3's dry run
+  frozen with the VM; over four hours from 22:48).
 - EXP-3: `experiments/EXP-3/20261011T064506Z/result.json`: work 27.8/22.1/20.9 s on 1/2/4 cores,
   speed-ups 1.258 and 1.33, doubling 1.057; utilisation 0.731/0.721/0.67; shuffle 21.3/23.8/24.3
   MB, no spill. The 0.84 figure: run of 07-10-2026.

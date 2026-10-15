@@ -37,18 +37,17 @@ which the validation gates took about nine.
 
 ## 16.2 Where each configuration stops
 
-PENDING: rewrite from EXP-2's re-run of 14-10-2026; the paragraph below is superseded.
-
 Speed at small sizes and survival at large ones are different questions, and EXP-2 asked the
-second one on this workstation. Up to 50 000 customers both conventional pipelines completed and
-agreed on model quality, with the single process 4.0 to 8.4 times faster; at 100 000 customers it
-was the Spark pipeline that ran past its 30-minute ceiling, because on a 3 GB node Spark's own
-overhead left no room for the data (Section 15). TRIAD inherits both behaviours by design. Its
-transformations run as compiled Spark jobs in sandboxes, paying the Spark overhead and, in
-addition, its gates; its modelling runs in a single Python process whenever the routing rules
-find that the table fits the worker's memory (LR-06). On this node TRIAD therefore scales no
-further than its Spark jobs can, and the cluster sizes at which Spark's distribution pays for its
-overhead - the requirements' 10 GB tier and above - were not run and are not estimated.
+second one on this workstation. Up to 100 000 customers both conventional pipelines completed and
+agreed on model quality, with the single process two to six times faster; at 200 000 it was the
+single process that ran out of memory, while the Spark pipeline finished, spilling what did not
+fit (Section 15). TRIAD stopped at the same rung for a different reason. Its transformations run
+as compiled Spark jobs, each in a sandbox container of its own beside the process that drives
+them, so it holds two JVMs where the Spark pipeline holds one, and at 200 000 customers its
+feature job could not finish on this node in three attempts. The isolation that makes generated
+code safe to run therefore costs memory, and on a node this small that cost decides where the
+platform stops. The cluster sizes at which Spark's distribution pays for its overhead - the
+requirements' 10 GB tier and above - were not run and are not estimated.
 
 ## 16.3 Against a Scala-only platform
 
@@ -84,8 +83,8 @@ a model, so its repair rate is unknown.
 
 The comparison establishes three things on this workstation. At small sizes a governed pipeline
 costs more time than the conventional ones and produces a model of the same quality with a
-record behind every decision; at the sizes this node can hold, a single process is the faster and
-the smaller engine; and the checks that distinguish TRIAD from an unconstrained agent framework
+record behind every decision; up to 100 000 customers a single process is the faster and the
+smaller engine, and beyond that only the Spark pipeline finished on this node; and the checks that distinguish TRIAD from an unconstrained agent framework
 are effective against the faults they target. It does not establish what an organization would
 save in engineer time, because the manual baseline B1 needs time sheets that do not exist, and it
 does not establish how the configurations compare on a cluster, on real customer data, or in
@@ -99,8 +98,8 @@ repository contains everything needed to repeat it.
 - 16.1: EXP-1 run `20261013T132108Z` (P 1 230.24 s, B3 53.24 s, B2 6.94 s; gates 553 s; earlier
   runs 785.83 s and 2 296.01 s); hand-written lines 188 and 291; Table 11 from `docs/research/tables/build_tables.py`;
   Fig. 24 from `docs/research/figures/build_charts.py`.
-- 16.2: EXP-2 run `20261008T171242Z` (see Section 15 evidence); LR-06 in
-  `agents/policies/routing.yaml`, `agents/routing.py`.
+- 16.2: EXP-2 runs `20261014T171107Z` and `20261013T134333Z` and P's three attempts (Section 15
+  evidence); sandbox containers per job: `sandbox/runner.py` (`RESOURCE_PROFILES`, `HOST_LIMITS`).
 - 16.3: EXP-8 run `20261011T084444Z`: type and import faults at gate 4, 77-114 s per fault over
   its two attempts;
   published model's ECE 0.019 and reasons (Section 17 evidence, run-2026-10-07-001).

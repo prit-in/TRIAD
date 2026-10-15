@@ -35,9 +35,8 @@ base churn rate of 0.35, and which can inject the faults the experiments need: m
 values, duplicates, invalid prices, renamed columns, prices written as text, a skewed customer,
 planted instructions in product text, and behavioural drift from a chosen month. The same seed
 (42) produces the same data, so every configuration in an experiment reads identical inputs.
-Datasets range from 400 customers, about 0.4 MB of Parquet, to PENDING (EXP-2's re-run of
-14-10-2026: 200 000 customers and 154 MB on 13-10-2026, the rung at which the first configuration
-failed).
+Datasets range from 400 customers, about 0.4 MB of Parquet, to 200 000 customers and 154 MB, the
+rung of EXP-2's memory ladder at which the first configuration failed.
 
 ## 13.3 Configurations
 

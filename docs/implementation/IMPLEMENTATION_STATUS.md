@@ -9,7 +9,7 @@ everything after it where they disagree.
 200 000 customers never finished its feature stage, in three attempts on code fixed further
 each time; the third froze the VM. Its result comes from the two ladders' result.json files
 (B2 OOM-killed at 200 000, B3 completing every rung) plus P's platform records and job logs.
-The next step is the write-up (§15.2 and every PENDING marker).
+Written up on 15-10: §15.2, EXPERIMENTS.md and every PENDING marker.
 
 **Final runs.** Every experiment has a final run on the current code. EXP-2's third re-run,
 after DEC-55, started at 21:45 UTC on 14-10-2026 as a detached batch, with the orchestrator
@@ -21,7 +21,7 @@ stopped:
 | Exp | Run | Result |
 | --- | --- | --- |
 | EXP-1 | `20261013T132108Z` | partial, held - P 1 230 s (gates 553 s), B3 53 s, B2 6.9 s; 0.957 of P's time beyond B3's; like-for-like 0.776 against P's 0.741; runs of 11-10 (786 s) and 12-10 (2 296 s, busy host) agree on every count and score |
-| EXP-2 | concluded 15-10 on three P attempts (third run `20261014T214513Z` wrote no result: the VM froze under P and restarted at ~02:51; NOTE.md) | kept with NOTE.md files: 13-10 `20261013T134333Z` (B2 killed at 200 000, B3 592 s there; P raised on the host share after 1 604 s, DEC-54) and 14-10 `20261014T171107Z` (the same ladder, B3 632 s; P's feature job timed out after an hour at 1 GB and 8 partitions, then a scheduled retrain rebuilt the shared JAR under it, DEC-55; P ran 5 493 s) |
+| EXP-2 | ladder `20261014T171107Z` (same shape as `20261013T134333Z`); P from three runs' NOTE.md files | partial, did not hold - B2 killed at 200 000 customers, B3 finished every rung (632 s there); P did not finish at 200 000 on this 5.27 GB VM in three attempts (8.7 times B3's time when it stopped on 14-10) |
 | EXP-3 | `20261011T064506Z` | partial, did not hold - 1.258x on 2 cores, 1.33x on 4, doubling 1.057x |
 | EXP-4 | `20261011T065017Z` | completed, held - 3 of 3 faults detected and handled; recovery 172 s after the approval |
 | EXP-5 | `20261011T111552Z` | completed, did not hold - identical to the run of 10-10 in 149 of 155 measurements |

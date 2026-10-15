@@ -39,7 +39,8 @@ conventional model shortlist scored 0.776 against TRIAD's 0.741.
 
 **Scaling claims need the hardware to test them.** On one four-core laptop, two Spark cores were
 1.26 times faster than one and four only 1.33 times, because parallel tasks competed for shared
-cores. PENDING: the EXP-2 clause, from its re-run of 14-10-2026.
+cores; as the data grew on a 3 GB node, pandas gave out first, and TRIAD, its sandboxed jobs
+adding a JVM beside its own, outgrew the node too.
 
 **Governance must be exercised to be trusted.** Walking the override end to end, and reviewing
 the code that implements it, found an evidence bundle that omitted what approvers needed, a model
@@ -58,8 +59,8 @@ The limits of this evaluation are its strongest qualifications. No language-mode
 configured, so every agent ran its deterministic path and the repair rate of generated code is
 unmeasured; the data are synthetic, generated for the purpose; and one workstation stood in for
 the cluster the requirements assume, so the large-data tiers were not run and are not estimated.
-The platform, the experiments, and their outputs are in the repository, so each of these
-measurements can be repeated, and extended, on the environment that was missing here. The work
+The platform, experiments, and outputs are in the repository, so each measurement can be
+repeated and extended on the environment missing here. The work
 that follows most directly from it is statistically aware acceptance policy, language-model
 generation measured inside the same gates, and tuning loops that learn from execution history
 with enough repetitions to tell an effect from noise.
@@ -82,5 +83,6 @@ with enough repetitions to tell an effect from noise.
 - Override: run-2026-10-07-001; segment review (0.164 vs 0.4578/0.4947; flagged 0.1525 -> 0.176,
   i.e. 2.35 more per hundred).
 - Scaling: EXP-3 `20261011T064506Z` (1.258x and 1.33x against one core; 1.057x from two to
-  four); EXP-2: PENDING (re-run of 14-10-2026).
+  four); EXP-2 `20261014T171107Z`, `20261013T134333Z` (B2
+  killed at 200 000, B3 every rung) and P's three attempts (Section 15 evidence).
 - Defects: commits 36038cb, 46dd494.

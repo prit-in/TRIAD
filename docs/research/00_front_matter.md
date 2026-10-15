@@ -54,8 +54,9 @@ that governance must be exercised to be trusted: walking a promotion despite a f
 end exposed three defects that rule-by-rule tests had missed.
 
 The price of governance was measured as well: on 400 customers a governed run took 1 230 s
-against 53 s for a hand-written Spark pipeline, 553 s of it in the validation gates. PENDING: the
-EXP-2 clause, from its re-run of 14-10-2026.
+against 53 s for a hand-written Spark pipeline, 553 s of it in the validation gates. As the data
+grew on a 3 GB node, the single Python process gave out first and the Spark pipeline finished,
+while TRIAD, whose sandboxed jobs run beside its own process, needed more memory than the node had.
 
 **Table 1. Executive Summary of Contributions and Outcomes**
 

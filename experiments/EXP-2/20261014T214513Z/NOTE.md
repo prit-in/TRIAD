@@ -24,9 +24,10 @@ says no more than they do.
   10-minute limit was never enforced, because the sandbox runner, like the rest of the VM, had
   stopped responding. The container was found exited (255) at the VM's restart.
 
-**What this run shows:** P had run more than four hours (22:48 to about 02:51) without finishing
-its feature stage. That is 6.4 times the 632 s B3 took for its whole pipeline at this rung on
-14-10, and B3 completed every rung of every ladder.
+**What this run shows:** P had not finished its feature stage after more than two hours: its
+third attempt began at 00:55, 7 627 s after P started. That is 12 times the 632 s B3 took for
+its whole pipeline at this rung on 14-10, and B3 completed every rung of every ladder. (A
+figure of 6.4 times, stated here on 15-10, was an arithmetic error.)
 
 **What it does not show:** what P would do on a node with more memory than this 5.27 GB VM.
 EXP-2 is concluded on this run, the two before it and their ladders. A fifth attempt was not

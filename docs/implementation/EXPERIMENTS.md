@@ -14,7 +14,7 @@ carrying an estimate.
 | ID | Title | Status | Hypothesis | Where |
 | --- | --- | --- | --- | --- |
 | EXP-1 | Small dataset against the non-agentic baselines | **partial** | **held** (P end to end in 1 230 s with no manual step, 0.957 of it beyond B3's time; escalated on AP-5 at 243 rows) | `experiments/EXP-1/latest.json` |
-| EXP-2 | Medium dataset: where a single node gives out | **partial** | **refuted on this node** (B3 stopped first, at 100 000 customers) | `experiments/EXP-2/latest.json` |
+| EXP-2 | Medium dataset: where a single node gives out | **partial** | **did not hold** (B2 the first to fail, at 200 000 customers, and B3 finished; P did not finish there on this 5.27 GB VM, in three attempts, and was 8.7 times B3's time when it stopped) | `experiments/EXP-2/latest.json`, NOTE.md of each kept run |
 | EXP-3 | Scaling with parallelism | **partial** | **did not hold** | `experiments/EXP-3/latest.json` |
 | EXP-4 | Schema errors | **completed** | **held** (every fault detected and handled; the mapping proposed, approved, then applied) | `experiments/EXP-4/latest.json` |
 | EXP-5 | Missing values | **completed** | **did not hold** (PR-AUC flat within noise; key nulls quarantined, non-key nulls cost no row, the over-limit plan paused for approval) | `experiments/EXP-5/latest.json`, `experiments/EXP-5/calibration_noise_floor.json` |
@@ -29,9 +29,10 @@ PRD specifies, and the limitation is recorded in the result. The harness refuses
 `not_run` result that names no limitation, and refuses a verdict on a hypothesis when no
 measurement was recorded.
 
-All ten have been run on the code as it stands (EXP-1, EXP-4, EXP-5, EXP-6, EXP-8, EXP-9 and
-EXP-10 on 10-10-2026, after a read-only review of the experiment paths and the fixes it led to,
-DEC-42 and DEC-43). **Five hypotheses held, three did not, and two have no verdict.** EXP-8's has
+All ten have final runs: EXP-3, EXP-4, EXP-5, EXP-6, EXP-7, EXP-8, EXP-9 and EXP-10 on
+11-10-2026, EXP-1 on 13-10-2026, and EXP-2 on 13-10 to 15-10-2026 (its last run of P on the code
+after DEC-55). **Five hypotheses held, three did not (EXP-2, EXP-3, EXP-5), and two have no
+verdict.** EXP-8's has
 none because its headline clause, the repair rate, needs a language model; EXP-6's because the
 out-of-memory fault cannot be made to land on this node and skew handling cannot act at these sizes
 - each recorded as untested, not as refuted. The sections that are not a plain "held" are the ones
@@ -278,51 +279,84 @@ baselines' three names and sent P's payment-method column to a median imputer. B
 with tests. The LLM part of "agent overhead" stays untestable while no LLM provider is configured
 (ADR-0003); the overhead that is present is measured above.
 
-### EXP-2, where a single node gives out — refuted on this node, partial
+### EXP-2, where a single node gives out — did not hold, partial
 
-Run `experiments/EXP-2/20261008T171242Z/` (08-10-2026, 17:12 to 18:15 UTC), the whole ladder in
-one run, each configuration in a process of its own inside the 3 GB dev container, 30-minute
-ceiling per run.
+The ladder reported is the run `experiments/EXP-2/20261014T171107Z/` (14-10-2026, 17:11 to 20:14
+UTC, on the code after DEC-54): the whole ladder in one run, each configuration in a process of
+its own inside the 3 GB dev container. The run of 13-10-2026 (`20261013T134333Z`) has the same
+shape at every rung.
 
 | Customers | On disk | Training rows | B2 (pandas) | B2 peak | B3 (Spark) | B3 JVM peak | B3 driver peak | Test PR-AUC B2 / B3 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 400 | 0.4 MB | 769 | ok, 6.8 s | 229 MB | ok, 37.5 s | 1 329 MB | 214 MB | 0.793 / 0.792 |
-| 1 500 | 1.4 MB | 2 688 | ok, 5.7 s | 251 MB | ok, 47.6 s | 1 162 MB | 226 MB | 0.776 / 0.772 |
-| 6 000 | 5.1 MB | 11 331 | ok, 7.8 s | 343 MB | ok, 44.0 s | 1 379 MB | 257 MB | 0.766 / 0.765 |
-| 20 000 | 14.9 MB | 37 265 | ok, 19.0 s | 590 MB | ok, 150.2 s | 2 141 MB | 315 MB | 0.785 / 0.785 |
-| 50 000 | 36.4 MB | 92 429 | ok, 56.4 s | 1 295 MB | ok, 226.6 s | 2 223 MB | 607 MB | 0.777 / 0.778 |
-| 100 000 | 76.3 MB | 184 492 | ok, 130.4 s | 2 294 MB | **not completed**: stopped at the 1 800 s ceiling | - | - | 0.784 / - |
+| 400 | 0.4 MB | 769 | ok, 14.2 s | 229 MB | ok, 84.8 s | 1 204 MB | 227 MB | 0.793 / 0.792 |
+| 1 500 | 1.4 MB | 2 688 | ok, 12.5 s | 252 MB | ok, 77.7 s | 1 135 MB | 232 MB | 0.776 / 0.772 |
+| 6 000 | 5.1 MB | 11 331 | ok, 22.7 s | 345 MB | ok, 103.7 s | 1 490 MB | 263 MB | 0.766 / 0.765 |
+| 20 000 | 14.9 MB | 37 265 | ok, 41.3 s | 629 MB | ok, 214.1 s | 2 130 MB | 361 MB | 0.785 / 0.785 |
+| 50 000 | 36.4 MB | 92 429 | ok, 92.0 s | 1 305 MB | ok, 515.2 s | 2 326 MB | 589 MB | 0.777 / 0.778 |
+| 100 000 | 76.3 MB | 184 492 | ok, 170.3 s | 2 325 MB | ok, 335.4 s | 2 238 MB | 969 MB | 0.784 / 0.784 |
+| 200 000 | 153.9 MB | 369 270 | **killed** after 28.4 s (cgroup OOM kill) | - | ok, 631.5 s | 2 299 MB | 1 766 MB | - / 0.785 |
 
-The hypothesis is that B2 fails first as the data grows while B3 keeps going. **On this node the
-opposite happened, so it is refuted here:** B3 stopped at 100 000 customers and B2 did not. The
-memory columns say why. B2's memory grows with the data; B3's starts high - its JVM held 1.3 GB
-at 400 customers - and with its Python driver it already used about 2.8 GB of the container's
-3 GB at 50 000 customers (the sum of the two processes' peaks, an upper bound on what it held at
-once). Spark's spill protects it from data larger than memory, not from a node too small for its
-fixed overhead: B3's time went from 227 s to beyond 1 800 s when the data doubled, B2's from
-56 s to 130 s. During that run `docker stats` showed the container at 2.917 of 2.93 GiB and `ps`
-the JVM at 2.16 GiB resident (operator observation at 17:55 UTC, not recorded by the harness).
-The models agreed at every size both completed (PR-AUC within 0.004), and B2 was 4.0 to 8.4
-times faster throughout.
+The hypothesis has three clauses.
 
-What this supports: at these sizes and on nodes of this size a single process is faster and
-smaller, which is what LR-06 acts on when it hands the modelling table to pandas. What it does
-not show: the crossover the hypothesis describes, which should exist above this node's memory
-and was not reached; it is not estimated. The ladder stops at the first rung where a
-configuration fails, so 200 000 customers was not run. The PRD's 10 GB tier was not run either
-(ADR-0002): on a 5.27 GB Docker VM with 3 GB containers it would fail for every configuration.
+**"B2 is the first to fail" held.** The single pandas process completed every rung to 100 000
+customers, two to six times faster than B3 with the same PR-AUC to within 0.004, and was killed by
+the container's memory limit at 200 000. B3, which spills what does not fit, completed every rung.
+Every kept run that reached 100 000 customers had B2 completing there, in 118 to 170 s; every one
+that reached 200 000 had B2 killed by the memory limit within 19 to 28 s.
 
-**How this run came to be the one reported.** Two earlier runs that day are kept, not replaced.
-The 11:10 run measured the same rungs to 50 000 customers and then crashed *in its conclusion*,
-on a rung whose generation had failed and which therefore had no measurements (a `KeyError`,
-fixed with a tolerant getter; its outputs are in `experiments/_logs/aborted/`). The 16:17 run
-(`20261008T161715Z`, committed) reached 50 000 customers and stopped because **the data
-generator itself** was OOM-killed at 100 000 - the harness, not either configuration, was the
-limit. DEC-37 rewrote the generator to store columns and write one table at a time with exactly
-the same random draws (identical output on seven configurations, pinned by a test); the 17:12
-run is the first to reach the rung that decides the hypothesis. Its outcome logic also gained
-the two outcomes it had folded into "no crossover": B3 failing first (refuted, this run) and
-both failing together (not supported).
+**"P finishes where B2 fails" did not hold on this node.** P was run at 200 000 customers in three
+runs, each on code corrected after the one before, and finished in none:
+- **13-10 (`20261013T134333Z`):** the host share refused to write the generated feature source
+  for want of memory after 1 604 s (DEC-54).
+- **14-10 (`20261014T171107Z`):**
+  - The feature job, sandboxed with 1 GB of heap and 8 shuffle partitions, made no recorded
+    progress for an hour and was stopped at the deadline.
+  - A scheduled retrain then rebuilt the shared JAR under P's retry (DEC-55).
+  - P had run 5 493 s.
+- **14-10 to 15-10 (`20261014T214513Z`, with every fix in place and the orchestrator stopped):**
+  - The first feature attempt again ran to its hour.
+  - The retry, at 16 partitions, stalled after 2 038 s, with 579 s of garbage collection in a
+    1 394 s stage.
+  - During the third attempt the 5.27 GB Docker VM stopped responding and restarted. No
+    result.json was written; its NOTE.md cites the platform's records and the jobs' logs.
+
+The cause is structural. P drives its jobs from a process that holds its own Spark session, in
+one 3 GB container, and runs each generated job in a sandbox container of its own, clamped to
+3 GB. That is two JVMs where B3 holds one, on a VM that does not have room for both under load.
+
+**"P stays within 20% of B3" is refuted** whatever a larger node would show. On 14-10 P had run
+5 493 s, 8.7 times B3's 632 s for its whole pipeline, when it stopped. The overhead EXP-1
+measures at 400 customers (0.957 of P's time beyond B3's) says the same at the other end of the
+ladder.
+
+What this supports: on a small node the isolation that makes generated code safe to run costs
+memory, and that cost decides where the platform stops. What it does not show: P on a node with
+more memory, or the PRD's 10 GB tier (ADR-0002), neither of which was run or is estimated. A
+fifth attempt at 200 000 customers was not made: each of the last three exhausted the VM in the
+same stage.
+
+**How these runs came to be the ones reported.** Seven earlier runs are kept, not replaced. Each
+found a defect in a baseline, the harness or the platform, and each was fixed before the next run,
+with a decision record.
+
+On 08-10-2026:
+- **11:10:** it crashed in its conclusion on a rung whose generation had failed (outputs in
+  `experiments/_logs/aborted/`).
+- **16:17 (`20261008T161715Z`):** the data generator was OOM-killed at 100 000 customers. DEC-37
+  made it write one table at a time, with the same draws.
+- **17:12 (`20261008T171242Z`):** it recorded B3 timing out at 100 000 customers and was reported
+  as refuting the hypothesis. A diagnostic run traced that to B3's idle Spark JVM, left resident
+  beside the modelling until the kernel killed it. DEC-44 ends the JVM first and puts P on the
+  ladder.
+
+On 11-10-2026:
+- **`20261011T095854Z`:** it reached 200 000 customers, where B2 was killed and B3's JVM died
+  inside a `toPandas` collect that P never makes. DEC-50 hands B3's table over as parquet.
+- **`20261011T180425Z`:** it lost P to a stalled container engine (DEC-52).
+
+On 12-10-2026 (`20261012T153533Z`), Docker Desktop stopped while P ran.
+
+The runs of 13-10 and 14-10 are described above.
 
 ### EXP-3, scaling with parallelism — did NOT hold, partial
 
