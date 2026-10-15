@@ -14,7 +14,7 @@ stage's kind and measured size, and the first rule that matches decides; the dec
 recorded with the rule's identifier and the evidence it was judged on. Event-level
 transformations above a size threshold must stay in Spark (LR-01). Reusable pipeline stages -
 cleaning, features, labels - are compiled Scala jobs generated from templates (LR-02), and row-level
-logic on event data uses typed Scala rather than Python user-defined functions (LR-03).
+logic on event data uses typed Scala rather than Python user-defined functions (UDFs, LR-03).
 Read-only profiling runs from PySpark (LR-04), and training, tuning, evaluation, and explanation
 run in Python (LR-05). Inputs below 1 GB run the same Spark job in local mode rather than through a
 separate single-machine code path (LR-07), so that a small run exercises exactly the code a large
@@ -123,7 +123,7 @@ within ten percent is recorded as no difference rather than as an improvement.
 | Partitioned outputs | Feature table partitioned by snapshot date | Applied |
 | No Python UDFs on event data | LR-03; typed Scala instead | Enforced by routing |
 | No unbounded driver collection | LR-09; the static scan of gate 2 refuses it | Enforced |
-| Thin JARs | Jobs packaged without Spark; the core library passed with `--jars` | Applied |
+| Thin Java archives (JARs) | Jobs packaged without Spark; the core library passed with `--jars` | Applied |
 | Per-stage execution metrics | Shuffle bytes, spill and task skew for every stage (FR-036) | Applied on every job |
 | Configuration optimization loop | One setting, from the previous run's measurements (FR-037) | Applied; before-and-after recorded |
 | Caching decisions | Deciding what to persist between actions (FR-035) | Not implemented |

@@ -34,7 +34,8 @@ test data: a feature that is almost entirely null or almost constant in training
 Leakage gets a second, behavioural line of defence, because a leaking feature can have an
 innocent name [@kaufman2012leakage] [@kapoor2023leakage]. A sentinel test injects events after
 the cutoff and requires that no feature changes, and an alarm flags any candidate whose
-validation ROC-AUC is implausibly high for the problem (0.98 by default). Section 15 reports an
+validation area under the receiver operating characteristic curve (ROC-AUC) is implausibly
+high for the problem (0.98 by default). Section 15 reports an
 experiment in which a feature named as harmlessly as a lifetime order count passes the name
 rules and is caught only by these behavioural checks.
 
@@ -76,7 +77,8 @@ the result with the deployed champion (AP-8, below) and decides among the three 
 A candidate may be used only if it satisfies eight rules, written in the pipeline's policy and
 judged by code, not by an agent:
 
-- **AP-1** validation PR-AUC at least the churn rate plus 0.10;
+- **AP-1** validation area under the precision-recall curve (PR-AUC) at least the churn rate
+  plus 0.10;
 - **AP-2** a more complex model must beat logistic regression's PR-AUC by at least 0.01, or the
   simpler model wins;
 - **AP-3** validation ROC-AUC at least 0.70;

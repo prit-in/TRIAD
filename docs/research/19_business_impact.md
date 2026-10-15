@@ -17,14 +17,14 @@ it ranks riskiest reaches 29.8% of all churners, 2.98 times what a random 10% wo
 the top 15% of the validation population, 74.6% of the customers flagged did churn, and 45.7%
 of all churners were flagged. Because the model is calibrated - its expected calibration error
 is 0.019 and its Brier skill 0.32 - its probabilities can be read as probabilities, which is what
-lets the three risk bands of Fig. 28c mean something: 677 customers are high risk (a probability
+lets the three risk bands of Fig. 28b mean something: 677 customers are high risk (a probability
 of at least 0.66), 1 489 medium, and 4 648 low.
 
 ## 19.2 Where it would mislead, and how the platform says so
 
 The same figure shows the cost of a single threshold. Customers in their first six months have
 too little history to score well: at the global threshold only 16.4% of the churners among them
-were flagged, against 45.8% to 49.5% in the older tenure bands (Fig. 28b). A retention campaign
+were flagged, against 45.8% to 49.5% in the older tenure bands (Fig. 28c). A retention campaign
 run from this list would under-serve exactly the customers whose relationship is youngest. The
 platform did not hide this: the segment rule (AP-6) refused the model, the threshold review
 showed that tenure-specific thresholds would raise the newest customers' share to 46.0% at the

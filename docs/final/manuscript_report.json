@@ -25,7 +25,7 @@
     {
       "file": "02_problem_statement.md",
       "topic": "II. Problem Statement",
-      "words": 450,
+      "words": 451,
       "range": [
         400,
         700
@@ -85,7 +85,7 @@
     {
       "file": "08_analytics_ml.md",
       "topic": "VIII. Intelligent Analytics and Machine Learning Layer",
-      "words": 1244,
+      "words": 1256,
       "range": [
         1200,
         1800
@@ -95,7 +95,7 @@
     {
       "file": "09_spark_layer.md",
       "topic": "IX. Apache Spark Distributed Processing Layer",
-      "words": 1019,
+      "words": 1020,
       "range": [
         1000,
         1500
@@ -277,7 +277,7 @@
     "23_appendix.md": []
   },
   "output": "docs\\final\\TRIAD_Manuscript_26FSPDSCPMID4096.docx",
-  "total_words": 22804,
+  "total_words": 22818,
   "figures": 32,
   "figure_numbers": [
     1,

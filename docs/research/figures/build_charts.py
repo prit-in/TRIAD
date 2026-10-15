@@ -14,6 +14,7 @@ each figure drew on, so a figure can be traced to the measurement behind it.
 from __future__ import annotations
 
 import json
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +29,7 @@ EXPERIMENTS = ROOT / "experiments"
 ANALYSIS = ROOT / "docs" / "research" / "analysis"
 OUT = Path(__file__).resolve().parent / "png"
 DPI = 600
-WIDE, NARROW = 7.16, 3.5          # IEEE double- and single-column widths (inches)
+WIDE, NARROW = 6.27, 3.5          # the template's text width (A4 less 2.54 cm margins), and a column
 
 # Okabe-Ito: distinguishable in colour-blind vision and still separable in grey.
 COLOURS = {"B2": "#E69F00", "B3": "#56B4E9", "P": "#009E73", "ink": "#222222",
@@ -46,8 +47,10 @@ def style() -> None:
         if font.exists():
             font_manager.fontManager.addfont(str(font))
     plt.rcParams.update({
-        "font.family": "Times New Roman", "font.size": 8, "axes.titlesize": 8,
-        "axes.labelsize": 8, "xtick.labelsize": 7, "ytick.labelsize": 7, "legend.fontsize": 7,
+        # The template asks for 8 to 10 pt as printed; each chart is drawn at about the width
+        # it is placed at, so these are the printed sizes.
+        "font.family": "Times New Roman", "font.size": 8.5, "axes.titlesize": 8.5,
+        "axes.labelsize": 8.5, "xtick.labelsize": 8, "ytick.labelsize": 8, "legend.fontsize": 8,
         "axes.linewidth": 0.6, "xtick.major.width": 0.6, "ytick.major.width": 0.6,
         "lines.linewidth": 1.2, "savefig.dpi": DPI, "figure.dpi": 100,
         "axes.spines.top": False, "axes.spines.right": False, "hatch.linewidth": 0.5,
@@ -77,23 +80,43 @@ def analysis(name: str, figure: str) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def label(ax: Any, letter: str, offset: float = -30) -> None:
-    """(a), (b) ... centred below the panel, as the template's multipart-figure rule asks."""
-    ax.annotate(f"({letter})", xy=(0.5, 0), xycoords="axes fraction", xytext=(0, offset),
-                textcoords="offset points", ha="center", va="top", fontsize=8)
+def label(ax: Any, letter: str) -> None:
+    """(a), (b) ... centred below the panel, as the template's multipart-figure rule asks.
+
+    Placed by `save`, under everything the panel draws - tick labels, axis title, legend - so it
+    lands clear of them whatever their size; a fixed offset sat on the axis title at 8 pt.
+    """
+    ax.figure.panel_labels = [*getattr(ax.figure, "panel_labels", []), (ax, letter)]
 
 
-def bar_values(ax: Any, bars: Any, fmt: str = "{:.2f}", pad: float = 1.5) -> None:
+def place_panel_labels(fig: Any) -> None:
+    labels = getattr(fig, "panel_labels", [])
+    if not labels:
+        return
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    to_figure = fig.transFigure.inverted()
+    gap = 3 * fig.dpi / 72   # three points below the panel's lowest text
+    for ax, letter in labels:
+        bottom = ax.get_tightbbox(renderer).y0 - gap
+        box = ax.get_position()
+        fig.text((box.x0 + box.x1) / 2, to_figure.transform((0, bottom))[1], f"({letter})",
+                 ha="center", va="top", fontsize=8.5)
+
+
+def bar_values(ax: Any, bars: Any, fmt: str = "{:.2f}", pad: float = 1.5,
+               rotation: float = 0) -> None:
     for bar in bars:
         height = bar.get_height()
         ax.annotate(fmt.format(height), xy=(bar.get_x() + bar.get_width() / 2, height),
                     xytext=(0, pad), textcoords="offset points", ha="center", va="bottom",
-                    fontsize=6.5)
+                    fontsize=8, rotation=rotation)
 
 
 def save(fig: Any, name: str) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / f"{name}.png"
+    place_panel_labels(fig)
     fig.savefig(path, dpi=DPI, bbox_inches="tight", pad_inches=0.03, facecolor="white")
     plt.close(fig)
     print(f"  {path.relative_to(ROOT)}")
@@ -114,7 +137,7 @@ def fig21() -> None:
                   hatch=[HATCH[k] for _, k, _ in present], edgecolor=COLOURS["ink"], linewidth=0.5)
     bar_values(ax, bars, "{:.0f}")
     ax.set_ylabel("End-to-end wall clock (s)")
-    label(ax, "a", -22)
+    label(ax, "a")
 
     ax = axes[1]
     metrics = [("test_pr_auc", "PR-AUC"), ("test_roc_auc", "ROC-AUC")]
@@ -124,12 +147,13 @@ def fig21() -> None:
         vals = [t[c].get(key) or 0 for c, _, _ in present]
         bars = ax.bar(xs, vals, width=width, label=name, edgecolor=COLOURS["ink"], linewidth=0.5,
                       color=COLOURS["blue"] if i == 0 else COLOURS["muted"])
-        bar_values(ax, bars, "{:.3f}")
+        bar_values(ax, bars, "{:.3f}", rotation=90)   # side by side they ran together
     ax.set_xticks(range(len(present)), [n for *_, n in present])
-    ax.set_ylim(0, 1.05)
+    ax.set_ylim(0, 1.3)
+    ax.set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])   # a score stops at 1; the rest is room for labels
     ax.set_ylabel("Score on the sealed test cutoff")
     ax.legend(frameon=False, loc="upper left", ncols=2)
-    label(ax, "b", -22)
+    label(ax, "b")
     save(fig, "Fig 21 Performance Benchmark Results")
 
 
@@ -167,7 +191,7 @@ def fig22() -> None:
     ax.set_xlabel("Customers in the synthetic dataset")
     ax.set_ylabel("Wall clock (s)")
     ax.legend(frameon=False)
-    label(ax, "a", -28)
+    label(ax, "a")
 
     ax = axes[0][1]
     series = (("b2_peak_rss_mb", "B2 Python process", COLOURS["B2"], "o"),
@@ -186,15 +210,15 @@ def fig22() -> None:
                 linewidth=0.9, label="B3 JVM + Python driver (sum of peaks)")
     ax.axhline(3000, color=COLOURS["warn"], linestyle="--", linewidth=0.8)
     ax.annotate("container limit (3 000 MiB)", xy=(0.02, 3000), xycoords=("axes fraction", "data"),
-                xytext=(0, 2), textcoords="offset points", fontsize=6.5, color=COLOURS["warn"])
+                xytext=(0, 2), textcoords="offset points", fontsize=8, color=COLOURS["warn"])
     ax.set_xscale("log")
     ax.set_xlabel("Customers in the synthetic dataset")
     ax.set_ylabel("Peak resident memory (MiB)")
     # Room above the container limit for the legend, clear of every series.
     highest = max([3000.0, *(y for line in ax.get_lines() for y in line.get_ydata())])
-    ax.set_ylim(top=highest * 1.32)
+    ax.set_ylim(top=highest * 1.8)
     ax.legend(frameon=False, loc="upper left")
-    label(ax, "b", -28)
+    label(ax, "b")
 
     arms = sorted((int(k.split("_")[1]), v) for k, v in e3.items() if k.startswith("local_"))
     cores = [c for c, _ in arms]
@@ -207,8 +231,9 @@ def fig22() -> None:
     ax.set_xticks(cores, [f"local[{c}]" for c in cores])
     ax.set_xlabel("Spark parallelism (cores in one JVM)")
     ax.set_ylabel("Speed-up over one core (x)")
+    ax.set_ylim(0.8, 5.4)   # room above the linear line for the legend
     ax.legend(frameon=False, loc="upper left")
-    label(ax, "c", -28)
+    label(ax, "c")
 
     ax = axes[1][1]
     width = 0.36
@@ -226,7 +251,7 @@ def fig22() -> None:
     ax.set_xlabel("Spark parallelism (cores in one JVM)")
     ax.set_ylabel("Time (s)")
     ax.legend(frameon=False, loc="upper left")
-    label(ax, "d", -28)
+    label(ax, "d")
     save(fig, "Fig 22 Scalability Analysis")
 
 
@@ -274,9 +299,9 @@ def fig23() -> None:
         left = [a + b for a, b in zip(left, widths, strict=True)]
     ax.set_xlabel("Seeded faults (count)")
     ax.legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncols=3,
-              fontsize=6.5)
+              fontsize=8)
     ax.invert_yaxis()
-    label(ax, "a", -24)
+    label(ax, "a")
 
     # (b) What each gate costs: seconds from submission to the verdict on each seeded fault. A
     # fault no gate caught is drawn hollow at the time it took to pass all of them.
@@ -299,10 +324,10 @@ def fig23() -> None:
     ax.scatter([], [], s=14, facecolors="none", edgecolors=COLOURS["warn"],
                label="passed every gate run")
     ax.set_yscale("log")
-    ax.set_xticks(range(len(names)), names, rotation=15, ha="right", fontsize=6.5)
+    ax.set_xticks(range(len(names)), names, rotation=15, ha="right", fontsize=8)
     ax.set_ylabel("Time to the gate verdict (s)")
     ax.legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, 1.0), ncols=2)
-    label(ax, "b", -30)
+    label(ax, "b")
     save(fig, "Fig 23 Agent Efficiency Comparison")
 
 
@@ -338,14 +363,14 @@ def fig24() -> None:
             else:
                 scores[name].append(x / max(known.values()))
     angles = [2 * math.pi * i / len(axes_def) for i in range(len(axes_def))]
-    fig = plt.figure(figsize=(NARROW, 3.1))
+    fig = plt.figure(figsize=(7.4, 6.9))
     ax = fig.add_subplot(projection="polar")
     for (_, key, name) in present:
         vals = scores[name] + scores[name][:1]
         ax.plot(angles + angles[:1], vals, color=COLOURS[key], linewidth=1.1, label=name)
         ax.fill(angles + angles[:1], vals, color=COLOURS[key], alpha=0.12)
-    ax.set_xticks(angles, [a for a, *_ in axes_def], fontsize=6.5)
-    ax.set_yticks([0.25, 0.5, 0.75, 1.0], ["0.25", "0.5", "0.75", "1"], fontsize=6)
+    ax.set_xticks(angles, [a for a, *_ in axes_def], fontsize=8)
+    ax.set_yticks([0.25, 0.5, 0.75, 1.0], ["0.25", "0.5", "0.75", "1"], fontsize=8)
     ax.set_ylim(0, 1.05)
     ax.spines["polar"].set_linewidth(0.5)
     ax.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.08), ncols=3)
@@ -401,26 +426,27 @@ def fig25() -> None:
     rows.append(("governance bypass attempts refused (EXP-10)",
                  sum(1 for v in attempts.values() if v.get("_ok")), len(attempts)))
 
-    fig, axes = plt.subplots(1, 2, figsize=(WIDE, 2.8),
-                             gridspec_kw={"wspace": 0.25, "width_ratios": [1.15, 1]})
+    fig, axes = plt.subplots(1, 2, figsize=(WIDE, 3.4),
+                             gridspec_kw={"wspace": 0.3, "width_ratios": [1.15, 1]})
     ax = axes[0]
-    names = [r[0] for r in rows]
+    names = [textwrap.fill(r[0], 26) for r in rows]
     shares = [r[1] / r[2] if r[2] else 0 for r in rows]
     bars = ax.barh(names, shares, color=COLOURS["P"], edgecolor=COLOURS["ink"], linewidth=0.5)
     for bar, (_, k, n) in zip(bars, rows, strict=True):
         ax.annotate(f"{k} of {n}", xy=(bar.get_width(), bar.get_y() + bar.get_height() / 2),
-                    xytext=(2, 0), textcoords="offset points", va="center", fontsize=6.5)
+                    xytext=(2, 0), textcoords="offset points", va="center", fontsize=8)
     ax.set_xlim(0, 1.18)
     ax.set_xlabel("Share of injected cases (fraction)")
-    ax.tick_params(axis="y", labelsize=6.5)
+    ax.tick_params(axis="y", labelsize=8)
     ax.invert_yaxis()
-    label(ax, "a", -24)
+    label(ax, "a")
 
     ax = axes[1]
     trust = analysis("trust_scores.json", "Fig 25")
     runs = [r for r in trust.get("runs", []) if r.get("trust_score") is not None]
     keys = ("chain", "gates", "calib", "claims", "approval", "lineage")
     width = 0.8 / max(1, len(runs))
+    missing: dict[str, list[float]] = {}
     for i, run in enumerate(runs):
         comp = run["components"]
         xs = [j + (i - (len(runs) - 1) / 2) * width for j in range(len(keys))]
@@ -430,14 +456,17 @@ def fig25() -> None:
                label=f"{run['run']} (TS {run['trust_score']:.2f})")
         for x, k in zip(xs, keys, strict=True):
             if comp.get(k) is None:
-                ax.annotate("n/a", xy=(x, 0.02), ha="center", va="bottom", fontsize=5.5,
-                            rotation=90)
-    ax.set_xticks(range(len(keys)), keys, fontsize=6.5, rotation=25, ha="right")
+                missing.setdefault(k, []).append(x)
+    # One mark per group: a mark per missing bar overlapped its neighbours at 8 pt.
+    for xs_missing in missing.values():
+        ax.annotate("n/a", xy=(sum(xs_missing) / len(xs_missing), 0.02), ha="center",
+                    va="bottom", fontsize=8)
+    ax.set_xticks(range(len(keys)), keys, fontsize=8, rotation=25, ha="right")
     ax.set_ylim(0, 1.75)
     ax.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
     ax.set_ylabel("Trust-score component (0 to 1)")
-    ax.legend(frameon=False, loc="upper center", fontsize=6)
-    label(ax, "b", -30)
+    ax.legend(frameon=False, loc="upper center", fontsize=8)
+    label(ax, "b")
     save(fig, "Fig 25 Reliability Assessment Model")
 
 
@@ -446,7 +475,11 @@ def fig25() -> None:
 
 def fig28() -> None:
     snap = analysis("business_snapshot.json", "Fig 28")
-    fig, axes = plt.subplots(1, 3, figsize=(WIDE, 2.4), gridspec_kw={"wspace": 0.45})
+    # Two rows: three panels side by side at the template's text width leave no room for 8 pt
+    # labels, so the segment comparison, the widest, takes the second row to itself.
+    fig = plt.figure(figsize=(WIDE, 5.0))
+    grid = fig.add_gridspec(2, 2, height_ratios=[1, 1], hspace=0.62, wspace=0.42)
+    axes = [fig.add_subplot(grid[0, 0]), fig.add_subplot(grid[1, :]), fig.add_subplot(grid[0, 1])]
 
     ax = axes[0]
     gain = snap["cumulative_gain"]
@@ -455,10 +488,10 @@ def fig28() -> None:
     ax.plot([k * 100 for k in ks], [c * 100 for c in captured], color=COLOURS["P"],
             label="model ranking")
     ax.plot([0, 100], [0, 100], linestyle=":", color=COLOURS["muted"], label="random order")
-    ax.set_xlabel("Customers contacted, highest risk first (%)")
+    ax.set_xlabel("Customers contacted,\nhighest risk first (%)")
     ax.set_ylabel("Churners reached (%)")
     ax.legend(frameon=False, loc="lower right")
-    label(ax, "a", -26)
+    label(ax, "a")
 
     ax = axes[1]
     review = snap.get("segment_threshold_review") or {}
@@ -478,11 +511,12 @@ def fig28() -> None:
                  label="each segment's own")
     bar_values(ax, one, "{:.2f}", 1)
     bar_values(ax, own, "{:.2f}", 1)
-    ax.set_xticks(list(xs), names, rotation=20, ha="right", fontsize=6.5)
+    ax.set_xticks(list(xs), names, fontsize=8)
     ax.set_ylim(0, 0.75)
-    ax.set_ylabel("Churners flagged, by tenure (recall)")
-    ax.legend(frameon=False, loc="upper left", fontsize=6.5)
-    label(ax, "b", -38)
+    ax.set_xlabel("Customer tenure")
+    ax.set_ylabel("Churners flagged (recall)")
+    ax.legend(frameon=False, loc="upper left", fontsize=8)
+    label(ax, "c")
 
     ax = axes[2]
     order = ["high", "medium", "low"]
@@ -493,7 +527,7 @@ def fig28() -> None:
     bar_values(ax, bars, "{:.0f}")
     ax.set_xlabel("Risk band")
     ax.set_ylabel("Customers scored (count)")
-    label(ax, "c", -26)
+    label(ax, "b")
     save(fig, "Fig 28 Business Impact Dashboard")
 
 

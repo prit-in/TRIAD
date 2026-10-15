@@ -25,7 +25,7 @@ removing it.
 depends on data size, and the choice is usually made once, by hand, and never revisited. Tuning
 Spark itself is a research field of its own [@herodotou2020tuning].
 
-**Heterogeneous environments.** Python, the Java virtual machine, Scala, Spark, and their
+**Heterogeneous environments.** Python, the Java virtual machine (JVM), Scala, Spark, and their
 libraries each have versions, and a pipeline that works on one machine fails on another for
 reasons unrelated to its logic.
 
