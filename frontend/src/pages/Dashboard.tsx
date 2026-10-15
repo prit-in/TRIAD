@@ -20,7 +20,7 @@ export function Dashboard() {
         <Tile
           label="Success rate"
           value={stats.data ? pct(stats.data.success_rate, 0) : "…"}
-          note={stats.data ? `of ${stats.data.runs_finished} finished runs` : undefined}
+          note={stats.data ? `of ${stats.data.runs_finished} runs that ended (cancelled and escalated excluded)` : undefined}
         />
         <Tile label="Open alerts" value={stats.data?.open_alerts ?? "…"} />
         <Tile label="Pending approvals" value={stats.data?.pending_approvals ?? "…"} />

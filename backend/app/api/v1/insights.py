@@ -415,11 +415,12 @@ def dashboard_stats(session: DbSession, user: CurrentUser) -> dict:
         select(func.count()).select_from(PipelineRun)
         .where(func.date(PipelineRun.started_at) == today)
     ).scalar_one()
+    # Runs that ended on their own. A cancelled run was withdrawn - every experiment cancels its
+    # runs once it has read them - and an escalated one waits for a person; counted as failures
+    # they put this tile at 8% on a platform whose runs mostly did what they were asked.
     finished = session.execute(
         select(PipelineRun.state).where(
-            PipelineRun.state.in_(
-                ("COMPLETED", "PUBLISHED", "FAILED", "ABORTED", "ESCALATED", "CANCELLED")
-            )
+            PipelineRun.state.in_(("COMPLETED", "PUBLISHED", "FAILED", "ABORTED"))
         )
     ).scalars().all()
     succeeded = sum(1 for s in finished if s in ("COMPLETED", "PUBLISHED"))

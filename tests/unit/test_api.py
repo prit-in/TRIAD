@@ -612,6 +612,21 @@ def test_dashboard_stats_are_computed_not_stored(client, users) -> None:
     assert after["runs_today"] == before["runs_today"] + 1
 
 
+def test_the_success_rate_counts_only_runs_that_ended_on_their_own(client, users, db_session) -> None:
+    """A withdrawn run, or one waiting for a person, is neither a success nor a failure."""
+    from agents.graph import queue as q
+
+    before = client.get("/api/v1/stats", headers=_auth(users["admin"])).json()
+    for state in ("CANCELLED", "ESCALATED"):
+        run = q.create_run(db_session, pipeline_name=_pipeline(), trigger_type="manual",
+                           triggered_by="tester")
+        run.state = state
+    db_session.flush()
+    after = client.get("/api/v1/stats", headers=_auth(users["admin"])).json()
+    assert after["runs_finished"] == before["runs_finished"]
+    assert after["success_rate"] == before["success_rate"]
+
+
 # --- the signing key -----------------------------------------------------------
 
 
