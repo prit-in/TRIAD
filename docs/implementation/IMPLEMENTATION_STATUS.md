@@ -5,13 +5,17 @@ everything after it where they disagree.
 
 ## Progress, 14-10-2026 (read first)
 
-**Final runs.** Every experiment has a final run on the current code except EXP-2, whose re-run
-after DEC-54 started at 17:10 UTC on 14-10-2026 as a detached batch.
+**Final runs.** Every experiment has a final run on the current code except EXP-2. Its third
+re-run, after DEC-55, started at 21:45 UTC on 14-10-2026 as a detached batch, with the
+orchestrator stopped:
+- run folder `20261014T214513Z`;
+- container `triad-exp-exp-2-20261014T214500`;
+- P is `run-2026-10-14-005`, which started at 22:48.
 
 | Exp | Run | Result |
 | --- | --- | --- |
 | EXP-1 | `20261013T132108Z` | partial, held - P 1 230 s (gates 553 s), B3 53 s, B2 6.9 s; 0.957 of P's time beyond B3's; like-for-like 0.776 against P's 0.741; runs of 11-10 (786 s) and 12-10 (2 296 s, busy host) agree on every count and score |
-| EXP-2 | re-run of 14-10 in progress | run of 13-10 `20261013T134333Z` kept with a NOTE.md: B2 killed by the memory limit at 200 000 customers, B3 finished every rung (592 s at 200 000), P raised on the host share after 1 604 s (DEC-54) |
+| EXP-2 | third re-run in progress (`20261014T214513Z`) | kept with NOTE.md files: 13-10 `20261013T134333Z` (B2 killed at 200 000, B3 592 s there; P raised on the host share after 1 604 s, DEC-54) and 14-10 `20261014T171107Z` (the same ladder, B3 632 s; P's feature job timed out after an hour at 1 GB and 8 partitions, then a scheduled retrain rebuilt the shared JAR under it, DEC-55; P ran 5 493 s) |
 | EXP-3 | `20261011T064506Z` | partial, did not hold - 1.258x on 2 cores, 1.33x on 4, doubling 1.057x |
 | EXP-4 | `20261011T065017Z` | completed, held - 3 of 3 faults detected and handled; recovery 172 s after the approval |
 | EXP-5 | `20261011T111552Z` | completed, did not hold - identical to the run of 10-10 in 149 of 155 measurements |
@@ -33,9 +37,15 @@ after DEC-54 started at 17:10 UTC on 14-10-2026 as a detached batch.
 - **DEC-52.** The sandbox outlasts a stalled engine, and `SANDBOX_UNAVAILABLE` is a class of its own.
 - **DEC-53.** Correlation ids, readable errors, resume and an idempotent audited export in the API and dashboard.
 - **DEC-54.** A workspace write refused while generating is classified and retried.
+- **DEC-55.** A run's Scala build is its own: one build at a time, under a lock, with run-scoped JAR copies; no stale reports; deadline kills classified as timeouts; a dead JVM no longer hides P's result; and the batch waits out a busy engine (51fd724).
 
-Environment: after the reboot of 14-10, Windows reserved ports 55057-55556. The gitignored
-`docker/.env` therefore sets `TRIAD_PG_PORT=54432`.
+Environment:
+- After the reboot of 14-10, Windows reserved ports 55057-55556. The gitignored `docker/.env`
+  therefore sets `TRIAD_PG_PORT=54432`.
+- **The orchestrator is stopped for EXP-2. Start it again when EXP-2 ends** (`docker compose -f
+  docker/compose.yaml start orchestrator`).
+- A drift retrain the scheduler started on 14-10 (`run-2026-10-14-002`) is ESCALATED and waits
+  for a person: segment recall gap 0.249 in the tenure bands.
 
 **Next, in order:**
 1. When EXP-2 ends: §15.2 and every PENDING marker (Sections 00, 13, 15, 16 and 22); then the EXPERIMENTS.md EXP-2 section and its summary paragraph.
