@@ -1,7 +1,30 @@
 # IMPLEMENTATION_STATUS
 
-Updated: 14-10-2026. **Read this file first when resuming.** The newest handoff below supersedes
+Updated: 15-10-2026. **Read this file first when resuming.** The newest handoff below supersedes
 everything after it where they disagree.
+
+## Done on 15-10-2026 (read first)
+
+Everything that does not need the team's details is complete:
+- **Experiments.** All ten are concluded and written up. EXP-2: B2 fails first at 200 000
+  customers and B3 finishes; P does not finish there on this node; did not hold.
+- **The report.**
+  - It builds with `--final`: 55 pages, every section within its range, 32 figures, 15 tables,
+    10 equations and 118 verified references.
+  - Its front matter matches the course's reference layout: cover, Index, the two lists,
+    Contributions, and every page numbered.
+  - Chart text prints at 8 to 10 pt, and abbreviations are defined at first use.
+- **Compliance.** The checklist stands at 46 done, 4 partial, 3 final (team details) and 1
+  pending (execution videos).
+- **Browser pass.** All eleven pages were checked. The dashboard's success rate now excludes
+  withdrawn and escalated runs.
+
+**Waiting on the team:**
+- names, registration numbers, photographs, VIT e-mails, author order and the corresponding
+  author (cover, author line, Contributions, biographies);
+- the public repository link (Data Availability);
+- the execution videos;
+- optionally, an LLM key for EXP-8's repair rate.
 
 ## Progress, 14-10-2026 (read first)
 
