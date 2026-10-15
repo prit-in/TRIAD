@@ -190,7 +190,10 @@ def fig22() -> None:
     ax.set_xscale("log")
     ax.set_xlabel("Customers in the synthetic dataset")
     ax.set_ylabel("Peak resident memory (MiB)")
-    ax.legend(frameon=False, loc="center left")
+    # Room above the container limit for the legend, clear of every series.
+    highest = max([3000.0, *(y for line in ax.get_lines() for y in line.get_ydata())])
+    ax.set_ylim(top=highest * 1.32)
+    ax.legend(frameon=False, loc="upper left")
     label(ax, "b", -28)
 
     arms = sorted((int(k.split("_")[1]), v) for k, v in e3.items() if k.startswith("local_"))

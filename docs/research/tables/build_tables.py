@@ -28,21 +28,22 @@ def load(exp: str) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
 
 
 def num(value: Any, digits: int = 3) -> str:
+    # Thousands are grouped with a space, as the manuscript's text writes them ("1 230 s").
     if value is None:
         return "not measured"
     if isinstance(value, bool):
         return "yes" if value else "no"
     if isinstance(value, int):
-        return f"{value:,}"
+        return f"{value:_}".replace("_", " ")
     if isinstance(value, float):
-        text = f"{value:,.{digits}f}"
+        text = f"{value:_.{digits}f}".replace("_", " ")
         # Trailing zeros only after a decimal point: "540" must stay 540.
         return text.rstrip("0").rstrip(".") if "." in text else text
     return str(value)
 
 
 def secs(value: Any) -> str:
-    return "not measured" if not isinstance(value, (int, float)) else f"{value:,.0f} s"
+    return "not measured" if not isinstance(value, (int, float)) else f"{value:_.0f} s".replace("_", " ")
 
 
 def share(trials: dict[str, dict[str, Any]], keep: Any, test: Any) -> str:
@@ -71,18 +72,18 @@ def key_result(exp: str, trials: dict[str, dict[str, Any]]) -> str:
                   + (f", {num(p.get('p_to_b3_time_ratio'))} x B3's time"
                      if p.get("p_to_b3_time_ratio") is not None else ""))
         if failed:
-            return f"B2 failed and B3 completed at {failed[0]:,} customers" + p_text
+            return f"B2 failed and B3 completed at {num(failed[0])} customers" + p_text
         b3_first = next((n for n, v in rungs
                          if v.get("b2_completed") and v.get("b3_completed") is False), None)
         if b3_first:
-            return f"B3 failed while B2 completed at {b3_first:,} customers"
+            return f"B3 failed while B2 completed at {num(b3_first)} customers"
         both_failed = next((n for n, v in rungs
                             if v.get("b2_completed") is False and v.get("b3_completed") is False),
                            None)
         if both_failed:
-            return f"both failed at {both_failed:,} customers"
+            return f"both failed at {num(both_failed)} customers"
         both = [n for n, v in rungs if v.get("b2_completed") and v.get("b3_completed")]
-        return f"no crossover; both completed up to {both[-1]:,} customers" if both else "no rung completed"
+        return f"no crossover; both completed up to {num(both[-1])} customers" if both else "no rung completed"
     if exp == "EXP-3":
         four = t.get("local_4_cores", {})
         return (f"speed-up 1 to 2 cores {num(t.get('local_2_cores', {}).get('speed_up_vs_1_core'))}, "
