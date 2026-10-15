@@ -6,9 +6,9 @@ reading the code and the tests rather than by reading the earlier status documen
 **The point of this document is the "not met" column.** A traceability matrix that maps every
 requirement to a tick is a matrix nobody checked.
 
-Verified on 08-10-2026: 725 Python tests passing (unit, security and smoke; one smoke check
-skipped because it needs the Docker CLI inside the test container) and 33 Scala tests passing,
-on the code committed that day. The experiments are re-run on the same code (EXPERIMENTS.md).
+Verified on 14-10-2026: 822 Python tests passing (unit, security and smoke; one smoke check
+skipped because it needs the Docker CLI inside the test container), on the code of DEC-55
+(commit 39625b0). The experiments' final runs are listed in EXPERIMENTS.md.
 
 ## Summary
 
