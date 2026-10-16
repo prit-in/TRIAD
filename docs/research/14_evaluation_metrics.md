@@ -100,5 +100,5 @@ people.
   AP-8: DEC-19.
 - Threshold: `choose_threshold`, `pipelines/churn_v1.yaml` (`strategy: capacity`,
   `capacity_share: 0.15`).
-- JVM start-up measured separately and peak memory per process: commit `9f89a24` (#14, #15);
+- JVM start-up measured separately and peak memory per process: commit `6bfda2c` (#14, #15);
   `experiments/baselines.py` (`run_isolated`, `jvm_peak_rss_mb`).

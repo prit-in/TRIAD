@@ -97,7 +97,7 @@ intervals before such a platform is used on small data.
   absorbed by Spark's retries; local kill resubmitted; 460m spilled 183.6 MB), `20261010T113128Z`,
   `experiments/EXP-6/pilot_20261010.md`, `experiments/EXP-6/diag_feature_determinism_20261010.md`.
 - Boundary defects: DEC-05, DEC-11; quarantine mount and hostname: run-2026-10-04-001 and
-  run-2026-10-04-002, DEC-25; commit messages of 88a3d72 and its successor.
+  run-2026-10-04-002, DEC-25; commit messages of f61248e and its successor.
 - Gate timings: run-2026-10-03-002 `code_artifacts.gate_results` (gate 4: 45-279 s; gate 5:
   394-722 s first time, 0 s cached; gate 6: 69-220 s).
 - Memory budget: DEC-23. LangGraph: DEC-24. Noise floors: `experiments/EXP-5/calibration_noise_floor.json`,

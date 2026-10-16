@@ -85,4 +85,4 @@ with enough repetitions to tell an effect from noise.
 - Scaling: EXP-3 `20261011T064506Z` (1.258x and 1.33x against one core; 1.057x from two to
   four); EXP-2 `20261014T171107Z`, `20261013T134333Z` (B2
   killed at 200 000, B3 every rung) and P's three attempts (Section 15 evidence).
-- Defects: commits 36038cb, 46dd494.
+- Defects: commits cf340e2, 3f6a1eb.

@@ -8,7 +8,7 @@ reasoning behind each requirement is in `FACULTY_MATERIALS_ANALYSIS.md`.
 Status: **DONE** (evidence named) · **PARTIAL** · **PENDING** (not started) · **FINAL** (deferred
 by instruction to the finalization stage) · **N/A** (with the reason).
 
-**State on 16-10-2026:** 50 DONE, 3 PARTIAL, 0 FINAL, 1 PENDING (the execution videos), 1 N/A.
+**State on 16-10-2026:** 51 DONE, 2 PARTIAL, 0 FINAL, 1 PENDING (the execution videos), 1 N/A.
 
 ## Identity and front matter
 
@@ -100,7 +100,7 @@ by instruction to the finalization stage) · **N/A** (with the reason).
 | --- | --- | --- | --- | --- | --- |
 | 50 | Complete manuscript in Word format | G | `docs/final/TRIAD_Manuscript_26FSPDSCPMID4096.docx` (.pdf beside it) | DONE | 55 pages; Word fills the page references; every page numbered |
 | 51 | Diagram folder | G | `docs/research/figures/` | DONE | draw.io sources, SVG and PNG exports |
-| 52 | Source code folder, preferably GitHub with link | G | https://github.com/pritdadhania27/TRIAD | PARTIAL | link given by the team; publishing the repository is the team's step |
+| 52 | Source code folder, preferably GitHub with link | G | https://github.com/prit-in/TRIAD | DONE | public repository; the full history pushed on 16-10-2026 |
 | 53 | Datasets folder | G | `datasets/synthetic/` | DONE | seeded generator; each experiment's sizes and seeds stored with its results; no data committed (by rule) |
 | 54 | Execution videos folder | G | `videos/` | PENDING | needs a person to record; `scripts/run_demo.py` runs the demonstration scenario end to end |
-| 55 | Data availability statement, same in manuscript and submission | G | `docs/research/data_availability.md` | DONE | statement in the repository form, with the link https://github.com/pritdadhania27/TRIAD |
+| 55 | Data availability statement, same in manuscript and submission | G | `docs/research/data_availability.md` | DONE | statement in the repository form, with the link https://github.com/prit-in/TRIAD |

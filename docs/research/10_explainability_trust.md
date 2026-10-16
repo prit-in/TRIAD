@@ -113,7 +113,7 @@ completely a run's claims are backed, not how good its model is (Section 17).
 ## Evidence (not part of the manuscript)
 
 - Explanation methods and labels: `python_ml/triad_ml/predict.py`; per-customer reasons fixed
-  03-10-2026 (commit `9f89a24`).
+  03-10-2026 (commit `6bfda2c`).
 - Evaluation record and curves: `reports/<run_key>/evaluation.json`, served at
   `GET /models/{ref}/versions/{id}/evaluation`; model card: `model_card_uri`.
 - Calibration remedy chain and evidence fields: DEC-03; `ece_n_rows` in acceptance evidence

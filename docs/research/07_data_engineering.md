@@ -155,7 +155,7 @@ Section 15 reports how often each happened under injected faults.
 - Row accounting (2): `CleaningRules.scala` (`balanced`, `requireBalanced`).
 - Contracts: `pipelines/contracts/*.yaml`; enforcement at ingest found unreachable and fixed by
   EXP-4. Identifier nulls: DEC-08. Cleaning policy gate: DEC-12.
-- Cancellations as returns: commit `9f89a24` (FR-025 audit); fixture `ChurnFixtures`.
+- Cancellations as returns: commit `6bfda2c` (FR-025 audit); fixture `ChurnFixtures`.
 - EXP-4: `docs/implementation/EXPERIMENTS.md`; `experiments/EXP-4/`.
 - Feature availability: FeatureJob metrics, run-2026-10-03-002 ("all five groups available").
 - Catalogue: `configs/feature_catalog.yaml` (`fsv=2`); DEC-21.

@@ -92,7 +92,7 @@ is the property the score measures.
 - 17.2: `scripts/replay_run.py`; ATC-18 run-2026-09-21-007 (traceability).
 - 17.3: EXP-8, EXP-9, EXP-10 `latest.json`; lease recovery run-2026-10-03-002.
 - 17.4: run-2026-10-07-001 audit entries and approvals (Section 15/19 evidence); defects:
-  commits 36038cb (bundle, card), 46dd494 (rollback).
+  commits cf340e2 (bundle, card), 3f6a1eb (rollback).
 - 17.5: `docs/research/analysis/trust_scores.json`, computed 09-10-2026 (runs 2026-10-07-001
   1.00; 2026-10-04-006 and 2026-10-04-004 1.00 on chain, gates, lineage; 2026-10-08-002 0.67 -
   chain 1, gates 0, lineage 1 - the EXP-1 run whose generated CleanJob failed gate 4 three times,
